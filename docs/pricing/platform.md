@@ -4,12 +4,12 @@
 
 - Gateway + Docling on Azure Container Apps (uksouth)
 - Azure APIM (Consumption tier) for auth, rate limiting, usage logging
-- Azure OpenAI GPT-4o for image captioning (migrating to GPT-5-nano)
+- Azure OpenAI GPT-4o for image captioning (DataZoneStandard, swedencentral)
 - LibreOffice disabled — legacy formats (.doc, .xls, .ppt) rejected with 400
 - CI/CD via GitHub Actions, manual deploy via Makefile
 - Terraform (OpenTofu) manages all infrastructure in `rg-canonizr-prod`
 
-## Pricing: $0.005 per 100KB, captioning included
+## Pricing: $0.003 per 100KB, captioning included
 
 - One universal unit: **per 100KB of input file size** (rounded up)
 - Image captioning included — no separate line item
@@ -33,22 +33,11 @@
 | Google Document AI | $0.01-0.065/page | Per page | No |
 | AWS Textract | ~$0.015/page | Per page | No |
 | Azure Document Intelligence | ~$0.01/page | Per page | No |
-| **Canonizr** | **$0.005/100KB** | **Per 100KB** | **Yes, included** |
+| **Canonizr** | **$0.003/100KB** | **Per 100KB** | **Yes, included** |
 
-### Scenario pricing
-
-| Document | Size | Canonizr | Unstructured |
-|---|---|---|---|
-| 10-page text PDF | 500KB | $0.025 | $0.30 |
-| 2-page PDF, images | 2MB | $0.10 | $0.06 |
-| 50-page scanned PDF | 25MB | $1.25 | $1.50 |
-| 50-page report, 10 images | 3MB | $0.15 | $1.50 |
-| 500KB HTML | 500KB | $0.025 | $0.15 |
-
-Cheaper on text-heavy and multi-page documents. Image-heavy short PDFs (high KB-to-page ratio) are our weak spot — per-KB penalises large embedded images.
 
 ### Cost base
-- Standing infra: ~$150-170/month (docling container is the bulk)
+- Standing infra: ~$194/month (Docling 2 vCPU/4GiB is the bulk)
 - Per-request compute: ~$0.002-0.01
 - Per-caption (GPT-4o): ~$0.002/document — negligible against pricing
 - Verify against real Azure bills, not estimates
@@ -59,7 +48,7 @@ Cheaper on text-heavy and multi-page documents. Image-heavy short PDFs (high KB-
 
 **Tested**: GPT-5-nano — 50x cheaper but ~7x slower on vision tasks (7s/image vs ~0.5s). Reasoning tokens consumed even with `reasoning_effort: none`. Unusable for interactive latency. Revisit when vision performance improves.
 
-**Decision**: Stay on GPT-4o. Cost per caption (~$0.002) is negligible against $0.005/100KB pricing. Latency matters more than token cost.
+**Decision**: Stay on GPT-4o. Cost per caption (~$0.002) is negligible against $0.003/100KB pricing. Latency matters more than token cost.
 
 Nebius (Qwen2.5-VL) was considered but deferred — licensing complexity (attribution, MAU cap) and more expensive than GPT-5-nano.
 
