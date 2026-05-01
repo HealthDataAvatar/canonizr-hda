@@ -64,10 +64,10 @@ variable "docling_memory" {
 variable "openai_model" {
   description = "Azure OpenAI model deployment name for captioning"
   type        = string
-  default     = "gpt-5-nano"
+  default     = "gpt-4o"
 }
 
 variable "openai_model_version" {
   type    = string
-  default = "2025-08-07"
+  default = "2024-11-20"
 }

@@ -115,7 +115,7 @@ resource "azurerm_container_app" "gateway" {
 
       env {
         name  = "CAPTIONING_API_PARAMS"
-        value = "{\"max_completion_tokens\":1024,\"reasoning_effort\":\"none\"}"
+        value = "{\"max_completion_tokens\":1024}"
       }
 
       # Docling is reachable via the internal FQDN within the Container Apps environment
