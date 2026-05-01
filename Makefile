@@ -19,7 +19,6 @@ deploy: push
 		--name canonizr-gateway \
 		--resource-group rg-canonizr-prod \
 		--image $(ACR_SERVER)/$(IMAGE_NAME):$(TAG) \
-		--replace-env-vars DEPLOY_TIME=$(shell date +%Y%m%d-%H%M%S)
 
 gateway-logs:
 	az containerapp logs show --name canonizr-gateway --resource-group rg-canonizr-prod --tail 50
