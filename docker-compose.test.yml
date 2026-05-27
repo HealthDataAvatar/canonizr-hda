@@ -14,7 +14,6 @@ services:
       context: ./gateway
       dockerfile: gateway.dockerfile
     environment:
-      QUEUE_MODE: "true"
       REDIS_URL: redis://redis:6379
       BLOB_STORE_URL: file:///data/blobs
       ENCRYPTION_KEY: "0000000000000000000000000000000000000000000000000000000000000000"

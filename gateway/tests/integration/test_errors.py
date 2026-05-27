@@ -1,11 +1,13 @@
 """Test error handling."""
+
 import io
+
 import requests
 from conftest import GATEWAY_URL, TIMEOUT
 
 
 def test_unsupported_format():
-    garbage = b'\x00\x01\x02\x03\x04\x05\x06\x07'
+    garbage = b"\x00\x01\x02\x03\x04\x05\x06\x07"
     r = requests.post(
         f"{GATEWAY_URL}/convert",
         files={"file": ("test.xyz", io.BytesIO(garbage), "application/octet-stream")},
@@ -16,7 +18,7 @@ def test_unsupported_format():
 
 
 def test_file_too_large():
-    large_data = b'\x00' * (51 * 1024 * 1024)
+    large_data = b"\x00" * (51 * 1024 * 1024)
     r = requests.post(
         f"{GATEWAY_URL}/convert",
         files={"file": ("large.pdf", io.BytesIO(large_data), "application/pdf")},

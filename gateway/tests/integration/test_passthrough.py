@@ -1,5 +1,7 @@
 """Test that LLM-readable formats pass through without transformation."""
+
 import io
+
 import requests
 from conftest import GATEWAY_URL, TIMEOUT
 

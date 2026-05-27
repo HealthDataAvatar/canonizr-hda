@@ -1,9 +1,10 @@
 """Unit tests for AES-256-GCM encryption."""
+
 import os
 
 import pytest
 
-from app.crypto import encrypt, decrypt
+from app.crypto import decrypt, encrypt
 
 
 @pytest.fixture

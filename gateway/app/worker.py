@@ -1,4 +1,10 @@
-"""Worker process — dequeues jobs from Redis and runs the convert() pipeline."""
+"""Worker process — dequeues jobs from Redis Stream and runs the convert() pipeline.
+
+Uses consumer groups for at-least-once delivery:
+- XREADGROUP to claim jobs
+- XACK after result is stored
+- If worker crashes before ACK, another worker reclaims via XAUTOCLAIM
+"""
 
 import asyncio
 import json
@@ -6,9 +12,9 @@ import logging
 import time
 
 from . import blobstore
-from .convert import convert, UnsupportedFormat, ServiceNotConfigured
-from .crypto import decrypt, encrypt, ENCRYPTION_KEY
-from .queue import dequeue, store_result, JobResult
+from .convert import ServiceNotConfigured, UnsupportedFormat, convert
+from .crypto import ENCRYPTION_KEY, decrypt, encrypt
+from .queue import JobResult, acknowledge, dequeue, ensure_group, store_result
 from .quota import get_redis
 from .tracing import Trace
 
@@ -69,16 +75,19 @@ async def run():
     if key is None:
         raise RuntimeError("ENCRYPTION_KEY is required for the worker")
 
+    await ensure_group(r)
     logger.info("Worker ready, waiting for jobs")
+
     while True:
-        job = await dequeue(r, timeout=5)
+        job = await dequeue(r, timeout=5000)
         if job is None:
             continue
 
         logger.info("Processing job %s (%s, %s)", job.job_id, job.mime_type, job.filename)
         result = await process_job(job, key)
         await store_result(r, job.job_id, result)
-        logger.info("Job %s completed with status %s", job.job_id, result.status)
+        await acknowledge(r, job)
+        logger.info("Job %s completed with status %s (acked)", job.job_id, result.status)
 
 
 def main():

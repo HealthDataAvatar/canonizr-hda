@@ -1,5 +1,7 @@
 """Test PDF embedded image captioning paths."""
+
 import io
+
 import requests
 from conftest import GATEWAY_URL, TIMEOUT, EmbeddedImage, make_pdf_with_images
 
@@ -37,9 +39,11 @@ def test_fixture_pdf_image_is_processed():
 
 def test_generated_small_image_is_skipped():
     """A generated PDF with a tiny image — should be skipped by dimension check."""
-    pdf_bytes = make_pdf_with_images([
-        EmbeddedImage("tiny", 30, 30),
-    ])
+    pdf_bytes = make_pdf_with_images(
+        [
+            EmbeddedImage("tiny", 30, 30),
+        ]
+    )
     r = requests.post(
         f"{GATEWAY_URL}/convert?verbose=true",
         files={"file": ("small_img.pdf", io.BytesIO(pdf_bytes), "application/pdf")},

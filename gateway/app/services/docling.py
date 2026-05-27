@@ -5,11 +5,11 @@ from io import BytesIO
 
 import httpx
 
-from . import captioning
-from .image_postprocess import CaptionResult, IMAGE_RE, caption_images, label_images
-from .retry import request_with_retry
 from ..response import ConvertResult
 from ..tracing import Span
+from . import captioning
+from .image_postprocess import IMAGE_RE, CaptionResult, caption_images, label_images
+from .retry import request_with_retry
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +28,9 @@ async def convert(file_bytes: bytes, mime_type: str, deadline: float, parent: Sp
 
     async with httpx.AsyncClient() as client:
         response = await request_with_retry(
-            client, "POST", URL,
+            client,
+            "POST",
+            URL,
             deadline=deadline,
             service_name="docling",
             span=http_span,

@@ -6,6 +6,7 @@ or Azure OpenAI). They should NOT run in the standard integration test suite.
 TODO: Move to a dedicated tests/smoke/ directory with its own Dockerfile
 and conftest that takes GATEWAY_URL and APIM_KEY from env vars.
 """
+
 import io
 
 import pytest

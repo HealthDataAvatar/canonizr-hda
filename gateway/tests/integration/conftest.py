@@ -1,4 +1,5 @@
 """Shared fixtures for gateway integration tests."""
+
 import io
 import os
 from collections import namedtuple
@@ -18,6 +19,7 @@ def pytest_collection_modifyitems(config, items):
     focus_items = [item for item in items if item.get_closest_marker("focus")]
     if focus_items:
         items[:] = focus_items
+
 
 EmbeddedImage = namedtuple("EmbeddedImage", ["label", "width", "height"])
 

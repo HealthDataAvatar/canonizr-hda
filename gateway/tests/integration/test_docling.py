@@ -1,5 +1,7 @@
 """Test Docling PDF extraction paths."""
+
 import io
+
 import requests
 from conftest import GATEWAY_URL, TIMEOUT, make_pdf
 

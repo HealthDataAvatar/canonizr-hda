@@ -5,13 +5,13 @@ import os
 import re
 import time
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 from io import BytesIO
 
 from PIL import Image
 
-from . import captioning
 from ..tracing import Span
+from . import captioning
 
 logger = logging.getLogger(__name__)
 
@@ -21,8 +21,9 @@ CAPTIONING_CONCURRENCY = int(os.environ.get("CAPTIONING_CONCURRENCY", "4"))
 IMAGE_RE = re.compile(r"!\[([^\]]*)\]\(data:(image/[^;]+);base64,([^)]+)\)")
 
 
-class PictureClassification(str, Enum):
+class PictureClassification(StrEnum):
     """Docling picture classification labels."""
+
     PIE_CHART = "pie_chart"
     BAR_CHART = "bar_chart"
     STACKED_BAR_CHART = "stacked_bar_chart"
@@ -63,6 +64,7 @@ SKIP_LABEL_VALUES = {label.value for label in SKIP_LABELS}
 
 class CaptioningUpstreamError(Exception):
     """Raised when the captioning service fails for an image."""
+
     def __init__(self, index: int, cause: Exception):
         self.index = index
         self.cause = cause
@@ -93,8 +95,9 @@ def _get_label(pictures: list[dict], index: int) -> str:
     return label.replace("_", " ").title()
 
 
-class ImageOutcome(str, Enum):
+class ImageOutcome(StrEnum):
     """Outcome of processing a single image in the pipeline."""
+
     CAPTIONED = "captioned"
     SKIPPED_DECORATIVE = "skipped_decorative"
     SKIPPED_TOO_SMALL = "skipped_too_small"
@@ -162,9 +165,9 @@ def _apply_replacements(md_content: str, entries: list[dict]) -> tuple[str, dict
         outcome = entry["outcome"]
 
         if replacement is None:
-            result = result[:match.start()] + result[match.end():]
+            result = result[: match.start()] + result[match.end() :]
         else:
-            result = result[:match.start()] + replacement + result[match.end():]
+            result = result[: match.start()] + replacement + result[match.end() :]
 
         counts[outcome] += 1
         detail: dict = {"index": entry["index"], "outcome": outcome.value}
@@ -176,7 +179,10 @@ def _apply_replacements(md_content: str, entries: list[dict]) -> tuple[str, dict
 
 
 async def caption_images(
-    md_content: str, pictures: list[dict], deadline: float, parent: Span | None = None,
+    md_content: str,
+    pictures: list[dict],
+    deadline: float,
+    parent: Span | None = None,
 ) -> CaptionResult:
     """Replace base64 images in markdown with captions. Raises CaptioningUpstreamError on failure."""
     entries = _classify_images(md_content, pictures)
@@ -196,9 +202,12 @@ async def caption_images(
     async def _caption_one(index: int, image_b64: str, mime_type: str):
         img_span = None
         if cap_span:
-            img_span = Span(name=f"caption_image[{index}]", attributes={
-                "base64_bytes": len(image_b64),
-            })
+            img_span = Span(
+                name=f"caption_image[{index}]",
+                attributes={
+                    "base64_bytes": len(image_b64),
+                },
+            )
             img_span._start = time.monotonic()
             cap_span.children.append(img_span)
             image_spans[index] = img_span

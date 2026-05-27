@@ -1,6 +1,5 @@
 import asyncio
 import functools
-
 from io import BytesIO
 
 from markitdown import MarkItDown
@@ -53,7 +52,9 @@ LIBREOFFICE_TYPES = {
 }
 
 
-async def convert(file_bytes: bytes, mime_type: str, filename: str, deadline: float, trace: Trace | None = None) -> ConvertResult:
+async def convert(
+    file_bytes: bytes, mime_type: str, filename: str, deadline: float, trace: Trace | None = None
+) -> ConvertResult:
     """Convert any supported file to markdown."""
     parent = trace.root if trace else None
 
@@ -119,13 +120,17 @@ async def convert(file_bytes: bytes, mime_type: str, filename: str, deadline: fl
             with parent.span("markitdown") as md_span:
                 mit_result = await loop.run_in_executor(
                     None,
-                    functools.partial(markitdown.convert_stream, BytesIO(file_bytes), file_extension=_ext_from_filename(filename)),
+                    functools.partial(
+                        markitdown.convert_stream, BytesIO(file_bytes), file_extension=_ext_from_filename(filename)
+                    ),
                 )
                 md_span.set(md_length=len(mit_result.text_content))
         else:
             mit_result = await loop.run_in_executor(
                 None,
-                functools.partial(markitdown.convert_stream, BytesIO(file_bytes), file_extension=_ext_from_filename(filename)),
+                functools.partial(
+                    markitdown.convert_stream, BytesIO(file_bytes), file_extension=_ext_from_filename(filename)
+                ),
             )
         return ConvertResult(
             markdown=mit_result.text_content,
@@ -136,10 +141,7 @@ async def convert(file_bytes: bytes, mime_type: str, filename: str, deadline: fl
     # Legacy formats — LibreOffice converts, then re-process
     if mime_type in LIBREOFFICE_TYPES:
         if not libreoffice.is_available():
-            raise ServiceNotConfigured(
-                f"This file type ({mime_type}) requires LibreOffice. "
-                "Rerun setup to enable it."
-            )
+            raise ServiceNotConfigured(f"This file type ({mime_type}) requires LibreOffice. Rerun setup to enable it.")
         target = LIBREOFFICE_TYPES[mime_type]
         if parent:
             with parent.span("libreoffice", target_format=target) as lo_span:

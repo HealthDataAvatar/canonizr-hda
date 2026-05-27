@@ -1,4 +1,5 @@
 """Unit test configuration — adds gateway/ to sys.path for app imports."""
+
 import sys
 from pathlib import Path
 

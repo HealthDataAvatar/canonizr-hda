@@ -11,7 +11,6 @@ Blobs hold the heavy encrypted payloads.
 import logging
 import os
 from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +25,7 @@ async def put(key: str, data: bytes) -> None:
         raise RuntimeError(f"Unsupported blob store: {BLOB_STORE_URL}")
 
 
-async def get(key: str) -> Optional[bytes]:
+async def get(key: str) -> bytes | None:
     """Retrieve a blob by key. Returns None if not found."""
     if BLOB_STORE_URL.startswith("file://"):
         return _fs_get(key)
@@ -52,7 +51,7 @@ def _fs_put(key: str, data: bytes) -> None:
     path.write_bytes(data)
 
 
-def _fs_get(key: str) -> Optional[bytes]:
+def _fs_get(key: str) -> bytes | None:
     path = _fs_root() / key
     if not path.exists():
         return None

@@ -83,11 +83,14 @@ async def _call(image_b64: str, mime_type: str, deadline: float, parent: Span | 
     start_time = time.time()
     async with httpx.AsyncClient() as client:
         response = await request_with_retry(
-            client, "POST", ENDPOINT,
+            client,
+            "POST",
+            ENDPOINT,
             deadline=deadline,
             service_name="captioning",
             span=http_span,
-            json=payload, headers=headers,
+            json=payload,
+            headers=headers,
         )
     elapsed = (time.time() - start_time) * 1000
 
@@ -111,7 +114,9 @@ async def describe(image_b64: str, mime_type: str, deadline: float, parent: Span
     return await _call(image_b64, mime_type, deadline, parent)
 
 
-async def describe_file(image_bytes: bytes, mime_type: str, deadline: float, parent: Span | None = None) -> ConvertResult:
+async def describe_file(
+    image_bytes: bytes, mime_type: str, deadline: float, parent: Span | None = None
+) -> ConvertResult:
     """Describe a standalone image upload."""
     input_size = len(image_bytes)
     if parent:

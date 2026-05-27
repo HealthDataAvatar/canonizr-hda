@@ -1,4 +1,5 @@
 """Integration tests for quota enforcement — requires gateway + Redis."""
+
 import os
 
 import pytest

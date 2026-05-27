@@ -1,4 +1,5 @@
 """Unit tests for image post-processing: outcome enum, caption result, skip indices."""
+
 from app.services.image_postprocess import ImageOutcome, _get_skip_indices
 
 
@@ -8,7 +9,6 @@ def test_image_outcome_values():
     assert ImageOutcome.SKIPPED_TOO_SMALL.value == "skipped_too_small"
     assert ImageOutcome.ERRORED_DECODE.value == "errored_decode"
     assert ImageOutcome.LABELLED.value == "labelled"
-
 
 
 def test_get_skip_indices_decorative():

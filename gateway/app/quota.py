@@ -11,7 +11,6 @@ Redis keys:
 
 import logging
 import os
-from typing import Optional
 
 import redis.asyncio as redis
 
@@ -21,10 +20,10 @@ REDIS_URL = os.environ.get("REDIS_URL", "")
 REJECTED_TTL = int(os.environ.get("QUOTA_REJECTED_TTL", "3600"))
 MAX_REJECTED_BEFORE_BLOCK = int(os.environ.get("QUOTA_MAX_REJECTED", "50"))
 
-_pool: Optional[redis.Redis] = None
+_pool: redis.Redis | None = None
 
 
-async def get_redis() -> Optional[redis.Redis]:
+async def get_redis() -> redis.Redis | None:
     """Return a shared Redis connection, or None if not configured."""
     global _pool
     if not REDIS_URL:
@@ -42,7 +41,7 @@ async def close():
         _pool = None
 
 
-async def check_quota(sub_id: str, content_length: int) -> Optional[str]:
+async def check_quota(sub_id: str, content_length: int) -> str | None:
     """Check if a subscription has remaining quota.
 
     Returns None if the request is allowed, or an error message if blocked.

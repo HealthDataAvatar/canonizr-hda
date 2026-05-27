@@ -1,4 +1,5 @@
 """Unit tests for the worker — mocks convert(), blobstore, and Redis."""
+
 import os
 from unittest.mock import AsyncMock, patch
 
@@ -34,8 +35,10 @@ class TestProcessJob:
             detected_type="text/html",
             actions=["passthrough"],
         )
-        with patch("app.worker.blobstore") as mock_blob, \
-             patch("app.worker.convert", new_callable=AsyncMock, return_value=mock_result):
+        with (
+            patch("app.worker.blobstore") as mock_blob,
+            patch("app.worker.convert", new_callable=AsyncMock, return_value=mock_result),
+        ):
             mock_blob.get = AsyncMock(return_value=encrypted_input)
             mock_blob.put = AsyncMock()
             mock_blob.delete = AsyncMock()
@@ -49,8 +52,11 @@ class TestProcessJob:
     async def test_unsupported_format(self, sample_job, key):
         encrypted_input = encrypt(b"fake", key)
         from app.convert import UnsupportedFormat
-        with patch("app.worker.blobstore") as mock_blob, \
-             patch("app.worker.convert", new_callable=AsyncMock, side_effect=UnsupportedFormat("video/mp4")):
+
+        with (
+            patch("app.worker.blobstore") as mock_blob,
+            patch("app.worker.convert", new_callable=AsyncMock, side_effect=UnsupportedFormat("video/mp4")),
+        ):
             mock_blob.get = AsyncMock(return_value=encrypted_input)
             mock_blob.delete = AsyncMock()
             result = await process_job(sample_job, key)
@@ -62,8 +68,11 @@ class TestProcessJob:
     async def test_service_not_configured(self, sample_job, key):
         encrypted_input = encrypt(b"fake", key)
         from app.convert import ServiceNotConfigured
-        with patch("app.worker.blobstore") as mock_blob, \
-             patch("app.worker.convert", new_callable=AsyncMock, side_effect=ServiceNotConfigured("captioning")):
+
+        with (
+            patch("app.worker.blobstore") as mock_blob,
+            patch("app.worker.convert", new_callable=AsyncMock, side_effect=ServiceNotConfigured("captioning")),
+        ):
             mock_blob.get = AsyncMock(return_value=encrypted_input)
             mock_blob.delete = AsyncMock()
             result = await process_job(sample_job, key)
@@ -73,8 +82,10 @@ class TestProcessJob:
     @pytest.mark.asyncio
     async def test_unexpected_exception(self, sample_job, key):
         encrypted_input = encrypt(b"fake", key)
-        with patch("app.worker.blobstore") as mock_blob, \
-             patch("app.worker.convert", new_callable=AsyncMock, side_effect=RuntimeError("boom")):
+        with (
+            patch("app.worker.blobstore") as mock_blob,
+            patch("app.worker.convert", new_callable=AsyncMock, side_effect=RuntimeError("boom")),
+        ):
             mock_blob.get = AsyncMock(return_value=encrypted_input)
             mock_blob.delete = AsyncMock()
             result = await process_job(sample_job, key)

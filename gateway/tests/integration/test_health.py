@@ -1,4 +1,5 @@
 """Basic gateway health checks."""
+
 import requests
 from conftest import GATEWAY_URL
 

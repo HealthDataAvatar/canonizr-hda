@@ -1,4 +1,5 @@
 """Unit tests for the tracing module."""
+
 from app.tracing import Trace
 
 

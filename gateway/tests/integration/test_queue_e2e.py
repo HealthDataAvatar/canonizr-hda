@@ -1,6 +1,6 @@
 """End-to-end tests for queue mode — file goes through gateway → Redis → worker → back."""
-import requests
 
+import requests
 from conftest import GATEWAY_URL, TIMEOUT, make_pdf
 
 

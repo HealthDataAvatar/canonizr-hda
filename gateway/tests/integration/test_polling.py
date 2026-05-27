@@ -1,8 +1,8 @@
 """Integration tests for the /result/{job_id} polling endpoint."""
+
 import time
 
 import requests
-
 from conftest import GATEWAY_URL, TIMEOUT
 
 

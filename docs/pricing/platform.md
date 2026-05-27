@@ -194,7 +194,11 @@ Gateway long-polls internally — callers still get a synchronous response for m
 - Docling at capacity → queue instead of rejecting
 - Natural backpressure and rate limiting
 
-**Infrastructure:** Redis handles both queue and result storage. LibreOffice container (0.5 vCPU/1GiB, scale-to-zero) added for legacy formats. No additional services needed.
+**Infrastructure:**
+- **Redis** — job queue (LPUSH/BRPOP), result signals (tiny JSON), quota counters. No large payloads.
+- **Ephemeral blob store** (Azure Files shared mount) — encrypted job inputs/outputs. Lives seconds to minutes. Disposable — if lost, user resubmits. Encryption key managed by Terraform, rotatable.
+- **Cache service** (future, Phase 3) — dedicated durable storage for opt-in cached results. Separate from the ephemeral blob store so infra changes to the job pipeline don't affect cached data. Per-user encryption keys (from Table Storage). Access via internal API. Backed by Azure Blob Storage with its own lifecycle and backups. Account deletion = delete key = crypto-shredding.
+- **LibreOffice container** (0.5 vCPU/1GiB, scale-to-zero) for legacy formats.
 
 ### What's already deployed
 

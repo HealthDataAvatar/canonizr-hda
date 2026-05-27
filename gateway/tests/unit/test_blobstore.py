@@ -1,4 +1,5 @@
 """Unit tests for the filesystem blob store."""
+
 from unittest.mock import patch
 
 import pytest

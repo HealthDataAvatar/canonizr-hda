@@ -61,6 +61,12 @@ variable "docling_memory" {
 }
 
 # Azure OpenAI
+variable "deploy_time" {
+  description = "Timestamp to force new container revision on deploy"
+  type        = string
+  default     = ""
+}
+
 variable "openai_model" {
   description = "Azure OpenAI model deployment name for captioning"
   type        = string

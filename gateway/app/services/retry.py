@@ -29,7 +29,7 @@ def _backoff_delay(attempt: int, retry_after: str | None) -> float:
             return min(max(delay, 0.0), _BACKOFF_MAX)
         except (ValueError, OverflowError):
             pass
-    delay = _BACKOFF_BASE * (2 ** attempt) + random.uniform(0, 1)
+    delay = _BACKOFF_BASE * (2**attempt) + random.uniform(0, 1)
     return min(delay, _BACKOFF_MAX)
 
 
@@ -80,7 +80,11 @@ async def request_with_retry(
                 break
             logger.info(
                 "%s returned %d, retrying in %.1fs (attempt %d/%d)",
-                service_name, response.status_code, delay, attempt + 1, max_retries,
+                service_name,
+                response.status_code,
+                delay,
+                attempt + 1,
+                max_retries,
             )
             if span:
                 span.set(**{f"retry_{attempt}_status": response.status_code, f"retry_{attempt}_delay": round(delay, 2)})

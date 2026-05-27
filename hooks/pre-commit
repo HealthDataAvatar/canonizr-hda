@@ -1,0 +1,18 @@
+#!/bin/sh
+# Pre-commit hook: format and lint staged Python files.
+#
+# Install: make install-hooks
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+
+# Ensure installed hook matches the repo source
+if ! cmp -s "$REPO_ROOT/hooks/pre-commit" "$REPO_ROOT/.git/hooks/pre-commit" 2>/dev/null; then
+    echo "ERROR: Installed pre-commit hook is out of date."
+    echo "Run: make install-hooks"
+    exit 1
+fi
+
+export PATH="$HOME/.local/bin:$HOME/.cargo/bin:/usr/local/bin:$PATH"
+
+cd "$REPO_ROOT/gateway" && uv run ruff format app/ tests/ && uv run ruff check --fix app/ tests/
+cd "$REPO_ROOT" && git add -u gateway/app/ gateway/tests/

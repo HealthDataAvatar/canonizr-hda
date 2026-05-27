@@ -1,4 +1,5 @@
 """Unit tests for ConvertResult metadata and audit headers."""
+
 import json
 
 from app.response import ConvertResult
@@ -6,9 +7,13 @@ from app.response import ConvertResult
 
 def test_metadata_includes_captioning_object():
     result = ConvertResult(
-        markdown="hello", input_bytes=12600,
-        images_captioned=2, images_skipped=1, images_errored=0,
-        captioning_prompt_tokens=800, captioning_completion_tokens=50,
+        markdown="hello",
+        input_bytes=12600,
+        images_captioned=2,
+        images_skipped=1,
+        images_errored=0,
+        captioning_prompt_tokens=800,
+        captioning_completion_tokens=50,
     )
     meta = result._metadata()
     assert meta["input_bytes"] == 12600
