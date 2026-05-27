@@ -78,6 +78,11 @@ resource "azurerm_container_app" "gateway" {
     value = azurerm_cognitive_account.openai.primary_access_key
   }
 
+  secret {
+    name  = "redis-connection-string"
+    value = azurerm_redis_cache.this.primary_connection_string
+  }
+
   template {
     min_replicas = 1
     max_replicas = 5
@@ -116,6 +121,11 @@ resource "azurerm_container_app" "gateway" {
       env {
         name  = "CAPTIONING_API_PARAMS"
         value = "{\"max_completion_tokens\":1024}"
+      }
+
+      env {
+        name        = "REDIS_URL"
+        secret_name = "redis-connection-string"
       }
 
       # Docling is reachable via the internal FQDN within the Container Apps environment

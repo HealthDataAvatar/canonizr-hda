@@ -1,7 +1,18 @@
-"""Test captioning service paths."""
+"""Test captioning service paths.
+
+These are smoke tests — they require a live captioning service (local model
+or Azure OpenAI). They should NOT run in the standard integration test suite.
+
+TODO: Move to a dedicated tests/smoke/ directory with its own Dockerfile
+and conftest that takes GATEWAY_URL and APIM_KEY from env vars.
+"""
 import io
+
+import pytest
 import requests
 from conftest import GATEWAY_URL, TIMEOUT, make_png, make_tiff
+
+pytestmark = pytest.mark.smoke
 
 
 def test_image_returns_text():

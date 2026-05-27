@@ -8,4 +8,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY tests/integration/ .
 
-CMD ["pytest","-q","--junitxml=/reports/junit.xml","--html=/reports/report.html","--self-contained-html"]
+CMD ["pytest", "-q", "-m", "not smoke", "--junitxml=/reports/junit.xml", "--html=/reports/report.html", "--self-contained-html", "--tb=short"]

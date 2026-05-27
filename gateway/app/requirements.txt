@@ -9,3 +9,5 @@ markitdown[all]
 pymupdf
 extract-msg
 xxhash
+redis[hiredis]>=5.0
+cryptography>=44.0

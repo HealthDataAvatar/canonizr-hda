@@ -1,9 +1,12 @@
-"""Unit tests for the /convert endpoint: headers, error sanitisation, echo headers."""
+"""Unit tests for the /convert endpoint: headers, error sanitisation, echo headers, queue mode."""
+import json
 from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
 
+from app.crypto import encrypt
+from app.queue import JobResult
 from app.response import ConvertResult
 
 
@@ -109,3 +112,105 @@ class TestErrorSanitisation:
                 resp = client.post("/convert", files={"file": ("test.mp4", b"fake", "video/mp4")})
         assert resp.status_code == 400
         assert "video/mp4" in resp.json()["detail"]
+
+
+class TestQueueMode:
+    """Tests for QUEUE_MODE=true — mocks enqueue, await_result, and blobstore."""
+
+    @pytest.fixture
+    def queue_client(self):
+        from app.app import app
+        return TestClient(app)
+
+    def _encrypted_output(self, key):
+        """Build encrypted output blob content."""
+        payload = json.dumps({"markdown": "# Hello", "metadata": {"input_bytes": 100}})
+        return encrypt(payload.encode(), key)
+
+    def test_queue_mode_returns_200(self, queue_client):
+        import os
+        key = os.urandom(32)
+        ok_signal = JobResult(job_id="abc123", status="ok", status_code=200)
+        encrypted_output = self._encrypted_output(key)
+        with patch("app.app.QUEUE_MODE", True), \
+             patch("app.quota.get_redis", new_callable=AsyncMock, return_value=AsyncMock()), \
+             patch("app.app.blobstore") as mock_blob, \
+             patch("app.app.enqueue", new_callable=AsyncMock, return_value="abc123"), \
+             patch("app.app.await_result", new_callable=AsyncMock, return_value=ok_signal), \
+             patch("app.crypto.ENCRYPTION_KEY", key):
+            mock_blob.put = AsyncMock()
+            mock_blob.get = AsyncMock(return_value=encrypted_output)
+            mock_blob.delete = AsyncMock()
+            resp = queue_client.post(
+                "/convert",
+                files={"file": ("test.html", b"<p>hello</p>", "text/html")},
+            )
+        assert resp.status_code == 200
+        assert "markdown" in resp.json()
+
+    def test_queue_mode_returns_202_on_timeout(self, queue_client):
+        with patch("app.app.QUEUE_MODE", True), \
+             patch("app.quota.get_redis", new_callable=AsyncMock, return_value=AsyncMock()), \
+             patch("app.app.blobstore") as mock_blob, \
+             patch("app.app.enqueue", new_callable=AsyncMock, return_value="abc123"), \
+             patch("app.app.await_result", new_callable=AsyncMock, return_value=None), \
+             patch("app.crypto.ENCRYPTION_KEY", b"\x00" * 32):
+            mock_blob.put = AsyncMock()
+            resp = queue_client.post(
+                "/convert",
+                files={"file": ("test.html", b"<p>hello</p>", "text/html")},
+            )
+        assert resp.status_code == 202
+        assert "job_id" in resp.json()
+        assert "Location" in resp.headers
+
+    def test_queue_mode_error_raises(self, queue_client):
+        error_result = JobResult(job_id="abc", status="error", error_detail="Unsupported format", status_code=400)
+        with patch("app.app.QUEUE_MODE", True), \
+             patch("app.quota.get_redis", new_callable=AsyncMock, return_value=AsyncMock()), \
+             patch("app.app.blobstore") as mock_blob, \
+             patch("app.app.enqueue", new_callable=AsyncMock, return_value="abc"), \
+             patch("app.app.await_result", new_callable=AsyncMock, return_value=error_result), \
+             patch("app.crypto.ENCRYPTION_KEY", b"\x00" * 32):
+            mock_blob.put = AsyncMock()
+            resp = queue_client.post(
+                "/convert",
+                files={"file": ("test.pdf", b"%PDF-1.4 test", "application/pdf")},
+            )
+        assert resp.status_code == 400
+
+
+class TestPollResult:
+    @pytest.fixture
+    def client(self):
+        from app.app import app
+        return TestClient(app)
+
+    def test_poll_returns_result(self, client):
+        import os
+        key = os.urandom(32)
+        payload = json.dumps({"markdown": "# Hello", "metadata": {}})
+        encrypted_output = encrypt(payload.encode(), key)
+        ok_signal = JobResult(job_id="abc", status="ok", status_code=200)
+        with patch("app.quota.get_redis", new_callable=AsyncMock, return_value=AsyncMock()), \
+             patch("app.app.get_result", new_callable=AsyncMock, return_value=ok_signal), \
+             patch("app.app.blobstore") as mock_blob, \
+             patch("app.crypto.ENCRYPTION_KEY", key):
+            mock_blob.get = AsyncMock(return_value=encrypted_output)
+            mock_blob.delete = AsyncMock()
+            resp = client.get("/result/abc")
+        assert resp.status_code == 200
+        assert "markdown" in resp.json()
+
+    def test_poll_returns_404_when_missing(self, client):
+        with patch("app.quota.get_redis", new_callable=AsyncMock, return_value=AsyncMock()), \
+             patch("app.app.get_result", new_callable=AsyncMock, return_value=None):
+            resp = client.get("/result/abc")
+        assert resp.status_code == 404
+
+    def test_poll_returns_error(self, client):
+        result = JobResult(job_id="abc", status="error", error_detail="Something broke", status_code=502)
+        with patch("app.quota.get_redis", new_callable=AsyncMock, return_value=AsyncMock()), \
+             patch("app.app.get_result", new_callable=AsyncMock, return_value=result):
+            resp = client.get("/result/abc")
+        assert resp.status_code == 502

@@ -142,7 +142,7 @@ resource "azurerm_api_management_product" "paid" {
   description           = "Metered access — billed per KB processed"
   subscription_required = true
   subscriptions_limit   = 5
-  approval_required     = true
+  approval_required     = false
   published             = true
 }
 

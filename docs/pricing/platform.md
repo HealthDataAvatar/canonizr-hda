@@ -66,10 +66,10 @@ Nebius (Qwen2.5-VL) was considered but deferred — licensing complexity (attrib
 |---|---|
 | Structured JSON extraction | Not supported — markdown only |
 | Document splitting (multi-doc PDFs) | Not supported |
-| Async/webhook processing | Not supported — synchronous only |
+| Async/webhook processing | Planned — via job queue (see below) |
 | SOC2 / HIPAA compliance | Not certified |
 | MCP server | Not supported |
-| Legacy formats (.doc, .xls) | Disabled — needs LibreOffice container |
+| Legacy formats (.doc, .xls) | Planned — via LibreOffice container + job queue |
 
 ### Differentiators
 - Image captioning included (same as Unstructured, but most competitors don't offer it)
@@ -155,8 +155,83 @@ Counters auto-reset via `EXPIRE`. The usage reporting job reads from the same co
 - **Azure Table Storage** — user mapping (Auth.js users, Stripe customers, APIM subscriptions)
 - Redis connection string passed to gateway container as a secret
 
-### APIM changes needed
+### Job queue architecture
 
-- `paid` product: set `approval_required = false`
-- Diagnostic `backend_response.headers_to_log`: add `X-Input-Size-Bytes`, `X-Images-Captioned`, `X-Document-Hash`
-- Outbound policy: forward billing headers to client
+Serves multiple purposes: legacy format conversion, captioning retry on 429s, Docling overflow, and result caching.
+
+**Flow (default — zero data retention):**
+1. File uploaded → encrypted with per-user AES-256 key → queued
+2. Worker decrypts, processes (LibreOffice → Docling → captioning)
+3. Encrypted result stored in Redis (5 min TTL)
+4. Client collects result → deleted
+
+**Flow (opt-in caching):**
+1. Same as above, but result also stored against `{sub_id}:{document_hash}`
+2. Same file sent again → cache hit → instant response, no reprocessing
+3. Fixed TTL tiers controlled by us (e.g. `cache=short` 1h, `cache=long` 24h)
+4. Response header: `X-Cache: HIT` or `X-Cache: MISS`
+
+**Encryption:**
+- Per-user AES-256 key generated on signup, stored in Azure Table Storage (alongside user mapping)
+- All queued/cached data encrypted with user's key
+- Account deletion = delete key → all cached data becomes unrecoverable (crypto-shredding)
+- Even with access to Redis/blob storage, data is unreadable without the key
+
+**API surface:**
+```
+POST /convert                    → synchronous (current behaviour, short jobs)
+POST /convert                    → 202 + job_id (if processing exceeds timeout)
+GET  /jobs/{job_id}              → poll for result
+POST /convert?cache=short        → process + cache result for 1h
+POST /convert?cache=long         → process + cache result for 24h
+DELETE /cache/{doc_hash}         → purge cached result early
+```
+
+Gateway long-polls internally — callers still get a synchronous response for most requests. Only falls back to 202 + polling for slow jobs (LibreOffice conversions, large documents).
+
+**Queue benefits beyond legacy formats:**
+- Captioning 429s → requeue with backoff instead of failing
+- Docling at capacity → queue instead of rejecting
+- Natural backpressure and rate limiting
+
+**Infrastructure:** Redis handles both queue and result storage. LibreOffice container (0.5 vCPU/1GiB, scale-to-zero) added for legacy formats. No additional services needed.
+
+### What's already deployed
+
+- APIM with `internal` (HDA free) and `paid` (metered) products
+- `paid` product: `subscriptions_limit = 5`, subscription ID injected via inbound policy
+- App Insights + Log Analytics logging all requests at 100% sampling
+- Backend response headers logged: `X-Input-Size-Bytes`, `X-Images-Captioned`, `X-Document-Hash`, `X-Processing-Pipeline`
+- Gateway returns billing headers on all 200 responses
+
+### Remaining APIM changes
+
+- `paid` product: flip `approval_required` from `true` to `false`
+- Outbound policy: forward billing headers to client (currently only logged, not passed through)
+
+### Roadmap
+
+**Phase 1 — Billable API**
+1. Redis (foundation for quotas, usage tracking, queue, caching)
+2. Stripe meters + usage reporting Azure Function
+3. APIM `paid` product: `approval_required = false`
+4. Passthrough billing fix (upstream: report `input_bytes: 1024` for passthrough)
+
+**Phase 2 — Self-service portal**
+5. canonizr.com (Next.js + Auth.js + Azure Table Storage)
+6. Signup flow (Stripe customer + APIM subscription + API key)
+7. Per-user encryption key (generated on signup, stored in Table Storage)
+8. Usage dashboard (keys, consumption, billing — reads from Stripe + Redis)
+9. Per-key quotas (UI to set/manage, gateway enforces via Redis)
+
+**Phase 3 — Production hardening**
+10. Job queue (Redis-based, async processing, 429 retry, backpressure)
+11. Result caching (encrypted, opt-in, `cache=short`/`cache=long`)
+12. LibreOffice container (scale-to-zero, legacy format support)
+13. Abuse detection (rejected attempt tracking, escalating backoff)
+
+**Phase 4 — Growth**
+14. Webhook callbacks
+15. MCP server
+16. Privacy policy + terms of service
+17. Monitoring/alerting (usage anomalies, error rate spikes)
