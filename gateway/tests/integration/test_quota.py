@@ -19,6 +19,8 @@ def r():
     # Clean up all test keys
     for key in client.scan_iter("sub:test_*"):
         client.delete(key)
+    for key in client.scan_iter("dedupe:test_*"):
+        client.delete(key)
     client.close()
 
 
@@ -37,13 +39,13 @@ def _convert(file_bytes, filename="test.html", sub_id=None):
 class TestQuotaEnforcement:
     def test_no_quota_allows_request(self, r):
         resp = _convert(b"<p>hello</p>", sub_id="test_unlimited")
-        assert resp.status_code == 200
+        assert resp.status_code == 202
 
     def test_under_quota_allows_request(self, r):
         r.set("sub:test_quota1:quota:bytes", "100000")
         r.set("sub:test_quota1:bytes", "1000")
         resp = _convert(b"<p>hello</p>", sub_id="test_quota1")
-        assert resp.status_code == 200
+        assert resp.status_code == 202
 
     def test_over_quota_rejects(self, r):
         r.set("sub:test_quota2:quota:bytes", "100")
@@ -58,17 +60,18 @@ class TestQuotaEnforcement:
         resp = _convert(b"<p>hello</p>", sub_id="test_quota3")
         assert resp.status_code == 429
 
-    def test_usage_increments_after_success(self, r):
+    def test_usage_increments_on_accept(self, r):
         r.set("sub:test_quota4:quota:bytes", "100000")
         before = int(r.get("sub:test_quota4:bytes") or 0)
         resp = _convert(b"<p>hello</p>", sub_id="test_quota4")
-        assert resp.status_code == 200
+        assert resp.status_code == 202
+        # Usage recorded immediately on accept, not after processing
         after = int(r.get("sub:test_quota4:bytes") or 0)
         assert after > before
 
     def test_no_subscription_header_allows_request(self):
         resp = _convert(b"<p>hello</p>")
-        assert resp.status_code == 200
+        assert resp.status_code == 202
 
     def test_repeated_rejections_block(self, r):
         r.set("sub:test_quota5:quota:bytes", "1")

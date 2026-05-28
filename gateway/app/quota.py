@@ -17,8 +17,6 @@ import redis.asyncio as redis
 logger = logging.getLogger(__name__)
 
 REDIS_URL = os.environ.get("REDIS_URL", "")
-REJECTED_TTL = int(os.environ.get("QUOTA_REJECTED_TTL", "3600"))
-MAX_REJECTED_BEFORE_BLOCK = int(os.environ.get("QUOTA_MAX_REJECTED", "50"))
 
 _pool: redis.Redis | None = None
 
@@ -41,61 +39,63 @@ async def close():
         _pool = None
 
 
-async def _incr_with_ttl(r: redis.Redis, key: str, ttl: int) -> None:
-    """Increment a counter and set its TTL. Two separate commands for cluster compatibility."""
-    await r.incr(key)
-    await r.expire(key, ttl)
+class QuotaService:
+    """Quota enforcement. Wraps Redis so callers don't need to know the backend."""
 
+    def __init__(
+        self,
+        r: redis.Redis,
+        rejected_ttl: int = 3600,
+        max_rejected: int = 50,
+        billing_period_ttl: int = 2_678_400,
+    ):
+        self._r = r
+        self._rejected_ttl = rejected_ttl
+        self._max_rejected = max_rejected
+        self._billing_period_ttl = billing_period_ttl
 
-async def check_quota(sub_id: str, content_length: int) -> str | None:
-    """Check if a subscription has remaining quota.
+    async def check(self, sub_id: str, content_length: int) -> str | None:
+        """Check if a subscription has remaining quota.
 
-    Returns None if the request is allowed, or an error message if blocked.
-    """
-    r = await get_redis()
-    if r is None:
+        Returns None if allowed, or an error message string if blocked.
+        """
+        rejected_key = f"sub:{sub_id}:rejected"
+
+        rejected_count = await self._r.get(rejected_key)
+        if rejected_count and int(rejected_count) >= self._max_rejected:
+            return "Too many rejected requests — try again later"
+
+        quota_val = await self._r.get(f"sub:{sub_id}:quota:bytes")
+        if quota_val is None:
+            return None
+
+        quota_limit = int(quota_val)
+        usage = int(await self._r.get(f"sub:{sub_id}:bytes") or 0)
+
+        if usage >= quota_limit:
+            await self._incr_rejected(rejected_key)
+            return f"Quota exceeded ({usage} / {quota_limit} bytes used)"
+
+        if usage + content_length > quota_limit:
+            await self._incr_rejected(rejected_key)
+            remaining = quota_limit - usage
+            return f"File too large for remaining quota ({content_length} bytes, {remaining} remaining)"
+
         return None
 
-    rejected_key = f"sub:{sub_id}:rejected"
+    async def record(self, sub_id: str, input_bytes: int) -> None:
+        """Increment the usage counter after accepting a job."""
+        usage_key = f"sub:{sub_id}:bytes"
+        await self._r.incrby(usage_key, input_bytes)
+        await self._r.expire(usage_key, self._billing_period_ttl)
 
-    # Check if this key is temporarily blocked due to repeated rejections
-    rejected_count = await r.get(rejected_key)
-    if rejected_count and int(rejected_count) >= MAX_REJECTED_BEFORE_BLOCK:
-        return "Too many rejected requests — try again later"
+    async def refund(self, sub_id: str, input_bytes: int) -> None:
+        """Decrement the usage counter on job failure."""
+        usage_key = f"sub:{sub_id}:bytes"
+        await self._r.decrby(usage_key, input_bytes)
+        await self._r.expire(usage_key, self._billing_period_ttl)
 
-    quota_key = f"sub:{sub_id}:quota:bytes"
-    usage_key = f"sub:{sub_id}:bytes"
-
-    quota = await r.get(quota_key)
-    if quota is None:
-        # No quota set — unlimited
-        return None
-
-    quota = int(quota)
-    usage = int(await r.get(usage_key) or 0)
-
-    if usage >= quota:
-        await _incr_with_ttl(r, rejected_key, REJECTED_TTL)
-        return f"Quota exceeded ({usage} / {quota} bytes used)"
-
-    if usage + content_length > quota:
-        await _incr_with_ttl(r, rejected_key, REJECTED_TTL)
-        remaining = quota - usage
-        return f"File too large for remaining quota ({content_length} bytes, {remaining} remaining)"
-
-    return None
-
-
-async def record_usage(sub_id: str, input_bytes: int, billing_period_ttl: int = 2_678_400):
-    """Increment the usage counter for a subscription after successful processing.
-
-    billing_period_ttl defaults to ~31 days. The counter auto-expires at period end.
-    """
-    r = await get_redis()
-    if r is None:
-        return
-
-    usage_key = f"sub:{sub_id}:bytes"
-
-    await r.incrby(usage_key, input_bytes)
-    await r.expire(usage_key, billing_period_ttl)
+    async def _incr_rejected(self, key: str) -> None:
+        """Increment a rejection counter with TTL. Two commands for cluster compat."""
+        await self._r.incr(key)
+        await self._r.expire(key, self._rejected_ttl)

@@ -1,0 +1,55 @@
+/* Monochrome highlight.js theme — warm neutrals only, per design guide */
+
+.hljs {
+  color: var(--foreground);
+}
+
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-built_in,
+.hljs-name {
+  color: var(--foreground);
+}
+
+.hljs-string,
+.hljs-attr,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-addition {
+  color: var(--muted-foreground);
+}
+
+.hljs-comment,
+.hljs-quote,
+.hljs-meta,
+.hljs-deletion {
+  color: var(--muted-foreground);
+  font-style: italic;
+}
+
+.hljs-number,
+.hljs-literal,
+.hljs-type {
+  color: var(--foreground);
+}
+
+.hljs-title,
+.hljs-section,
+.hljs-selector-id {
+  color: var(--foreground);
+  font-weight: 600;
+}
+
+.hljs-subst,
+.hljs-variable {
+  color: var(--foreground);
+}
+
+.hljs-params {
+  color: var(--muted-foreground);
+}
+
+.hljs-accent {
+  color: var(--accent);
+  font-weight: 600;
+}

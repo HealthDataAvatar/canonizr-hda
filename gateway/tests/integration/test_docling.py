@@ -2,30 +2,27 @@
 
 import io
 
-import requests
-from conftest import GATEWAY_URL, TIMEOUT, make_pdf
+from conftest import make_pdf, submit_and_poll
 
 
 def test_pdf_text():
     pdf_bytes = make_pdf("Extract this sentence from the PDF.")
-    r = requests.post(
-        f"{GATEWAY_URL}/convert",
+    submit, result = submit_and_poll(
         files={"file": ("test.pdf", io.BytesIO(pdf_bytes), "application/pdf")},
-        timeout=TIMEOUT,
     )
-    assert r.status_code == 200
-    data = r.json()
+    assert submit.status_code == 202
+    assert result.status_code == 200
+    data = result.json()
     assert len(data["markdown"]) > 0
     assert "docling" in data["metadata"]["actions"]
 
 
 def test_pdf_multipage():
     pdf_bytes = make_pdf("Page content here.", pages=3)
-    r = requests.post(
-        f"{GATEWAY_URL}/convert",
+    submit, result = submit_and_poll(
         files={"file": ("multipage.pdf", io.BytesIO(pdf_bytes), "application/pdf")},
-        timeout=TIMEOUT,
     )
-    assert r.status_code == 200
-    data = r.json()
+    assert submit.status_code == 202
+    assert result.status_code == 200
+    data = result.json()
     assert len(data["markdown"]) > 0

@@ -10,7 +10,6 @@ export async function DELETE(
     const { userId } = await requireUser();
     const { id } = await params;
 
-    // Verify the subscription belongs to this user
     const keys = await listSubscriptions(userId);
     if (!keys.some((k) => k.id === id)) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });

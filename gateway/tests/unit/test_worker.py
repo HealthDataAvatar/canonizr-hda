@@ -33,7 +33,7 @@ class TestProcessJob:
         mock_result = ConvertResult(
             markdown="# Hello",
             detected_type="text/html",
-            actions=["passthrough"],
+            actions=["markitdown"],
         )
         with (
             patch("app.worker.blobstore") as mock_blob,
@@ -42,11 +42,13 @@ class TestProcessJob:
             mock_blob.get = AsyncMock(return_value=encrypted_input)
             mock_blob.put = AsyncMock()
             mock_blob.delete = AsyncMock()
-            result = await process_job(sample_job, key)
-        assert result.status == "ok"
-        assert result.status_code == 200
-        mock_blob.put.assert_called_once()  # wrote output blob
-        mock_blob.delete.assert_called_once()  # cleaned up input blob
+            proc = await process_job(sample_job, key)
+        assert proc.job_result.status == "ok"
+        assert proc.job_result.status_code == 200
+        assert proc.file_size == len(b"<p>hello world</p>")
+        assert proc.doc_hash != ""
+        mock_blob.put.assert_called_once()
+        mock_blob.delete.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_unsupported_format(self, sample_job, key):
@@ -59,9 +61,11 @@ class TestProcessJob:
         ):
             mock_blob.get = AsyncMock(return_value=encrypted_input)
             mock_blob.delete = AsyncMock()
-            result = await process_job(sample_job, key)
-        assert result.status == "error"
-        assert result.status_code == 400
+            proc = await process_job(sample_job, key)
+        assert proc.job_result.status == "error"
+        assert proc.job_result.status_code == 400
+        assert proc.file_size > 0
+        assert proc.doc_hash != ""
         mock_blob.delete.assert_called_once()
 
     @pytest.mark.asyncio
@@ -75,9 +79,9 @@ class TestProcessJob:
         ):
             mock_blob.get = AsyncMock(return_value=encrypted_input)
             mock_blob.delete = AsyncMock()
-            result = await process_job(sample_job, key)
-        assert result.status == "error"
-        assert result.status_code == 422
+            proc = await process_job(sample_job, key)
+        assert proc.job_result.status == "error"
+        assert proc.job_result.status_code == 422
 
     @pytest.mark.asyncio
     async def test_unexpected_exception(self, sample_job, key):
@@ -88,15 +92,16 @@ class TestProcessJob:
         ):
             mock_blob.get = AsyncMock(return_value=encrypted_input)
             mock_blob.delete = AsyncMock()
-            result = await process_job(sample_job, key)
-        assert result.status == "error"
-        assert result.status_code == 500
+            proc = await process_job(sample_job, key)
+        assert proc.job_result.status == "error"
+        assert proc.job_result.status_code == 500
 
     @pytest.mark.asyncio
     async def test_missing_input_blob(self, sample_job, key):
         with patch("app.worker.blobstore") as mock_blob:
             mock_blob.get = AsyncMock(return_value=None)
-            result = await process_job(sample_job, key)
-        assert result.status == "error"
-        assert result.status_code == 500
-        assert "not found" in result.error_detail.lower()
+            proc = await process_job(sample_job, key)
+        assert proc.job_result.status == "error"
+        assert proc.job_result.status_code == 500
+        assert "not found" in proc.job_result.error_detail.lower()
+        assert proc.file_size == 0  # never got to read file

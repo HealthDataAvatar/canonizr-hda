@@ -6,6 +6,7 @@
  */
 
 import { TableClient } from "@azure/data-tables";
+import { DEV_MODE } from "./dev";
 import type { Adapter, AdapterUser, AdapterAccount, AdapterSession } from "next-auth/adapters";
 import { randomUUID, randomBytes } from "crypto";
 
@@ -232,6 +233,18 @@ export function AzureTableStorageAdapter(
 
 /** Read user-specific fields from Table Storage (encryption key, Stripe ID, admin overrides). */
 export async function getUserRecord(connectionString: string, userId: string) {
+  if (DEV_MODE) {
+    return {
+      id: userId,
+      email: "dev@canonizr.local",
+      encryptionKey: "0".repeat(64),
+      stripeCustomerId: "cus_dev_001",
+      maxKeys: 100,
+      freeUnits: 500 as number | null,
+      pricePerUnit: 0.003,
+      notes: "",
+    };
+  }
   const client = TableClient.fromConnectionString(connectionString, "Users");
   const entity = await client.getEntity("user", userId);
   return {
@@ -252,6 +265,7 @@ export async function updateUserRecord(
   userId: string,
   fields: Record<string, unknown>
 ) {
+  if (DEV_MODE) return;
   const client = TableClient.fromConnectionString(connectionString, "Users");
   await client.updateEntity(
     { partitionKey: "user", rowKey: userId, ...fields },

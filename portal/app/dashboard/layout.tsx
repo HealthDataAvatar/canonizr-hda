@@ -31,6 +31,11 @@ export default async function DashboardLayout({
                   API Keys
                 </Button>
               </Link>
+              <Link href="/dashboard/usage">
+                <Button variant="ghost" size="sm">
+                  Usage
+                </Button>
+              </Link>
             </nav>
           </div>
           <div className="flex items-center gap-3">

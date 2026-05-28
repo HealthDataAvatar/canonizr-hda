@@ -10,7 +10,6 @@ Redis handles: job queue, result signals, quota counters (all small).
 Blob storage handles: encrypted file inputs and outputs (potentially large).
 """
 
-import asyncio
 import json
 import os
 import uuid
@@ -147,7 +146,9 @@ async def acknowledge(r: aioredis.Redis, job: Job) -> None:
 
 
 RESULT_KEY_PREFIX = "result:"
+DEDUPE_KEY_PREFIX = "dedupe:"
 POLL_INTERVAL = 0.5  # seconds between polls
+RESULT_TTL = 86_400  # 24 hours
 
 
 def result_key(job_id: str) -> str:
@@ -155,7 +156,12 @@ def result_key(job_id: str) -> str:
     return f"{RESULT_KEY_PREFIX}{job_id}"
 
 
-async def store_result(r: aioredis.Redis, job_id: str, result: JobResult, ttl: int = 300):
+def dedupe_key(sub_id: str, doc_hash: str) -> str:
+    """Redis key for deduplication. Maps sub+hash to existing job_id."""
+    return f"{DEDUPE_KEY_PREFIX}{sub_id}:{doc_hash}"
+
+
+async def store_result(r: aioredis.Redis, job_id: str, result: JobResult, ttl: int = RESULT_TTL):
     """Store job result in Redis with a TTL. Single SET — no pipelines, no LPUSH.
 
     The actual output payload is in blob storage, not Redis.
@@ -164,20 +170,23 @@ async def store_result(r: aioredis.Redis, job_id: str, result: JobResult, ttl: i
     await r.set(result_key(job_id), result.serialize(), ex=ttl)
 
 
-async def await_result(r: aioredis.Redis, job_id: str, timeout: float) -> JobResult | None:
-    """Poll for a job result until it appears or timeout is reached.
+async def check_dedupe(r: aioredis.Redis, sub_id: str, doc_hash: str) -> str | None:
+    """Check if an identical file was already submitted by this subscription.
 
-    Polls every POLL_INTERVAL seconds. Returns None on timeout.
-    Compatible with Redis Cluster (no BLPOP, single key GET).
+    Returns the existing job_id if found, None otherwise.
     """
-    elapsed = 0.0
-    while elapsed < timeout:
-        data = await r.get(result_key(job_id))
-        if data is not None:
-            return JobResult.deserialize(data)
-        await asyncio.sleep(POLL_INTERVAL)
-        elapsed += POLL_INTERVAL
-    return None
+    existing = await r.get(dedupe_key(sub_id, doc_hash))
+    return existing if existing else None
+
+
+async def set_dedupe(r: aioredis.Redis, sub_id: str, doc_hash: str, job_id: str, ttl: int = RESULT_TTL) -> None:
+    """Record a dedup mapping so identical resubmissions return the same job."""
+    await r.set(dedupe_key(sub_id, doc_hash), job_id, ex=ttl)
+
+
+async def delete_dedupe(r: aioredis.Redis, sub_id: str, doc_hash: str) -> None:
+    """Remove a dedup mapping (e.g. on job failure so user can retry)."""
+    await r.delete(dedupe_key(sub_id, doc_hash))
 
 
 async def get_result(r: aioredis.Redis, job_id: str) -> JobResult | None:

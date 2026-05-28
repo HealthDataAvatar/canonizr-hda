@@ -13,12 +13,12 @@ export const StatCard: Story = {
   render: () => (
     <Card className="max-w-xs">
       <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">
-          Units this period
+        <CardTitle className="text-[0.8125rem] font-medium text-muted-foreground">
+          Processed this period
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <p className="font-mono text-3xl font-semibold">342</p>
+        <p className="font-mono text-3xl font-semibold">4.2 MB</p>
       </CardContent>
     </Card>
   ),
@@ -29,27 +29,27 @@ export const StatRow: Story = {
     <div className="grid gap-4 sm:grid-cols-3">
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">
-            Units this period
+          <CardTitle className="text-[0.8125rem] font-medium text-muted-foreground">
+            Processed this period
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="font-mono text-3xl font-semibold">342</p>
+          <p className="font-mono text-3xl font-semibold">4.2 MB</p>
         </CardContent>
       </Card>
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">
+          <CardTitle className="text-[0.8125rem] font-medium text-muted-foreground">
             Free tier remaining
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="font-mono text-3xl font-semibold">158 / 500</p>
+          <p className="font-mono text-3xl font-semibold">46 MB / 50 MB</p>
         </CardContent>
       </Card>
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">
+          <CardTitle className="text-[0.8125rem] font-medium text-muted-foreground">
             Estimated cost
           </CardTitle>
         </CardHeader>

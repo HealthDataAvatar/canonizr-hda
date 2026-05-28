@@ -1,3 +1,13 @@
+"""LibreOffice conversion via Gotenberg.
+
+Gotenberg's LibreOffice endpoint converts legacy formats to PDF.
+The PDF is then re-dispatched to Docling for markdown extraction.
+
+API: POST /forms/libreoffice/convert
+Form field: files (multipart file upload)
+Response: PDF bytes
+"""
+
 import logging
 import os
 import time
@@ -10,48 +20,40 @@ from .retry import request_with_retry
 
 logger = logging.getLogger(__name__)
 
-URL = "http://libreoffice:8000/convert"
+GOTENBERG_URL = os.environ.get("GOTENBERG_URL", "http://gotenberg:3000")
+CONVERT_PATH = "/forms/libreoffice/convert"
 
 
 def is_available() -> bool:
-    return os.environ.get("LIBREOFFICE_ENABLED", "true").lower() == "true"
+    return os.environ.get("LIBREOFFICE_ENABLED", "false").lower() == "true"
 
 
 async def convert(
-    file_bytes: bytes, mime_type: str, filename: str, target_format: str, deadline: float, parent: Span | None = None
+    file_bytes: bytes, mime_type: str, filename: str, deadline: float, parent: Span | None = None
 ) -> tuple[bytes, str]:
-    """Convert a file via headless LibreOffice. Returns (converted_bytes, new_mime_type)."""
+    """Convert a legacy document to PDF via Gotenberg. Returns (pdf_bytes, 'application/pdf')."""
     content = BytesIO(file_bytes)
 
     http_span = None
     if parent is not None:
-        http_span = Span(
-            name="http_request", attributes={"input_size_bytes": len(file_bytes), "target_format": target_format}
-        )
+        http_span = Span(name="http_request", attributes={"input_size_bytes": len(file_bytes)})
         http_span._start = time.monotonic()
         parent.children.append(http_span)
+
+    url = f"{GOTENBERG_URL}{CONVERT_PATH}"
 
     async with httpx.AsyncClient() as client:
         response = await request_with_retry(
             client,
             "POST",
-            URL,
+            url,
             deadline=deadline,
-            service_name="libreoffice",
+            service_name="gotenberg",
             span=http_span,
-            files=[("file", (filename, content, mime_type))],
-            params={"format": target_format},
+            files=[("files", (filename, content, mime_type))],
         )
 
     if http_span:
         http_span._end = time.monotonic()
 
-    FORMAT_MIMES = {
-        "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-        "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "pdf": "application/pdf",
-    }
-    converted_mime = FORMAT_MIMES.get(target_format, "application/octet-stream")
-
-    return response.content, converted_mime
+    return response.content, "application/pdf"

@@ -2,8 +2,10 @@
 
 import io
 import os
+import time
 from collections import namedtuple
 
+import requests
 from docx import Document
 from openpyxl import Workbook
 from PIL import Image, ImageDraw
@@ -25,6 +27,33 @@ EmbeddedImage = namedtuple("EmbeddedImage", ["label", "width", "height"])
 
 GATEWAY_URL = "http://gateway:8000"
 TIMEOUT = 120
+POLL_INTERVAL = 0.5
+
+
+def submit_and_poll(files, headers=None, timeout=TIMEOUT):
+    """Submit a file and poll until the result is ready. Returns (submit_response, result_response).
+
+    submit_response is the 202 from /convert.
+    result_response is the final response from /result (200, 500, or 410).
+    If the job never completes, result_response is the last 202.
+    """
+    submit = requests.post(f"{GATEWAY_URL}/convert", files=files, headers=headers, timeout=timeout)
+    if submit.status_code != 202:
+        return submit, None
+
+    poll_url = submit.json().get("poll_url", "")
+    if not poll_url:
+        return submit, None
+
+    result = None
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        result = requests.get(f"{GATEWAY_URL}{poll_url}", timeout=timeout)
+        if result.status_code != 202:
+            return submit, result
+        time.sleep(POLL_INTERVAL)
+
+    return submit, result
 
 
 def make_png(text: str = "Hello World", width: int = 200, height: int = 100) -> bytes:

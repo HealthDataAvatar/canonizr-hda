@@ -2,14 +2,12 @@
 
 import io
 
-import requests
-from conftest import GATEWAY_URL, TIMEOUT, make_docx, make_xlsx
+from conftest import make_docx, make_xlsx, submit_and_poll
 
 
 def test_docx():
     docx_bytes = make_docx("Integration test paragraph.")
-    r = requests.post(
-        f"{GATEWAY_URL}/convert",
+    submit, result = submit_and_poll(
         files={
             "file": (
                 "test.docx",
@@ -17,18 +15,17 @@ def test_docx():
                 "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             )
         },
-        timeout=TIMEOUT,
     )
-    assert r.status_code == 200
-    data = r.json()
+    assert submit.status_code == 202
+    assert result.status_code == 200
+    data = result.json()
     assert "Integration test paragraph" in data["markdown"]
     assert "markitdown" in data["metadata"]["actions"]
 
 
 def test_xlsx():
     xlsx_bytes = make_xlsx()
-    r = requests.post(
-        f"{GATEWAY_URL}/convert",
+    submit, result = submit_and_poll(
         files={
             "file": (
                 "test.xlsx",
@@ -36,9 +33,9 @@ def test_xlsx():
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             )
         },
-        timeout=TIMEOUT,
     )
-    assert r.status_code == 200
-    data = r.json()
+    assert submit.status_code == 202
+    assert result.status_code == 200
+    data = result.json()
     assert "Alpha" in data["markdown"]
     assert "markitdown" in data["metadata"]["actions"]

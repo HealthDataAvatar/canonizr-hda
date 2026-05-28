@@ -3,18 +3,18 @@
 import io
 
 import requests
-from conftest import GATEWAY_URL, TIMEOUT
+from conftest import GATEWAY_URL, TIMEOUT, submit_and_poll
 
 
 def test_unsupported_format():
     garbage = b"\x00\x01\x02\x03\x04\x05\x06\x07"
-    r = requests.post(
-        f"{GATEWAY_URL}/convert",
+    submit, result = submit_and_poll(
         files={"file": ("test.xyz", io.BytesIO(garbage), "application/octet-stream")},
-        timeout=TIMEOUT,
     )
-    assert r.status_code == 400
-    assert "Unsupported" in r.json()["detail"]
+    assert submit.status_code == 202
+    # Worker should return an error for unsupported format
+    assert result.status_code == 500
+    assert result.json()["status"] == "error"
 
 
 def test_file_too_large():
@@ -29,10 +29,10 @@ def test_file_too_large():
 
 
 def test_empty_file():
-    r = requests.post(
-        f"{GATEWAY_URL}/convert",
+    submit, result = submit_and_poll(
         files={"file": ("empty.txt", io.BytesIO(b""), "text/plain")},
-        timeout=TIMEOUT,
     )
-    # Empty files are rejected as unsupported format
-    assert r.status_code == 400
+    assert submit.status_code == 202
+    # Empty file — worker should return error
+    assert result.status_code == 500
+    assert result.json()["status"] == "error"

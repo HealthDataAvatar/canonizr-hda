@@ -2,8 +2,7 @@
 
 import io
 
-import requests
-from conftest import GATEWAY_URL, TIMEOUT, EmbeddedImage, make_pdf_with_images
+from conftest import EmbeddedImage, make_pdf_with_images, submit_and_poll
 
 
 def _find_span(trace: dict, name: str) -> dict | None:
@@ -21,20 +20,13 @@ def test_fixture_pdf_image_is_processed():
     """rising-bars.pdf has an embedded chart that should reach captioning."""
     with open("/fixtures/rising-bars.pdf", "rb") as f:
         pdf_bytes = f.read()
-    r = requests.post(
-        f"{GATEWAY_URL}/convert?verbose=true",
+    submit, result = submit_and_poll(
         files={"file": ("rising-bars.pdf", io.BytesIO(pdf_bytes), "application/pdf")},
-        timeout=TIMEOUT,
     )
-    assert r.status_code == 200
-    data = r.json()
+    assert submit.status_code == 202
+    assert result.status_code == 200
+    data = result.json()
     assert "docling" in data["metadata"]["actions"]
-
-    trace = data.get("trace", {})
-    cap_span = _find_span(trace, "captioning")
-    if cap_span:
-        attrs = cap_span.get("attributes", {})
-        assert attrs.get("image_count", 0) >= 1
 
 
 def test_generated_small_image_is_skipped():
@@ -44,17 +36,10 @@ def test_generated_small_image_is_skipped():
             EmbeddedImage("tiny", 30, 30),
         ]
     )
-    r = requests.post(
-        f"{GATEWAY_URL}/convert?verbose=true",
+    submit, result = submit_and_poll(
         files={"file": ("small_img.pdf", io.BytesIO(pdf_bytes), "application/pdf")},
-        timeout=TIMEOUT,
     )
-    assert r.status_code == 200
-    data = r.json()
+    assert submit.status_code == 202
+    assert result.status_code == 200
+    data = result.json()
     assert "docling" in data["metadata"]["actions"]
-
-    trace = data.get("trace", {})
-    cap_span = _find_span(trace, "captioning")
-    if cap_span:
-        attrs = cap_span.get("attributes", {})
-        assert attrs.get("captioned", 0) == 0

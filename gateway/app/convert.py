@@ -36,19 +36,19 @@ MARKITDOWN_TYPES = {
     "application/vnd.ms-outlook",  # .msg
 }
 
-# Formats that need LibreOffice to convert first
+# Formats that need LibreOffice (via Gotenberg) to convert to PDF first
 LIBREOFFICE_TYPES = {
-    "application/msword": "docx",  # .doc → .docx
-    "application/rtf": "docx",  # .rtf → .docx
-    "text/rtf": "docx",  # .rtf → .docx (alternate MIME)
-    "application/vnd.ms-powerpoint": "pptx",  # .ppt → .pptx
-    "application/vnd.ms-excel": "xlsx",  # .xls → .xlsx
-    "application/vnd.oasis.opendocument.text": "docx",  # .odt → .docx
-    "application/vnd.oasis.opendocument.presentation": "pdf",  # .odp → .pdf
-    "application/vnd.oasis.opendocument.spreadsheet": "xlsx",  # .ods → .xlsx
-    "application/vnd.apple.pages": "docx",  # .pages → .docx
-    "application/vnd.apple.numbers": "xlsx",  # .numbers → .xlsx
-    "application/vnd.apple.keynote": "pdf",  # .key → .pdf
+    "application/msword",  # .doc
+    "application/rtf",  # .rtf
+    "text/rtf",  # .rtf (alternate MIME)
+    "application/vnd.ms-powerpoint",  # .ppt
+    "application/vnd.ms-excel",  # .xls
+    "application/vnd.oasis.opendocument.text",  # .odt
+    "application/vnd.oasis.opendocument.presentation",  # .odp
+    "application/vnd.oasis.opendocument.spreadsheet",  # .ods
+    "application/vnd.apple.pages",  # .pages
+    "application/vnd.apple.numbers",  # .numbers
+    "application/vnd.apple.keynote",  # .key
 }
 
 
@@ -138,22 +138,17 @@ async def convert(
             actions=["markitdown"],
         )
 
-    # Legacy formats — LibreOffice converts, then re-process
+    # Legacy formats — Gotenberg converts to PDF, then Docling extracts
     if mime_type in LIBREOFFICE_TYPES:
         if not libreoffice.is_available():
             raise ServiceNotConfigured(f"This file type ({mime_type}) requires LibreOffice. Rerun setup to enable it.")
-        target = LIBREOFFICE_TYPES[mime_type]
         if parent:
-            with parent.span("libreoffice", target_format=target) as lo_span:
-                converted_bytes, converted_mime = await libreoffice.convert(
-                    file_bytes, mime_type, filename, target, deadline, lo_span
-                )
+            with parent.span("gotenberg") as lo_span:
+                pdf_bytes, _ = await libreoffice.convert(file_bytes, mime_type, filename, deadline, lo_span)
         else:
-            converted_bytes, converted_mime = await libreoffice.convert(
-                file_bytes, mime_type, filename, target, deadline
-            )
-        result = await convert(converted_bytes, converted_mime, filename, deadline, trace)
-        result.actions.insert(0, f"libreoffice ({mime_type} → {target})")
+            pdf_bytes, _ = await libreoffice.convert(file_bytes, mime_type, filename, deadline)
+        result = await convert(pdf_bytes, "application/pdf", filename, deadline, trace)
+        result.actions.insert(0, f"gotenberg ({mime_type} → pdf)")
         result.detected_type = mime_type
         return result
 

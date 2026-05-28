@@ -10,7 +10,10 @@ from fastapi.responses import JSONResponse, Response
 
 from . import blobstore, quota
 from .crypto import decrypt, encrypt
-from .queue import Job, await_result, enqueue, ensure_group, get_result
+from .estimates import estimate_seconds
+from .hash import document_hash
+from .queue import Job, check_dedupe, enqueue, ensure_group, get_result, set_dedupe
+from .quota import QuotaService
 
 logger = logging.getLogger(__name__)
 
@@ -83,11 +86,31 @@ async def _read_file(file: UploadFile) -> bytes:
     return content.read()
 
 
+_quota: QuotaService | None = None
+
+
 async def _get_redis():
     r = await quota.get_redis()
     if r is None:
         raise HTTPException(status_code=503, detail="Service unavailable")
     return r
+
+
+def _accept_response(job_id: str, estimated_seconds: int) -> JSONResponse:
+    """Standard 202 response for accepted jobs."""
+    return JSONResponse(
+        status_code=202,
+        content={
+            "job_id": job_id,
+            "status": "processing",
+            "poll_url": f"/result/{job_id}",
+            "estimated_seconds": estimated_seconds,
+        },
+        headers={
+            "Location": f"/result/{job_id}",
+            "Retry-After": str(estimated_seconds),
+        },
+    )
 
 
 @app.post("/convert")
@@ -98,15 +121,29 @@ async def convert_document(
     accept: str = Header("application/json"),
 ):
     file_bytes = await _read_file(file)
-
     sub_id = request.headers.get("x-subscription-id", "")
+
+    # Trust client MIME type if provided and specific; fall back to magic detection
+    client_mime = file.content_type or ""
+    if client_mime and client_mime != "application/octet-stream":
+        mime_type = client_mime
+    else:
+        mime_type = magic.from_buffer(file_bytes, mime=True)
+    r = await _get_redis()
+
+    # Deduplication — return existing job if same file already submitted by this key
+    doc_hash = document_hash(file_bytes)
     if sub_id:
-        rejection = await quota.check_quota(sub_id, len(file_bytes))
+        existing_job_id = await check_dedupe(r, sub_id, doc_hash)
+        if existing_job_id:
+            return _accept_response(existing_job_id, estimate_seconds(mime_type, len(file_bytes)))
+
+    # Quota check + immediate deduction
+    if sub_id and _quota:
+        rejection = await _quota.check(sub_id, len(file_bytes))
         if rejection:
             raise HTTPException(status_code=429, detail=rejection)
-
-    mime_type = magic.from_buffer(file_bytes, mime=True)
-    r = await _get_redis()
+        await _quota.record(sub_id, len(file_bytes))
 
     job = Job.create(
         sub_id=sub_id,
@@ -120,51 +157,41 @@ async def convert_document(
     await blobstore.put(job.input_blob_key, encrypt(file_bytes))
     await enqueue(r, job)
 
-    result = await await_result(r, job.job_id, timeout=REQUEST_TIMEOUT)
-    if result is None:
-        return JSONResponse(
-            status_code=202,
-            content={"job_id": job.job_id, "status": "processing"},
-            headers={"Location": f"/result/{job.job_id}"},
-        )
-
-    if result.status == "error":
-        raise HTTPException(status_code=result.status_code, detail=result.error_detail)
-
-    encrypted_output = await blobstore.get(job.output_blob_key)
-    if encrypted_output is None:
-        raise HTTPException(status_code=500, detail="Output blob not found")
-    payload = json.loads(decrypt(encrypted_output))
-    await blobstore.delete(job.output_blob_key)
-
+    # Set dedup key so identical resubmissions return the same job
     if sub_id:
-        input_bytes = payload.get("metadata", {}).get("input_bytes", 0)
-        await quota.record_usage(sub_id, input_bytes)
+        await set_dedupe(r, sub_id, doc_hash, job.job_id)
 
-    echo = {k: v for k, v in request.headers.items() if k.lower() in ECHO_HEADERS}
-    return Response(
-        content=json.dumps(payload),
-        media_type="application/json",
-        headers={**echo, **_billing_headers(payload)},
-    )
+    return _accept_response(job.job_id, estimate_seconds(mime_type, len(file_bytes)))
 
 
 @app.get("/result/{job_id}")
 async def poll_result(job_id: str):
     r = await _get_redis()
     result = await get_result(r, job_id)
+
     if result is None:
-        raise HTTPException(status_code=404, detail="Result not found or expired")
+        # No result key — either still processing or unknown/expired
+        # Check if the job exists in the stream (could add a job metadata key later)
+        # For now, return 202 — the client will eventually get 200 or give up
+        return JSONResponse(
+            status_code=202,
+            content={"job_id": job_id, "status": "processing"},
+        )
 
     if result.status == "error":
-        raise HTTPException(status_code=result.status_code, detail=result.error_detail)
+        return JSONResponse(
+            status_code=500,
+            content={"job_id": job_id, "status": "error", "detail": result.error_detail},
+        )
 
     output_key = f"{job_id}/output"
     encrypted_output = await blobstore.get(output_key)
     if encrypted_output is None:
-        raise HTTPException(status_code=404, detail="Output expired or already collected")
+        return JSONResponse(
+            status_code=410,
+            content={"job_id": job_id, "status": "expired", "detail": "Result retention expired"},
+        )
     payload = json.loads(decrypt(encrypted_output))
-    await blobstore.delete(output_key)
 
     return Response(
         content=json.dumps(payload),
@@ -175,8 +202,10 @@ async def poll_result(job_id: str):
 
 @app.on_event("startup")
 async def startup():
+    global _quota
     r = await quota.get_redis()
     if r:
+        _quota = QuotaService(r)
         await ensure_group(r)
 
 
