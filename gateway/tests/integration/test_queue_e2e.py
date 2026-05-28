@@ -17,7 +17,7 @@ class TestQueueRoundTrip:
         assert "markdown" in data
         assert "Queue round-trip test document" in data["markdown"]
 
-    def test_html_passthrough(self):
+    def test_html_converted_to_markdown(self):
         resp = requests.post(
             f"{GATEWAY_URL}/convert",
             files={"file": ("test.html", b"<h1>Hello</h1>", "text/html")},
@@ -27,6 +27,7 @@ class TestQueueRoundTrip:
         data = resp.json()
         assert "markdown" in data
         assert "Hello" in data["markdown"]
+        assert "markitdown" in data["metadata"]["actions"]
 
     def test_plain_text_passthrough(self):
         resp = requests.post(

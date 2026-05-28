@@ -93,8 +93,9 @@ resource "azurerm_container_app" "gateway" {
   }
 
   secret {
-    name  = "encryption-key"
-    value = azurerm_key_vault_secret.encryption_key.value
+    name                = "encryption-key"
+    key_vault_secret_id = azurerm_key_vault_secret.encryption_key.versionless_id
+    identity            = azurerm_user_assigned_identity.gateway.id
   }
 
   template {
@@ -209,8 +210,9 @@ resource "azurerm_container_app" "worker" {
   }
 
   secret {
-    name  = "encryption-key"
-    value = azurerm_key_vault_secret.encryption_key.value
+    name                = "encryption-key"
+    key_vault_secret_id = azurerm_key_vault_secret.encryption_key.versionless_id
+    identity            = azurerm_user_assigned_identity.worker.id
   }
 
   template {

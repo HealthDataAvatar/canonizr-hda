@@ -23,11 +23,11 @@ PASSTHROUGH_TYPES = {
     "application/json",
     "application/xml",
     "text/xml",
-    "text/html",
 }
 
 # Formats MarkItDown handles natively
 MARKITDOWN_TYPES = {
+    "text/html",  # HTML → clean markdown
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",  # .docx
     "application/vnd.openxmlformats-officedocument.presentationml.presentation",  # .pptx
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",  # .xlsx

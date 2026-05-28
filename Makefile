@@ -1,11 +1,12 @@
 ACR_NAME    ?= acrcanonizrprod
 ACR_SERVER  ?= $(ACR_NAME).azurecr.io
 IMAGE_NAME  ?= canonizr-gateway
+PORTAL_IMAGE ?= canonizr-portal
 TAG         ?= latest
 TF_DIR      ?= infra/terraform
 DEPLOY_TIME ?= $(shell date -u +%Y%m%dT%H%M%SZ)
 
-.PHONY: build push deploy test test-unit test-integration test-smoke check-uv fmt lint check install-hooks setup-secrets gen-key gateway-logs worker-logs
+.PHONY: build gateway-push deploy test test-unit test-integration test-smoke check-uv fmt lint check install-hooks setup-secrets gen-key gateway-logs worker-logs portal-dev portal-build portal-push portal-logs
 
 # ---------------------------------------------------------------------------
 # Prerequisites
@@ -34,8 +35,6 @@ lint: check-uv
 
 test-unit: check-uv
 	cd gateway && uv sync --extra test && uv run pytest tests/unit -q
-
-check: lint test-unit
 
 test-integration:
 	docker compose -f docker-compose.test.yml up --build --abort-on-container-exit --exit-code-from tests
@@ -71,12 +70,27 @@ build:
 		-t $(ACR_SERVER)/$(IMAGE_NAME):$(TAG) \
 		-f gateway/gateway.dockerfile gateway/
 
-push: build
+gateway-push: build
 	az acr login --name $(ACR_NAME)
 	docker push $(ACR_SERVER)/$(IMAGE_NAME):$(TAG)
 
-deploy: test push
+deploy: test gateway-push portal-push
 	tofu -chdir=$(TF_DIR) apply -var="deploy_time=$(DEPLOY_TIME)"
+
+# ---------------------------------------------------------------------------
+# Portal
+# ---------------------------------------------------------------------------
+portal-dev:
+	cd portal && npm run dev
+
+portal-build:
+	docker build --platform linux/amd64 \
+		-t $(ACR_SERVER)/$(PORTAL_IMAGE):$(TAG) \
+		-f portal/Dockerfile portal/
+
+portal-push: portal-build
+	az acr login --name $(ACR_NAME)
+	docker push $(ACR_SERVER)/$(PORTAL_IMAGE):$(TAG)
 
 # ---------------------------------------------------------------------------
 # Logs
@@ -86,3 +100,6 @@ gateway-logs:
 
 worker-logs:
 	az containerapp logs show --name canonizr-worker --resource-group rg-canonizr-prod --tail 50
+
+portal-logs:
+	az containerapp logs show --name canonizr-portal --resource-group rg-canonizr-prod --tail 50

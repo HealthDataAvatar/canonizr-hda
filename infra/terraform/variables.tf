@@ -60,6 +60,17 @@ variable "docling_memory" {
   default = "4Gi"
 }
 
+# Portal
+variable "portal_cpu" {
+  type    = number
+  default = 0.5
+}
+
+variable "portal_memory" {
+  type    = string
+  default = "1Gi"
+}
+
 # Azure OpenAI
 variable "deploy_time" {
   description = "Timestamp to force new container revision on deploy"

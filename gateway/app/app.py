@@ -14,6 +14,22 @@ from .queue import Job, await_result, enqueue, ensure_group, get_result
 
 logger = logging.getLogger(__name__)
 
+
+def _billing_headers(payload: dict) -> dict[str, str]:
+    """Extract billing metadata from the response payload as HTTP headers."""
+    meta = payload.get("metadata", {})
+    captioning = meta.get("captioning", {})
+    return {
+        "X-Input-Size-Bytes": str(meta.get("input_bytes", 0)),
+        "X-Document-Hash": meta.get("input_hash", ""),
+        "X-Processing-Time-Ms": str(round(meta.get("processing_time_ms", 0))),
+        "X-Processing-Pipeline": ",".join(meta.get("actions", [])),
+        "X-Images-Captioned": str(captioning.get("images_captioned", 0)),
+        "X-Captioning-Prompt-Tokens": str(captioning.get("prompt_tokens", 0)),
+        "X-Captioning-Completion-Tokens": str(captioning.get("completion_tokens", 0)),
+    }
+
+
 app = FastAPI()
 
 DEBUG_MODE = os.environ.get("DEBUG", "").lower() in ("1", "true", "yes")
@@ -129,7 +145,7 @@ async def convert_document(
     return Response(
         content=json.dumps(payload),
         media_type="application/json",
-        headers=echo,
+        headers={**echo, **_billing_headers(payload)},
     )
 
 
@@ -153,6 +169,7 @@ async def poll_result(job_id: str):
     return Response(
         content=json.dumps(payload),
         media_type="application/json",
+        headers=_billing_headers(payload),
     )
 
 

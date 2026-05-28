@@ -34,7 +34,7 @@ resource "azurerm_key_vault_access_policy" "terraform" {
   tenant_id    = data.azurerm_client_config.current.tenant_id
   object_id    = data.azurerm_client_config.current.object_id
 
-  secret_permissions = ["Get", "Set", "Delete", "List"]
+  secret_permissions = ["Get", "Set", "Delete", "List", "Purge"]
 }
 
 resource "azurerm_key_vault_access_policy" "gateway" {
@@ -65,26 +65,3 @@ resource "azurerm_key_vault_secret" "encryption_key" {
   }
 }
 
-resource "azurerm_key_vault_secret" "stripe_secret_key" {
-  name         = "stripe-secret-key"
-  value        = "initial-rotate-me"
-  key_vault_id = azurerm_key_vault.this.id
-
-  depends_on = [azurerm_key_vault_access_policy.terraform]
-
-  lifecycle {
-    ignore_changes = [value]
-  }
-}
-
-resource "azurerm_key_vault_secret" "stripe_webhook_secret" {
-  name         = "stripe-webhook-secret"
-  value        = "initial-rotate-me"
-  key_vault_id = azurerm_key_vault.this.id
-
-  depends_on = [azurerm_key_vault_access_policy.terraform]
-
-  lifecycle {
-    ignore_changes = [value]
-  }
-}

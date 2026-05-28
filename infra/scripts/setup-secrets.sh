@@ -7,25 +7,39 @@
 
 set -e
 
-VAULT_NAME="kv-canonizr-prod"
+setup_vault() {
+    vault="$1"
+    shift
+    echo "=== $vault ==="
+    for name in "$@"; do
+        current=$(az keyvault secret show --vault-name "$vault" --name "$name" --query value -o tsv 2>/dev/null || echo "")
 
-SECRETS="job-encryption-key stripe-secret-key stripe-webhook-secret"
-
-for name in $SECRETS; do
-    current=$(az keyvault secret show --vault-name "$VAULT_NAME" --name "$name" --query value -o tsv 2>/dev/null || echo "")
-
-    if [ "$current" = "initial-rotate-me" ] || [ -z "$current" ]; then
-        printf "Enter value for %s: " "$name"
-        read -r value
-        if [ -z "$value" ]; then
-            echo "Skipping $name (empty input)"
-            continue
+        if [ "$current" = "initial-rotate-me" ] || [ -z "$current" ]; then
+            printf "Enter value for %s: " "$name"
+            read -r value
+            if [ -z "$value" ]; then
+                echo "Skipping $name (empty input)"
+                continue
+            fi
+            az keyvault secret set --vault-name "$vault" --name "$name" --value "$value" -o none
+            echo "Set $name"
+        else
+            echo "$name already set (use Azure CLI to rotate manually)"
         fi
-        az keyvault secret set --vault-name "$VAULT_NAME" --name "$name" --value "$value" -o none
-        echo "Set $name"
-    else
-        echo "$name already set (use Azure CLI to rotate manually)"
-    fi
-done
+    done
+}
+
+# Shared KV — job encryption only
+setup_vault "kv-canonizr-prod" \
+    job-encryption-key
+
+# Portal KV — auth, billing, OAuth
+setup_vault "kv-portal-canonizr-prod" \
+    auth-secret \
+    stripe-secret-key \
+    github-client-id \
+    github-client-secret \
+    google-client-id \
+    google-client-secret
 
 echo "Done."

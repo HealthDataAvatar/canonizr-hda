@@ -41,6 +41,12 @@ async def close():
         _pool = None
 
 
+async def _incr_with_ttl(r: redis.Redis, key: str, ttl: int) -> None:
+    """Increment a counter and set its TTL. Two separate commands for cluster compatibility."""
+    await r.incr(key)
+    await r.expire(key, ttl)
+
+
 async def check_quota(sub_id: str, content_length: int) -> str | None:
     """Check if a subscription has remaining quota.
 
@@ -69,13 +75,11 @@ async def check_quota(sub_id: str, content_length: int) -> str | None:
     usage = int(await r.get(usage_key) or 0)
 
     if usage >= quota:
-        await r.incr(rejected_key)
-        await r.expire(rejected_key, REJECTED_TTL)
+        await _incr_with_ttl(r, rejected_key, REJECTED_TTL)
         return f"Quota exceeded ({usage} / {quota} bytes used)"
 
     if usage + content_length > quota:
-        await r.incr(rejected_key)
-        await r.expire(rejected_key, REJECTED_TTL)
+        await _incr_with_ttl(r, rejected_key, REJECTED_TTL)
         remaining = quota - usage
         return f"File too large for remaining quota ({content_length} bytes, {remaining} remaining)"
 
@@ -93,7 +97,5 @@ async def record_usage(sub_id: str, input_bytes: int, billing_period_ttl: int = 
 
     usage_key = f"sub:{sub_id}:bytes"
 
-    pipe = r.pipeline()
-    pipe.incrby(usage_key, input_bytes)
-    pipe.expire(usage_key, billing_period_ttl)
-    await pipe.execute()
+    await r.incrby(usage_key, input_bytes)
+    await r.expire(usage_key, billing_period_ttl)

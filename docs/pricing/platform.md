@@ -20,7 +20,7 @@
 - Image captioning included -- no separate line item
 - Only `200` responses are billed
 - All formats charged the same way
-- **Exception**: passthrough formats (HTML, plain text) billed as 1KB regardless of actual size (upstream change pending)
+- All formats billed uniformly — no passthrough exception. HTML is converted via MarkItDown; plain text and other LLM-readable formats pass through but are billed at actual size.
 
 ### Competitive landscape (May 2026)
 
@@ -234,6 +234,10 @@ Ephemeral and cache storage deliberately separated so infra changes to the job p
 
 Pre-commit hook: `make install-hooks` (ruff format + ruff check). Hook self-validates against repo copy.
 
+### Staging environment
+
+Not needed yet. For stress testing, use a dedicated APIM subscription key against production — quota tracking isolates test traffic. Local load testing via docker-compose (k6/hey against the full stack) catches queue and worker bottlenecks without duplicate infrastructure. Revisit when there are paying customers and migrations need safe validation.
+
 ## Feature Gaps
 
 | Feature | Status |
@@ -261,7 +265,7 @@ Pre-commit hook: `make install-hooks` (ruff format + ruff check). Hook self-vali
 3. ~~APIM paid product: approval_required = false~~ Done
 4. ~~Audit trail: billing headers in App Insights~~ Done
 5. Stripe meters + usage reporting Azure Function
-6. Passthrough billing fix (upstream: report `input_bytes: 1024` for passthrough)
+6. ~~Passthrough billing fix~~ Done — HTML moved to MarkItDown, all formats billed at actual size
 
 **Phase 2 -- Self-service portal**
 7. canonizr.com (Next.js + Auth.js + Azure Table Storage)
@@ -277,7 +281,7 @@ Pre-commit hook: `make install-hooks` (ruff format + ruff check). Hook self-vali
 15. GPU evaluation for Docling (T4 scale-to-zero vs CPU always-on)
 
 **Phase 4 -- Growth**
-16. Webhook callbacks
+16. Webhook callbacks + delivery destinations (S3, webhook — per-key default with per-request override, writes to user-provided buckets)
 17. MCP server
 18. Privacy policy + terms of service
 19. Monitoring/alerting (usage anomalies, error rate spikes)
