@@ -2,7 +2,6 @@
 
 import { signIn } from "next-auth/react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
@@ -13,14 +12,17 @@ export default function AuthPage() {
 
   return (
     <div className="flex flex-1 items-center justify-center px-6 py-24">
-      <Card className="w-full max-w-sm">
-        <CardHeader className="text-center">
-          <CardTitle className="text-xl">Sign in to Canonizr</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Create an account or sign in to manage your API keys.
+      <div className="w-full max-w-sm space-y-6">
+        <div className="text-center space-y-2">
+          <h1 className="text-[1.5rem] font-semibold tracking-tight">
+            Canonizr
+          </h1>
+          <p className="text-[0.9375rem] text-muted-foreground">
+            Convert documents to Markdown.
           </p>
-        </CardHeader>
-        <CardContent className="space-y-4">
+        </div>
+
+        <div className="space-y-3">
           <Button
             variant="outline"
             className="w-full"
@@ -35,37 +37,49 @@ export default function AuthPage() {
           >
             Continue with Google
           </Button>
+        </div>
 
-          <div className="flex items-center gap-3">
-            <Separator className="flex-1" />
-            <span className="text-xs text-muted-foreground">or</span>
-            <Separator className="flex-1" />
+        <div className="flex items-center gap-3">
+          <Separator className="flex-1" />
+          <span className="text-[0.75rem] text-muted-foreground">or</span>
+          <Separator className="flex-1" />
+        </div>
+
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            signIn("nodemailer", { email, callbackUrl: "/dashboard" });
+          }}
+          className="space-y-3"
+        >
+          <div className="space-y-1.5">
+            <Label htmlFor="email">Email</Label>
+            <Input
+              id="email"
+              type="email"
+              placeholder="you@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
           </div>
+          <Button type="submit" className="w-full">
+            Send magic link
+          </Button>
+        </form>
 
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              signIn("nodemailer", { email, callbackUrl: "/dashboard" });
-            }}
-            className="space-y-3"
+        <p className="text-center text-[0.75rem] text-muted-foreground">
+          New here?{" "}
+          <a
+            href="https://canonizr.com"
+            className="text-accent hover:underline"
+            target="_blank"
+            rel="noopener noreferrer"
           >
-            <div className="space-y-1.5">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-            </div>
-            <Button type="submit" className="w-full">
-              Send magic link
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+            Learn more at canonizr.com
+          </a>
+        </p>
+      </div>
     </div>
   );
 }

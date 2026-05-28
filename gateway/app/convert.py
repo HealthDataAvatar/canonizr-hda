@@ -148,7 +148,7 @@ async def convert(
         else:
             pdf_bytes, _ = await libreoffice.convert(file_bytes, mime_type, filename, deadline)
         result = await convert(pdf_bytes, "application/pdf", filename, deadline, trace)
-        result.actions.insert(0, f"gotenberg ({mime_type} → pdf)")
+        result.actions.insert(0, f"gotenberg ({mime_type} -> pdf)")
         result.detected_type = mime_type
         return result
 

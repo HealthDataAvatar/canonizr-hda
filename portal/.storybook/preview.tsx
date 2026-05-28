@@ -16,15 +16,15 @@ const preview: Preview = {
     backgrounds: {
       default: "light",
       values: [
-        { name: "light", value: "oklch(0.985 0.005 45)" },
-        { name: "dark", value: "oklch(0.13 0.005 45)" },
+        { name: "light", value: "#faf9f7" },
+        { name: "dark", value: "#1f1d1a" },
       ],
     },
   },
   decorators: [
     (Story, context) => {
       const bg = context.globals.backgrounds?.value;
-      const isDark = bg === "oklch(0.13 0.005 45)";
+      const isDark = bg === "#1f1d1a";
       return (
         <div className={isDark ? "dark" : ""}>
           <div className="bg-background text-foreground p-8">

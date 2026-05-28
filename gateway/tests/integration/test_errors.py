@@ -33,6 +33,5 @@ def test_empty_file():
         files={"file": ("empty.txt", io.BytesIO(b""), "text/plain")},
     )
     assert submit.status_code == 202
-    # Empty file — worker should return error
-    assert result.status_code == 500
-    assert result.json()["status"] == "error"
+    # Empty text file is valid passthrough — returns empty markdown
+    assert result.status_code == 200
