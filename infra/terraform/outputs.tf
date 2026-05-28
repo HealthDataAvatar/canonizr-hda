@@ -42,3 +42,7 @@ output "portal_storage_account" {
 output "portal_key_vault_name" {
   value = azurerm_key_vault.portal.name
 }
+
+output "results_storage_account" {
+  value = azurerm_storage_account.results.name
+}

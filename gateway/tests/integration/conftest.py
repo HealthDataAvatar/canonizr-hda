@@ -3,9 +3,12 @@
 import io
 import os
 import time
+import uuid
 from collections import namedtuple
 
+import pytest
 import requests
+from azure.data.tables import TableServiceClient
 from docx import Document
 from openpyxl import Workbook
 from PIL import Image, ImageDraw
@@ -29,15 +32,82 @@ GATEWAY_URL = "http://gateway:8000"
 TIMEOUT = 120
 POLL_INTERVAL = 0.5
 
+# Azurite connection strings (same well-known dev credentials)
+AZURITE_TABLE_CONN = os.environ.get(
+    "AZURITE_TABLE_CONN",
+    "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;"
+    "AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;"
+    "TableEndpoint=http://azurite:10002/devstoreaccount1",
+)
 
-def submit_and_poll(files, headers=None, timeout=TIMEOUT):
+# Fixed test encryption key (32 zero bytes in hex)
+TEST_KEY_HEX = "0" * 64
+
+
+@pytest.fixture(scope="session", autouse=True)
+def seed_azurite():
+    """One-time setup: ensure Azurite tables and blob container exist."""
+    from azure.storage.blob import BlobServiceClient
+
+    ts = TableServiceClient.from_connection_string(AZURITE_TABLE_CONN)
+    ts.create_table_if_not_exists("users")  # Table.USERS
+    ts.create_table_if_not_exists("encryptionkeys")  # Table.ENCRYPTION_KEYS
+    ts.create_table_if_not_exists("jobs")  # Table.JOBS
+
+    # Create blob container (gateway/worker need it to exist)
+    blob_conn = AZURITE_TABLE_CONN.replace("TableEndpoint", "BlobEndpoint").replace(":10002/", ":10000/")
+    blob_svc = BlobServiceClient.from_connection_string(blob_conn)
+    try:
+        blob_svc.create_container("jobs")
+    except Exception:
+        pass  # already exists
+
+
+@pytest.fixture
+def test_sub():
+    """Create an isolated test subscription for this test.
+
+    Each test gets a unique sub_id + user_id, seeded into Azurite.
+    No test can interfere with another.
+    """
+    suffix = uuid.uuid4().hex[:8]
+    sub_id = f"test_sub_{suffix}"
+    user_id = f"test_user_{suffix}"
+
+    ts = TableServiceClient.from_connection_string(AZURITE_TABLE_CONN)
+
+    # Seed subscription -> user mapping
+    ts.get_table_client("users").upsert_entity(
+        {  # Table.USERS
+            "PartitionKey": "subscription",
+            "RowKey": sub_id,
+            "user_id": user_id,
+            "key_name": f"key-{suffix}",
+        }
+    )
+
+    # Seed encryption key
+    ts.get_table_client("encryptionkeys").upsert_entity(
+        {  # Table.ENCRYPTION_KEYS
+            "PartitionKey": "encryptionkeys",
+            "RowKey": user_id,
+            "key_hex": TEST_KEY_HEX,
+        }
+    )
+
+    return sub_id
+
+
+DEFAULT_HEADERS: dict[str, str] = {}  # overridden per-test via test_sub fixture
+
+
+def submit_and_poll(files, sub_id, headers=None, timeout=TIMEOUT):
     """Submit a file and poll until the result is ready. Returns (submit_response, result_response).
 
-    submit_response is the 202 from /convert.
-    result_response is the final response from /result (200, 500, or 410).
-    If the job never completes, result_response is the last 202.
+    sub_id is required — use the test_sub fixture for isolation.
     """
-    submit = requests.post(f"{GATEWAY_URL}/convert", files=files, headers=headers, timeout=timeout)
+    merged_headers = {"X-Subscription-Id": sub_id, **(headers or {})}
+    submit = requests.post(f"{GATEWAY_URL}/convert", files=files, headers=merged_headers, timeout=timeout)
     if submit.status_code != 202:
         return submit, None
 

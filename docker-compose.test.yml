@@ -9,24 +9,35 @@ services:
       timeout: 2s
       retries: 5
 
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite:latest
+    command: "azurite --blobHost 0.0.0.0 --tableHost 0.0.0.0 --loose --skipApiVersionCheck"
+    networks:
+      - canonizr
+    healthcheck:
+      test: ["CMD", "nc", "-z", "127.0.0.1", "10000"]
+      interval: 2s
+      timeout: 2s
+      retries: 5
+
   gateway:
     build:
       context: ./gateway
       dockerfile: gateway.dockerfile
     environment:
       REDIS_URL: redis://redis:6379
-      BLOB_STORE_URL: file:///data/blobs
-      ENCRYPTION_KEY: "0000000000000000000000000000000000000000000000000000000000000000"
+      BLOB_STORAGE_CONNECTION_STRING: "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite:10000/devstoreaccount1"
+      TABLE_STORAGE_CONNECTION_STRING: "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;TableEndpoint=http://azurite:10002/devstoreaccount1"
       CAPTIONING_ENABLED: "false"
       DEBUG: "true"
       MAX_FILE_SIZE_MB: "50"
       REQUEST_TIMEOUT: "120"
-    volumes:
-      - blobdata:/data/blobs
     networks:
       - canonizr
     depends_on:
       redis:
+        condition: service_healthy
+      azurite:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
@@ -42,20 +53,40 @@ services:
     command: ["python", "-m", "app.worker"]
     environment:
       REDIS_URL: redis://redis:6379
-      BLOB_STORE_URL: file:///data/blobs
-      ENCRYPTION_KEY: "0000000000000000000000000000000000000000000000000000000000000000"
+      BLOB_STORAGE_CONNECTION_STRING: "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite:10000/devstoreaccount1"
+      TABLE_STORAGE_CONNECTION_STRING: "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;TableEndpoint=http://azurite:10002/devstoreaccount1"
       DOCLING_ENDPOINT: http://docling:5001/v1/convert/file
       CAPTIONING_ENABLED: "false"
+      LIBREOFFICE_ENABLED: "true"
+      GOTENBERG_URL: http://gotenberg:3000
       REQUEST_TIMEOUT: "120"
-    volumes:
-      - blobdata:/data/blobs
     networks:
       - canonizr
     depends_on:
       redis:
         condition: service_healthy
+      azurite:
+        condition: service_healthy
       docling:
         condition: service_healthy
+      gotenberg:
+        condition: service_healthy
+
+  gotenberg:
+    image: gotenberg/gotenberg:8
+    command:
+      - "gotenberg"
+      - "--api-port=3000"
+      - "--api-timeout=120s"
+      - "--chromium-disable-routes=true"
+    networks:
+      - canonizr
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
 
   docling:
     image: ghcr.io/docling-project/docling-serve-cpu:latest
@@ -75,6 +106,8 @@ services:
     environment:
       GATEWAY_URL: http://gateway:8000
       REDIS_URL: redis://redis:6379
+      AZURITE_TABLE_CONN: "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;TableEndpoint=http://azurite:10002/devstoreaccount1"
+      FOCUS_TESTS: ${FOCUS_TESTS:-}
     volumes:
       - ./examples:/examples
       - ./gateway/tests/fixtures:/fixtures
@@ -84,9 +117,6 @@ services:
     depends_on:
       gateway:
         condition: service_healthy
-
-volumes:
-  blobdata:
 
 networks:
   canonizr:

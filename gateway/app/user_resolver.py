@@ -1,0 +1,85 @@
+"""Azure Table Storage + Redis implementation of UserResolver protocol.
+
+Lookup chain:
+  sub_id → user_id (Redis cache, then Table Storage)
+  user_id → encryption key (Redis cache, then Table Storage)
+"""
+
+import logging
+
+import redis.asyncio as aioredis
+from azure.data.tables import TableServiceClient
+
+from .keys import encryption_key_cache, key_name_cache, user_id_cache
+from .protocols import UserContext
+from .tables import Table
+
+logger = logging.getLogger(__name__)
+
+CACHE_TTL = 3600  # 1 hour
+
+
+class TableUserResolver:
+    """UserResolver backed by Azure Table Storage with Redis caching."""
+
+    def __init__(self, r: aioredis.Redis, table_connection_string: str):
+        self._r = r
+        self._table_conn = table_connection_string
+
+    async def resolve(self, sub_id: str) -> UserContext | None:
+        uid = await self._get_user_id(sub_id)
+        if not uid:
+            return None
+
+        key_hex = await self._get_user_key(uid)
+        if not key_hex:
+            logger.error("User %s has no encryption key", uid)
+            return None
+
+        kname = await self._get_key_name(sub_id)
+
+        return UserContext(user_id=uid, encryption_key=bytes.fromhex(key_hex), key_name=kname)
+
+    async def _get_user_id(self, sub_id: str) -> str | None:
+        ck = user_id_cache(sub_id=sub_id)
+        cached = await self._r.get(ck)
+        if cached:
+            return cached
+
+        val = self._table_lookup(Table.USERS, "subscription", sub_id, "user_id")
+        if val:
+            await self._r.set(ck, val, ex=CACHE_TTL)
+        return val
+
+    async def _get_user_key(self, user_id: str) -> str | None:
+        ck = encryption_key_cache(user_id=user_id)
+        cached = await self._r.get(ck)
+        if cached:
+            return cached
+
+        val = self._table_lookup(Table.ENCRYPTION_KEYS, Table.ENCRYPTION_KEYS, user_id, "key_hex")
+        if val:
+            await self._r.set(ck, val, ex=CACHE_TTL)
+        return val
+
+    async def _get_key_name(self, sub_id: str) -> str:
+        ck = key_name_cache(sub_id=sub_id)
+        cached = await self._r.get(ck)
+        if cached:
+            return cached
+
+        val = self._table_lookup(Table.USERS, "subscription", sub_id, "key_name")
+        if val:
+            await self._r.set(ck, val, ex=CACHE_TTL)
+        return val or ""
+
+    def _table_lookup(self, table_name: str, partition: str, row: str, field: str) -> str | None:
+        if not self._table_conn:
+            return None
+        try:
+            service = TableServiceClient.from_connection_string(self._table_conn)
+            table = service.get_table_client(table_name)
+            entity = table.get_entity(partition, row)
+            return entity.get(field)
+        except Exception:
+            return None

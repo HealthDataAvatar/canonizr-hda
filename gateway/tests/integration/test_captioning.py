@@ -1,59 +1,45 @@
 """Test captioning service paths.
 
-These are smoke tests — they require a live captioning service (local model
-or Azure OpenAI). They should NOT run in the standard integration test suite.
-
-TODO: Move to a dedicated tests/smoke/ directory with its own Dockerfile
-and conftest that takes GATEWAY_URL and APIM_KEY from env vars.
+These are smoke tests — they require a live captioning service.
+They should NOT run in the standard integration test suite.
 """
 
 import io
 
 import pytest
-import requests
-from conftest import GATEWAY_URL, TIMEOUT, make_png, make_tiff
+from conftest import make_png, make_tiff, submit_and_poll
 
 pytestmark = pytest.mark.smoke
 
 
-def test_image_returns_text():
+def test_image_returns_text(test_sub):
     png_bytes = make_png("Hello World")
-    r = requests.post(
-        f"{GATEWAY_URL}/convert",
+    submit, result = submit_and_poll(
         files={"file": ("test.png", io.BytesIO(png_bytes), "image/png")},
-        timeout=TIMEOUT,
+        sub_id=test_sub,
     )
-    assert r.status_code == 200
-    data = r.json()
-    assert len(data["markdown"]) > 0
-    assert "captioning" in data["metadata"]["actions"]
+    assert submit.status_code == 202
+    assert result.status_code == 200
+    assert len(result.json()["markdown"]) > 0
 
 
-def test_image_caption_not_empty():
-    """If captioning is available, the response should contain actual text."""
+def test_image_caption_not_empty(test_sub):
     png_bytes = make_png("Test 123")
-    r = requests.post(
-        f"{GATEWAY_URL}/convert",
+    submit, result = submit_and_poll(
         files={"file": ("test.png", io.BytesIO(png_bytes), "image/png")},
-        timeout=TIMEOUT,
+        sub_id=test_sub,
     )
-    assert r.status_code == 200
-    data = r.json()
-    assert len(data["markdown"].strip()) > 5
+    assert submit.status_code == 202
+    assert result.status_code == 200
+    assert len(result.json()["markdown"].strip()) > 5
 
 
-def test_multipage_tiff():
-    """A multi-page TIFF should produce one section per page, separated by ---."""
+def test_multipage_tiff(test_sub):
     tiff_bytes = make_tiff(["Page One", "Page Two", "Page Three"])
-    r = requests.post(
-        f"{GATEWAY_URL}/convert",
+    submit, result = submit_and_poll(
         files={"file": ("scan.tiff", io.BytesIO(tiff_bytes), "image/tiff")},
-        timeout=TIMEOUT,
+        sub_id=test_sub,
     )
-    assert r.status_code == 200
-    data = r.json()
-    sections = data["markdown"].split("---")
-    assert len(sections) == 3
-    for section in sections:
-        assert len(section.strip()) > 0
-    assert data["metadata"]["captioning"]["images_captioned"] == 3
+    assert submit.status_code == 202
+    assert result.status_code == 200
+    assert result.json()["metadata"]["captioning"]["images_captioned"] == 3

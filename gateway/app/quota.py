@@ -59,41 +59,45 @@ class QuotaService:
 
         Returns None if allowed, or an error message string if blocked.
         """
-        rejected_key = f"sub:{sub_id}:rejected"
+        from .keys import quota_limit, quota_rejected, quota_usage
 
-        rejected_count = await self._r.get(rejected_key)
+        rejected_count = await self._r.get(quota_rejected(sub_id=sub_id))
         if rejected_count and int(rejected_count) >= self._max_rejected:
             return "Too many rejected requests — try again later"
 
-        quota_val = await self._r.get(f"sub:{sub_id}:quota:bytes")
+        quota_val = await self._r.get(quota_limit(sub_id=sub_id))
         if quota_val is None:
             return None
 
-        quota_limit = int(quota_val)
-        usage = int(await self._r.get(f"sub:{sub_id}:bytes") or 0)
+        limit = int(quota_val)
+        usage = int(await self._r.get(quota_usage(sub_id=sub_id)) or 0)
 
-        if usage >= quota_limit:
-            await self._incr_rejected(rejected_key)
-            return f"Quota exceeded ({usage} / {quota_limit} bytes used)"
+        if usage >= limit:
+            await self._incr_rejected(quota_rejected(sub_id=sub_id))
+            return f"Quota exceeded ({usage} / {limit} bytes used)"
 
-        if usage + content_length > quota_limit:
-            await self._incr_rejected(rejected_key)
-            remaining = quota_limit - usage
+        if usage + content_length > limit:
+            await self._incr_rejected(quota_rejected(sub_id=sub_id))
+            remaining = limit - usage
             return f"File too large for remaining quota ({content_length} bytes, {remaining} remaining)"
 
         return None
 
     async def record(self, sub_id: str, input_bytes: int) -> None:
         """Increment the usage counter after accepting a job."""
-        usage_key = f"sub:{sub_id}:bytes"
-        await self._r.incrby(usage_key, input_bytes)
-        await self._r.expire(usage_key, self._billing_period_ttl)
+        from .keys import quota_usage
+
+        key = quota_usage(sub_id=sub_id)
+        await self._r.incrby(key, input_bytes)
+        await self._r.expire(key, self._billing_period_ttl)
 
     async def refund(self, sub_id: str, input_bytes: int) -> None:
         """Decrement the usage counter on job failure."""
-        usage_key = f"sub:{sub_id}:bytes"
-        await self._r.decrby(usage_key, input_bytes)
-        await self._r.expire(usage_key, self._billing_period_ttl)
+        from .keys import quota_usage
+
+        key = quota_usage(sub_id=sub_id)
+        await self._r.decrby(key, input_bytes)
+        await self._r.expire(key, self._billing_period_ttl)
 
     async def _incr_rejected(self, key: str) -> None:
         """Increment a rejection counter with TTL. Two commands for cluster compat."""

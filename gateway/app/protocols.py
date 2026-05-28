@@ -1,0 +1,162 @@
+"""Protocol definitions for all pluggable services.
+
+Implementations satisfy these protocols. Fakes in tests satisfy them too.
+The type checker verifies conformance without inheritance.
+"""
+
+from __future__ import annotations
+
+import json
+import uuid
+from dataclasses import asdict, dataclass
+from typing import Protocol
+
+# ---------------------------------------------------------------------------
+# Blob storage
+# ---------------------------------------------------------------------------
+
+
+class BlobStore(Protocol):
+    async def put(self, key: str, data: bytes) -> None: ...
+    async def get(self, key: str) -> bytes | None: ...
+    async def delete(self, key: str) -> None: ...
+    async def delete_prefix(self, prefix: str) -> int: ...
+
+
+# ---------------------------------------------------------------------------
+# Job metadata (Table Storage)
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class JobMeta:
+    """Job metadata stored in the job store."""
+
+    user_id: str
+    job_id: str
+    sub_id: str
+    key_name: str = ""
+    original_filename: str = "document"
+    mime_type: str = ""
+    input_bytes: int = 0
+    input_hash: str = ""
+    status: str = "processing"  # processing | ok | error
+    error_detail: str = ""
+    actions: str = ""
+    created_at: str = ""
+    completed_at: str = ""
+    retention_expires: str = ""
+    deleted: bool = False
+
+
+class JobStore(Protocol):
+    def create(self, meta: JobMeta) -> None: ...
+    def get(self, user_id: str, job_id: str) -> JobMeta | None: ...
+    def get_by_job_id(self, job_id: str) -> JobMeta | None: ...
+    def update(self, meta: JobMeta) -> None: ...
+    def list_for_user(self, user_id: str, limit: int = 50) -> list[JobMeta]: ...
+    def mark_deleted(self, user_id: str, job_id: str) -> bool: ...
+    def strip_pii(self, user_id: str) -> int: ...
+
+
+# ---------------------------------------------------------------------------
+# User resolution
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class UserContext:
+    """Resolved user context for a request."""
+
+    user_id: str
+    encryption_key: bytes  # 32-byte AES-256 key
+    key_name: str = ""
+
+
+class UserResolver(Protocol):
+    async def resolve(self, sub_id: str) -> UserContext | None: ...
+
+
+# ---------------------------------------------------------------------------
+# Job queue
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class Job:
+    """A conversion job. Data type — not tied to any queue backend."""
+
+    job_id: str
+    stream_id: str  # backend-specific ID (e.g. Redis stream message ID)
+    sub_id: str
+    mime_type: str
+    filename: str
+    deadline_seconds: float
+    verbose: bool = False
+    accept_header: str = "application/json"
+
+    @staticmethod
+    def create(**kwargs) -> Job:
+        return Job(job_id=uuid.uuid4().hex, stream_id="", **kwargs)
+
+    def to_fields(self) -> dict[str, str]:
+        """Serialize to a flat string dict (for Redis XADD or similar)."""
+        return {
+            "job_id": self.job_id,
+            "sub_id": self.sub_id,
+            "mime_type": self.mime_type,
+            "filename": self.filename,
+            "deadline_seconds": str(self.deadline_seconds),
+            "verbose": str(self.verbose),
+            "accept_header": self.accept_header,
+        }
+
+    @staticmethod
+    def from_fields(stream_id: str, fields: dict) -> Job:
+        """Deserialize from a flat string dict."""
+        return Job(
+            job_id=fields["job_id"],
+            stream_id=stream_id,
+            sub_id=fields["sub_id"],
+            mime_type=fields["mime_type"],
+            filename=fields["filename"],
+            deadline_seconds=float(fields["deadline_seconds"]),
+            verbose=fields["verbose"] == "True",
+            accept_header=fields.get("accept_header", "application/json"),
+        )
+
+
+@dataclass
+class JobResult:
+    """Result signal for a completed job."""
+
+    job_id: str
+    status: str  # "ok" or "error"
+    error_detail: str = ""
+    status_code: int = 200
+
+    def serialize(self) -> str:
+        return json.dumps(asdict(self))
+
+    @staticmethod
+    def deserialize(data: str) -> JobResult:
+        return JobResult(**json.loads(data))
+
+
+class Queue(Protocol):
+    """Job queue — enqueue, dequeue, result storage, deduplication."""
+
+    # Gateway operations
+    async def enqueue(self, job: Job) -> str: ...
+    async def check_dedupe(self, sub_id: str, doc_hash: str) -> str | None: ...
+    async def set_dedupe(self, sub_id: str, doc_hash: str, job_id: str) -> None: ...
+    async def get_result(self, job_id: str) -> JobResult | None: ...
+
+    # Worker operations
+    async def dequeue(self, timeout: int = 5000) -> Job | None: ...
+    async def acknowledge(self, job: Job) -> None: ...
+    async def store_result(self, job_id: str, result: JobResult) -> None: ...
+    async def delete_dedupe(self, sub_id: str, doc_hash: str) -> None: ...
+
+    # Startup
+    async def ensure_group(self) -> None: ...

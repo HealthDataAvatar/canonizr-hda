@@ -1,0 +1,249 @@
+"""Request handlers — pure functions taking Services, no globals, no framework.
+
+Each function implements one API operation. The FastAPI endpoints in app.py
+are thin wrappers that call these with the Services instance.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+from dataclasses import dataclass
+from datetime import UTC, datetime
+
+from .context import Services
+from .crypto import decrypt, encrypt
+from .estimates import estimate_seconds
+from .hash import document_hash
+from .protocols import Job, JobMeta
+from .sanitize import is_known_mime_type, sanitize_filename
+
+logger = logging.getLogger(__name__)
+
+DEFAULT_RETENTION_SECONDS = 86_400  # 24 hours
+
+
+# ---------------------------------------------------------------------------
+# Result types
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class AcceptResult:
+    job_id: str
+    estimated_seconds: int
+    deduplicated: bool = False
+
+
+class Rejected(Exception):
+    """Raised when a request is rejected (quota, auth, etc.)."""
+
+    def __init__(self, status_code: int, detail: str):
+        self.status_code = status_code
+        self.detail = detail
+        super().__init__(detail)
+
+
+@dataclass
+class PollResult:
+    status: str  # processing | ok | error | expired
+    status_code: int = 202
+    body: dict | None = None
+    headers: dict[str, str] | None = None
+
+
+# ---------------------------------------------------------------------------
+# POST /convert
+# ---------------------------------------------------------------------------
+
+
+async def accept_job(
+    file_bytes: bytes,
+    filename: str,
+    mime_type: str,
+    sub_id: str,
+    svc: Services,
+) -> AcceptResult:
+    """Accept a file for conversion. Returns job_id and estimate.
+
+    Raises Rejected on auth failure, unknown user, or quota exceeded.
+    """
+    user = await svc.users.resolve(sub_id)
+    if not user:
+        raise Rejected(403, "Unknown subscription — no user mapping found")
+
+    if not is_known_mime_type(mime_type):
+        raise Rejected(400, f"Unsupported file type: {mime_type}")
+
+    # Deduplication
+    doc_hash = document_hash(file_bytes)
+    existing = await svc.queue.check_dedupe(sub_id, doc_hash)
+    if existing:
+        return AcceptResult(
+            job_id=existing,
+            estimated_seconds=estimate_seconds(mime_type, len(file_bytes)),
+            deduplicated=True,
+        )
+
+    # Quota check + immediate deduction
+    rejection = await svc.quota.check(sub_id, len(file_bytes))
+    if rejection:
+        raise Rejected(429, rejection)
+    await svc.quota.record(sub_id, len(file_bytes))
+
+    # Create job
+    job = Job.create(
+        sub_id=sub_id,
+        mime_type=mime_type,
+        filename=filename,
+        deadline_seconds=300.0,
+    )
+
+    # Sanitize and store
+    safe_filename = sanitize_filename(filename)
+    blob_prefix = f"{user.user_id}/{job.job_id}"
+
+    encrypted_input = encrypt(file_bytes, user.encryption_key)
+    await svc.blobs.put(f"{blob_prefix}/input.bin", encrypted_input)
+
+    # Write job metadata
+    now = datetime.now(UTC).isoformat()
+    meta = JobMeta(
+        user_id=user.user_id,
+        job_id=job.job_id,
+        sub_id=sub_id,
+        key_name=user.key_name,
+        original_filename=safe_filename,
+        mime_type=mime_type,
+        input_bytes=len(file_bytes),
+        input_hash=doc_hash,
+        status="processing",
+        created_at=now,
+    )
+    svc.jobs.create(meta)
+
+    # Enqueue
+    await svc.queue.enqueue(job)
+    await svc.queue.set_dedupe(sub_id, doc_hash, job.job_id)
+
+    return AcceptResult(
+        job_id=job.job_id,
+        estimated_seconds=estimate_seconds(mime_type, len(file_bytes)),
+    )
+
+
+# ---------------------------------------------------------------------------
+# GET /result/{job_id}
+# ---------------------------------------------------------------------------
+
+
+async def poll_result(job_id: str, svc: Services) -> PollResult:
+    """Poll for a job result."""
+    result = await svc.queue.get_result(job_id)
+    meta = svc.jobs.get_by_job_id(job_id)
+
+    if meta is None:
+        if result is None:
+            return PollResult(status="processing", status_code=202, body={"job_id": job_id, "status": "processing"})
+        meta_user_id = ""
+    else:
+        meta_user_id = meta.user_id
+
+        if meta.deleted:
+            return PollResult(
+                status="expired",
+                status_code=410,
+                body={"job_id": job_id, "status": "expired", "detail": "Result deleted"},
+            )
+
+        if meta.retention_expires:
+            expires = datetime.fromisoformat(meta.retention_expires)
+            if datetime.now(UTC) > expires:
+                return PollResult(
+                    status="expired",
+                    status_code=410,
+                    body={"job_id": job_id, "status": "expired", "detail": "Result retention expired"},
+                )
+
+    if result is None:
+        return PollResult(status="processing", status_code=202, body={"job_id": job_id, "status": "processing"})
+
+    if result.status == "error":
+        return PollResult(
+            status="error",
+            status_code=500,
+            body={"job_id": job_id, "status": "error", "detail": result.error_detail},
+        )
+
+    # Success — decrypt and return output
+    blob_prefix = f"{meta_user_id}/{job_id}" if meta_user_id else job_id
+    encrypted_output = await svc.blobs.get(f"{blob_prefix}/output.bin")
+    if encrypted_output is None:
+        return PollResult(
+            status="expired",
+            status_code=410,
+            body={"job_id": job_id, "status": "expired", "detail": "Result blob not found"},
+        )
+
+    if meta and meta.sub_id:
+        user = await svc.users.resolve(meta.sub_id)
+        if user is None:
+            return PollResult(
+                status="error",
+                status_code=500,
+                body={"job_id": job_id, "status": "error", "detail": "User key not found"},
+            )
+        payload = json.loads(decrypt(encrypted_output, user.encryption_key))
+    else:
+        return PollResult(
+            status="error",
+            status_code=500,
+            body={"job_id": job_id, "status": "error", "detail": "Missing user context"},
+        )
+
+    resp_meta = payload.get("metadata", {})
+    captioning = resp_meta.get("captioning", {})
+    headers = {
+        "X-Input-Size-Bytes": str(resp_meta.get("input_bytes", 0)),
+        "X-Document-Hash": resp_meta.get("input_hash", ""),
+        "X-Processing-Time-Ms": str(round(resp_meta.get("processing_time_ms", 0))),
+        "X-Processing-Pipeline": ",".join(resp_meta.get("actions", [])),
+        "X-Images-Captioned": str(captioning.get("images_captioned", 0)),
+    }
+
+    if meta and meta.original_filename:
+        md_filename = meta.original_filename + ".md"
+        headers["Content-Disposition"] = f'attachment; filename="{md_filename}"'
+
+    return PollResult(status="ok", status_code=200, body=payload, headers=headers)
+
+
+# ---------------------------------------------------------------------------
+# DELETE /result/{job_id}
+# ---------------------------------------------------------------------------
+
+
+async def delete_result(job_id: str, sub_id: str, svc: Services) -> bool:
+    """Delete a job's blobs. Returns True if found and deleted, False if not found.
+
+    Raises Rejected if the job doesn't belong to the requesting user.
+    """
+    user = await svc.users.resolve(sub_id)
+    if not user:
+        raise Rejected(403, "Unknown subscription")
+
+    meta = svc.jobs.get_by_job_id(job_id)
+    if meta is None:
+        return False
+
+    if meta.user_id != user.user_id:
+        raise Rejected(403, "Job does not belong to this user")
+
+    if meta.deleted:
+        return False
+
+    blob_prefix = f"{meta.user_id}/{job_id}"
+    await svc.blobs.delete_prefix(f"{blob_prefix}/")
+    svc.jobs.mark_deleted(meta.user_id, job_id)
+
+    return True

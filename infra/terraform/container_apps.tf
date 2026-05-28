@@ -8,15 +8,6 @@ resource "azurerm_container_app_environment" "this" {
   log_analytics_workspace_id = azurerm_log_analytics_workspace.this.id
 }
 
-resource "azurerm_container_app_environment_storage" "jobs" {
-  name                         = "jobs"
-  container_app_environment_id = azurerm_container_app_environment.this.id
-  account_name                 = azurerm_storage_account.blobs.name
-  share_name                   = azurerm_storage_share.jobs.name
-  access_key                   = azurerm_storage_account.blobs.primary_access_key
-  access_mode                  = "ReadWrite"
-}
-
 # ---------------------------------------------------------------------------
 # Docling (upstream image, no build needed)
 # ---------------------------------------------------------------------------
@@ -92,12 +83,6 @@ resource "azurerm_container_app" "gateway" {
     value = "rediss://:${azurerm_managed_redis.this.default_database[0].primary_access_key}@${azurerm_managed_redis.this.hostname}:10000"
   }
 
-  secret {
-    name                = "encryption-key"
-    key_vault_secret_id = azurerm_key_vault_secret.encryption_key.versionless_id
-    identity            = azurerm_user_assigned_identity.gateway.id
-  }
-
   template {
     min_replicas = 1
     max_replicas = 5
@@ -114,13 +99,13 @@ resource "azurerm_container_app" "gateway" {
       }
 
       env {
-        name  = "BLOB_STORE_URL"
-        value = "file:///data/blobs"
+        name  = "BLOB_STORAGE_CONNECTION_STRING"
+        value = azurerm_storage_account.results.primary_connection_string
       }
 
       env {
-        name        = "ENCRYPTION_KEY"
-        secret_name = "encryption-key"
+        name  = "TABLE_STORAGE_CONNECTION_STRING"
+        value = azurerm_storage_account.portal.primary_connection_string
       }
 
       env {
@@ -138,11 +123,6 @@ resource "azurerm_container_app" "gateway" {
         value = var.deploy_time
       }
 
-      volume_mounts {
-        name = "jobs"
-        path = "/data/blobs"
-      }
-
       liveness_probe {
         transport = "HTTP"
         path      = "/health"
@@ -154,12 +134,6 @@ resource "azurerm_container_app" "gateway" {
         path      = "/health"
         port      = 8000
       }
-    }
-
-    volume {
-      name         = "jobs"
-      storage_name = azurerm_container_app_environment_storage.jobs.name
-      storage_type = "AzureFile"
     }
   }
 
@@ -209,12 +183,6 @@ resource "azurerm_container_app" "worker" {
     value = "rediss://:${azurerm_managed_redis.this.default_database[0].primary_access_key}@${azurerm_managed_redis.this.hostname}:10000"
   }
 
-  secret {
-    name                = "encryption-key"
-    key_vault_secret_id = azurerm_key_vault_secret.encryption_key.versionless_id
-    identity            = azurerm_user_assigned_identity.worker.id
-  }
-
   template {
     min_replicas = 1
     max_replicas = 3
@@ -232,13 +200,13 @@ resource "azurerm_container_app" "worker" {
       }
 
       env {
-        name  = "BLOB_STORE_URL"
-        value = "file:///data/blobs"
+        name  = "BLOB_STORAGE_CONNECTION_STRING"
+        value = azurerm_storage_account.results.primary_connection_string
       }
 
       env {
-        name        = "ENCRYPTION_KEY"
-        secret_name = "encryption-key"
+        name  = "TABLE_STORAGE_CONNECTION_STRING"
+        value = azurerm_storage_account.portal.primary_connection_string
       }
 
       env {
@@ -273,24 +241,18 @@ resource "azurerm_container_app" "worker" {
 
       env {
         name  = "LIBREOFFICE_ENABLED"
-        value = "false"
+        value = "true"
+      }
+
+      env {
+        name  = "GOTENBERG_URL"
+        value = "https://canonizr-gotenberg.internal.${azurerm_container_app_environment.this.default_domain}"
       }
 
       env {
         name  = "DEPLOY_TIME"
         value = var.deploy_time
       }
-
-      volume_mounts {
-        name = "jobs"
-        path = "/data/blobs"
-      }
-    }
-
-    volume {
-      name         = "jobs"
-      storage_name = azurerm_container_app_environment_storage.jobs.name
-      storage_type = "AzureFile"
     }
   }
 

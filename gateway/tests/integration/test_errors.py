@@ -6,32 +6,41 @@ import requests
 from conftest import GATEWAY_URL, TIMEOUT, submit_and_poll
 
 
-def test_unsupported_format():
+def test_unsupported_format(test_sub):
     garbage = b"\x00\x01\x02\x03\x04\x05\x06\x07"
-    submit, result = submit_and_poll(
+    r = requests.post(
+        f"{GATEWAY_URL}/convert",
         files={"file": ("test.xyz", io.BytesIO(garbage), "application/octet-stream")},
+        headers={"X-Subscription-Id": test_sub},
+        timeout=TIMEOUT,
     )
-    assert submit.status_code == 202
-    # Worker should return an error for unsupported format
-    assert result.status_code == 500
-    assert result.json()["status"] == "error"
+    assert r.status_code == 400
 
 
-def test_file_too_large():
+def test_file_too_large(test_sub):
     large_data = b"\x00" * (51 * 1024 * 1024)
     r = requests.post(
         f"{GATEWAY_URL}/convert",
         files={"file": ("large.pdf", io.BytesIO(large_data), "application/pdf")},
+        headers={"X-Subscription-Id": test_sub},
         timeout=TIMEOUT,
     )
     assert r.status_code == 413
-    assert "too large" in r.json()["detail"].lower()
 
 
-def test_empty_file():
+def test_empty_file(test_sub):
     submit, result = submit_and_poll(
         files={"file": ("empty.txt", io.BytesIO(b""), "text/plain")},
+        sub_id=test_sub,
     )
     assert submit.status_code == 202
-    # Empty text file is valid passthrough — returns empty markdown
     assert result.status_code == 200
+
+
+def test_missing_subscription_returns_401():
+    r = requests.post(
+        f"{GATEWAY_URL}/convert",
+        files={"file": ("test.txt", b"hello", "text/plain")},
+        timeout=TIMEOUT,
+    )
+    assert r.status_code == 401

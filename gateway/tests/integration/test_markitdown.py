@@ -5,7 +5,7 @@ import io
 from conftest import make_docx, make_xlsx, submit_and_poll
 
 
-def test_docx():
+def test_docx(test_sub):
     docx_bytes = make_docx("Integration test paragraph.")
     submit, result = submit_and_poll(
         files={
@@ -15,6 +15,7 @@ def test_docx():
                 "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             )
         },
+        sub_id=test_sub,
     )
     assert submit.status_code == 202
     assert result.status_code == 200
@@ -23,7 +24,7 @@ def test_docx():
     assert "markitdown" in data["metadata"]["actions"]
 
 
-def test_xlsx():
+def test_xlsx(test_sub):
     xlsx_bytes = make_xlsx()
     submit, result = submit_and_poll(
         files={
@@ -33,6 +34,7 @@ def test_xlsx():
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             )
         },
+        sub_id=test_sub,
     )
     assert submit.status_code == 202
     assert result.status_code == 200

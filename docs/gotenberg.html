@@ -1,0 +1,344 @@
+<header><h1>Convert to PDF</h1></header><p>Converts documents to PDF using LibreOffice. Accepts Microsoft Office (Word, Excel, PowerPoint), OpenDocument, plain text, and many other formats. You can upload one or more files per request.</p>
+<p>See the <a  href="/docs/configuration#libreoffice">LibreOffice module configuration</a> for startup and behavior flags.</p>
+<h2  id="basics">Basics<a href="#basics"  aria-label="Direct link to Basics" title="Direct link to Basics" translate="no">​</a></h2>
+<div><div>POST/forms/libreoffice/convert</div><div><div><div>Headers</div><div><div><div>Gotenberg-Output-Filenamestring</div><div>The filename of the resulting file - Gotenberg automatically appends the file extension. Defaults to a random UUID filename.</div></div><div><div>Gotenberg-Tracestring</div><div>A custom request ID to identify the request in the logs; overrides the default UUID.</div></div></div></div><div><div>Form Files</div><div><div><div>filesfile[]required</div><div>At least one file to convert to PDF.</div></div></div></div></div><div><div>Example Request</div><div><div>cURL</div><div><pre tabindex="0"><code><div>curl \
+
+</div><div>--request POST http://localhost:3000/forms/libreoffice/convert \
+
+</div><div>--form files=@/path/to/docx \
+
+</div><div>-o my.pdf
+
+</div></code></pre><div> </div></div></div><div><div>Responses</div><div><ul role="tablist" aria-orientation="horizontal"><li role="tab" tabindex="0" aria-selected="true">200</li><li role="tab" tabindex="-1" aria-selected="false">400</li><li role="tab" tabindex="-1" aria-selected="false">503</li></ul><div><div role="tabpanel"><div>The PDF file has been successfully created. Returns a <strong>ZIP archives</strong> if many files have been uploaded.</div><div><div><pre tabindex="0"><code><div>Content-Disposition: attachment; filename={output-filename.pdf}
+
+</div><div>Content-Type: {content-type}
+
+</div><div>Content-Length: {content-length}
+
+</div><div>Gotenberg-Trace: {trace}
+
+</div><div>Body: {output-file}
+
+</div></code></pre><div> </div></div></div></div><div role="tabpanel"  hidden=""><div>The request had one ore more invalid form fields.</div><div><div><pre tabindex="0"><code><div>Content-Type: text/plain; charset=UTF-8
+
+</div><div>Gotenberg-Trace: {trace}
+
+</div><div>Body: {error}
+
+</div></code></pre><div> </div></div></div></div><div role="tabpanel"  hidden=""><div>The request did not complete within the configured maximum duration.</div><div><div><pre tabindex="0"><code><div>Content-Type: text/plain; charset=UTF-8
+
+</div><div>Gotenberg-Trace: {trace}
+
+</div><div>Body: Service Unavailable
+
+</div></code></pre><div> </div></div></div></div></div></div></div></div></div>
+<h2  id="rendering-behavior">Rendering Behavior<a href="#rendering-behavior"  aria-label="Direct link to Rendering Behavior" title="Direct link to Rendering Behavior" translate="no">​</a></h2>
+<h3  id="layout--pages">Layout &amp; Pages<a href="#layout--pages"  aria-label="Direct link to Layout &amp; Pages" title="Direct link to Layout &amp; Pages" translate="no">​</a></h3>
+<div><div><div><div>Form Fields</div><div><div><div>landscapeboolean</div><div>Sets the paper orientation to landscape.</div><div>Default:<code>false</code></div></div><div><div>singlePageSheetsboolean</div><div>Ignores each sheet’s paper size, print ranges and shown/hidden status and puts every sheet (even hidden sheets) on exactly one page.</div><div>Default:<code>false</code></div></div><div><div>skipEmptyPagesboolean</div><div>Suppresses automatically inserted empty pages. Active only for Writer documents.</div><div>Default:<code>false</code></div></div><div><div>exportPlaceholdersboolean</div><div>Exports placeholder fields as visual markings only (non-functional).</div><div>Default:<code>false</code></div></div></div></div></div><div><div>Example Request</div><div><div>cURL</div><div><pre tabindex="0"><code><div>curl \
+
+</div><div>--request POST http://localhost:3000/forms/libreoffice/convert \
+
+</div><div>--form files=@/path/to/document.docx \
+
+</div><div>--form landscape=true \
+
+</div><div>-o my.pdf
+
+</div></code></pre><div> </div></div></div></div></div>
+<h3  id="supported-extensions">Supported Extensions<a href="#supported-extensions"  aria-label="Direct link to Supported Extensions" title="Direct link to Supported Extensions" translate="no">​</a></h3>
+<table><thead><tr><th>Family</th><th>Supported Extensions</th></tr></thead><tbody><tr><td><strong>Word Processing</strong></td><td><code>.doc</code>, <code>.docx</code>, <code>.docm</code>, <code>.dot</code>, <code>.dotm</code>, <code>.dotx</code>, <code>.odt</code>, <code>.fodt</code>, <code>.ott</code>, <code>.rtf</code>, <code>.txt</code>, <code>.wps</code>, <code>.wpd</code>, <code>.pages</code>, <code>.abw</code>, <code>.zabw</code>, <code>.lwp</code>, <code>.mw</code>, <code>.mcw</code>, <code>.hwp</code>, <code>.sxw</code>, <code>.stw</code>, <code>.sgl</code>, <code>.vor</code>, <code>.602</code>, <code>.bib</code>, <code>.xml</code>, <code>.cwk</code>, <code>.psw</code>, <code>.uof</code></td></tr><tr><td><strong>Spreadsheets</strong></td><td><code>.xls</code>, <code>.xlsx</code>, <code>.xlsm</code>, <code>.xlsb</code>, <code>.xlt</code>, <code>.xltm</code>, <code>.xltx</code>, <code>.xlw</code>, <code>.ods</code>, <code>.fods</code>, <code>.ots</code>, <code>.csv</code>, <code>.numbers</code>, <code>.123</code>, <code>.wk1</code>, <code>.wks</code>, <code>.wb2</code>, <code>.dbf</code>, <code>.dif</code>, <code>.slk</code>, <code>.sxc</code>, <code>.stc</code>, <code>.uos</code>, <code>.pxl</code>, <code>.sdc</code></td></tr><tr><td><strong>Presentations</strong></td><td><code>.ppt</code>, <code>.pptx</code>, <code>.pptm</code>, <code>.pot</code>, <code>.potm</code>, <code>.potx</code>, <code>.pps</code>, <code>.odp</code>, <code>.fodp</code>, <code>.otp</code>, <code>.key</code>, <code>.sxi</code>, <code>.sti</code>, <code>.uop</code>, <code>.sdd</code>, <code>.sdp</code>, <code>.fopd</code></td></tr><tr><td><strong>Graphics &amp; Drawing</strong></td><td><code>.odg</code>, <code>.fodg</code>, <code>.otg</code>, <code>.vsd</code>, <code>.vsdx</code>, <code>.vsdm</code>, <code>.vdx</code>, <code>.cdr</code>, <code>.svg</code>, <code>.svm</code>, <code>.wmf</code>, <code>.emf</code>, <code>.cgm</code>, <code>.dxf</code>, <code>.std</code>, <code>.sxd</code>, <code>.pub</code>, <code>.wpg</code>, <code>.sda</code>, <code>.odd</code>, <code>.met</code>, <code>.cmx</code>, <code>.eps</code></td></tr><tr><td><strong>Images</strong></td><td><code>.jpg</code>, <code>.jpeg</code>, <code>.png</code>, <code>.bmp</code>, <code>.gif</code>, <code>.tif</code>, <code>.tiff</code>, <code>.pbm</code>, <code>.pgm</code>, <code>.ppm</code>, <code>.xbm</code>, <code>.xpm</code>, <code>.pcx</code>, <code>.pcd</code>, <code>.pct</code>, <code>.psd</code>, <code>.tga</code>, <code>.ras</code>, <code>.pwp</code></td></tr><tr><td><strong>Web &amp; Other</strong></td><td><code>.html</code>, <code>.htm</code>, <code>.xhtml</code>, <code>.epub</code>, <code>.pdf</code>, <code>.pdb</code>, <code>.ltx</code>, <code>.mml</code>, <code>.smf</code>, <code>.sxm</code>, <code>.sxg</code>, <code>.oth</code>, <code>.odm</code>, <code>.swf</code></td></tr></tbody></table>
+<p>LibreOffice is not a 1:1 clone of Microsoft Office. Documents with complex styling, Smart Art, or highly specific formatting may render slightly differently.</p>
+<h3  id="fonts--layout-fidelity">Fonts &amp; Layout Fidelity<a href="#fonts--layout-fidelity"  aria-label="Direct link to Fonts &amp; Layout Fidelity" title="Direct link to Fonts &amp; Layout Fidelity" translate="no">​</a></h3>
+<p>LibreOffice relies on installed fonts to calculate page breaks and layout. Missing fonts are the most common cause of layout issues and shifted pagination.</p>
+<p>Install all required fonts in your Docker image (via a custom <code>Dockerfile</code>). See <a  href="/docs/configuration#fonts">Fonts configuration</a>.</p>
+<h3  id="image-compression">Image Compression<a href="#image-compression"  aria-label="Direct link to Image Compression" title="Direct link to Image Compression" translate="no">​</a></h3>
+<ul>
+<li><strong>Lossless (PNG):</strong> Best for line art, diagrams, or images with flat colors. Enable with <code>losslessImageCompression</code>.</li>
+<li><strong>Lossy (JPEG):</strong> The default. Best for photographs or complex gradients. Significantly smaller file size.</li>
+</ul>
+<div><div><div><div>Form Fields</div><div><div><div>losslessImageCompressionboolean</div><div>Uses lossless (PNG) compression instead of lossy (JPEG) for images.</div><div>Default:<code>false</code></div></div><div><div>qualityinteger</div><div>JPEG export quality. Higher values produce better quality but larger files. Between 1 and 100.</div><div>Default:<code>90</code></div></div><div><div>reduceImageResolutionboolean</div><div>Reduces each image to the resolution specified by <code>maxImageResolution</code>.</div><div>Default:<code>false</code></div></div><div><div>maxImageResolutioninteger</div><div>Target resolution in DPI when reduceImageResolution is true. Possible values: 75, 150, 300, 600, 1200.</div><div>Default:<code>300</code></div></div></div></div></div><div><div>Example Request</div><div><div>cURL</div><div><pre tabindex="0"><code><div>curl \
+
+</div><div>--request POST http://localhost:3000/forms/libreoffice/convert \
+
+</div><div>--form files=@/path/to/document.docx \
+
+</div><div>--form losslessImageCompression=false \
+
+</div><div>--form quality=50 \
+
+</div><div>--form reduceImageResolution=true \
+
+</div><div>--form maxImageResolution=75 \
+
+</div><div>-o my.pdf
+
+</div></code></pre><div> </div></div></div></div></div>
+<h3  id="notes--slides">Notes &amp; Slides<a href="#notes--slides"  aria-label="Direct link to Notes &amp; Slides" title="Direct link to Notes &amp; Slides" translate="no">​</a></h3>
+<div><div><div><div>Form Fields</div><div><div><div>exportNotesboolean</div><div>Exports notes to PDF.</div><div>Default:<code>false</code></div></div><div><div>exportNotesPagesboolean</div><div>Exports notes pages to PDF. Available in Impress documents only.</div><div>Default:<code>false</code></div></div><div><div>exportOnlyNotesPagesboolean</div><div>When <code>exportNotesPages</code> is true, exports only the notes pages.</div><div>Default:<code>false</code></div></div><div><div>exportNotesInMarginboolean</div><div>Exports notes in margin to PDF.</div><div>Default:<code>false</code></div></div><div><div>exportHiddenSlidesboolean</div><div>Exports Impress slides that are not included in slide shows.</div><div>Default:<code>false</code></div></div></div></div></div></div>
+<h3  id="links">Links<a href="#links"  aria-label="Direct link to Links" title="Direct link to Links" translate="no">​</a></h3>
+<div><div><div><div>Form Fields</div><div><div><div>convertOooTargetToPdfTargetboolean</div><div>Changes .od[tpgs] extensions to .pdf in exported links. The source document remains untouched.</div><div>Default:<code>false</code></div></div><div><div>exportLinksRelativeFsysboolean</div><div>Exports file:// hyperlinks as relative to the source document location.</div><div>Default:<code>false</code></div></div></div></div></div></div>
+<h3  id="macros">Macros<a href="#macros"  aria-label="Direct link to Macros" title="Direct link to Macros" translate="no">​</a></h3>
+<p>Macros in documents (e.g., <code>.docm</code>, <code>.xlsm</code>, <code>.pptm</code>) are <strong>disabled</strong> by default during conversion. Files are still converted, but macro-generated content will not execute.</p>
+<h3  id="embedded-outbound-fetches">Embedded Outbound Fetches<a href="#embedded-outbound-fetches"  aria-label="Direct link to Embedded Outbound Fetches" title="Direct link to Embedded Outbound Fetches" translate="no">​</a></h3>
+<p>LibreOffice resolves external URLs referenced by uploaded documents: OOXML images marked <code>TargetMode="External"</code>, RTF <code>INCLUDEPICTURE</code>, ODT linked images.</p>
+<p>Since <em>8.32.0</em>, those fetches route through the same pinning proxy used by Chromium. Allow/deny lists and IP-class checks apply. Forbidden destinations return <code>403 Forbidden</code>.</p>
+<p>See <a  href="/docs/outbound-url-filtering">Outbound URL Filtering</a>.</p>
+<h2  id="structure--metadata">Structure &amp; Metadata<a href="#structure--metadata"  aria-label="Direct link to Structure &amp; Metadata" title="Direct link to Structure &amp; Metadata" translate="no">​</a></h2>
+<h3  id="document-outline-libreoffice">Document Outline (LibreOffice)<a href="#document-outline-libreoffice"  aria-label="Direct link to Document Outline (LibreOffice)" title="Direct link to Document Outline (LibreOffice)" translate="no">​</a></h3>
+<p>Configure how LibreOffice generates PDF bookmarks (the sidebar) and internal indexes like the Table of Contents. Your source document must use proper heading styles (e.g., Heading 1, Heading 2) or explicit bookmarks to generate the hierarchy.</p>
+<div><div><div><div>Form Fields</div><div><div><div>updateIndexesboolean</div><div>Updates indexes (e.g., Table of Contents) before conversion. May cause missing links.</div><div>Default:<code>true</code></div></div><div><div>exportBookmarksboolean</div><div>Exports bookmarks to the PDF.</div><div>Default:<code>true</code></div></div><div><div>exportBookmarksToPdfDestinationboolean</div><div>Exports bookmarks as Named Destinations.</div><div>Default:<code>false</code></div></div><div><div>addOriginalDocumentAsStreamboolean</div><div>Embeds the original document as a stream in the PDF for archiving.</div><div>Default:<code>false</code></div></div></div></div></div><div><div>Example Request</div><div><div>cURL</div><div><pre tabindex="0"><code><div>curl \
+
+</div><div>--request POST http://localhost:3000/forms/libreoffice/convert \
+
+</div><div>--form files=@/path/to/document.docx \
+
+</div><div>--form exportBookmarks=false \
+
+</div><div>--form exportBookmarksToPdfDestination=true \
+
+</div><div>--form updateIndexes=false \
+
+</div><div>-o my.pdf
+
+</div></code></pre><div> </div></div></div></div></div>
+<h3  id="native-flattening-libreoffice">Native Flattening (LibreOffice)<a href="#native-flattening-libreoffice"  aria-label="Direct link to Native Flattening (LibreOffice)" title="Direct link to Native Flattening (LibreOffice)" translate="no">​</a></h3>
+<p>Set <code>exportFormFields</code> to <code>false</code> to prevent LibreOffice from creating interactive PDF widgets, effectively flattening them during conversion. Faster than post-processing.</p>
+<div><div><div><div>Form Fields</div><div><div><div>exportFormFieldsboolean</div><div>Exports form fields as interactive widgets. Set to false to flatten them during conversion.</div><div>Default:<code>true</code></div></div><div><div>allowDuplicateFieldNamesboolean</div><div>Allows multiple exported form fields to share the same field name.</div><div>Default:<code>false</code></div></div></div></div></div><div><div>Example Request</div><div><div>cURL</div><div><pre tabindex="0"><code><div>curl \
+
+</div><div>--request POST http://localhost:3000/forms/libreoffice/convert \
+
+</div><div>--form files=@/path/to/document.docx \
+
+</div><div>--form exportFormFields=false \
+
+</div><div>-o my.pdf
+
+</div></code></pre><div> </div></div></div></div></div>
+<h3  id="metadata-pdf-engines">Metadata (PDF Engines)<a href="#metadata-pdf-engines"  aria-label="Direct link to Metadata (PDF Engines)" title="Direct link to Metadata (PDF Engines)" translate="no">​</a></h3>
+<p>Inject XMP metadata (Author, Title, Copyright, Keywords, etc.) into the PDF as a JSON object.</p>
+<p>Not all tags are writable. Gotenberg uses ExifTool under the hood. See the <a href="https://exiftool.org/TagNames/XMP.html#pdf" target="_blank" rel="noopener noreferrer">XMP Tag Name documentation</a> for valid keys. Writing metadata usually breaks <strong>PDF/A</strong> compliance.</p>
+<div><div><div><div>Form Fields</div><div><div><div>metadatajson</div><div>Writes metadata (Author, Title, etc.).</div><div>Default:<code>None</code></div></div></div></div></div><div><div>Example Request</div><div><div>cURL</div><div><pre tabindex="0"><code><div>curl \
+
+</div><div>--request POST http://localhost:3000/forms/libreoffice/convert \
+
+</div><div>--form files=@/path/to/document.docx \
+
+</div><div>--form 'metadata={"Author":"Julien Neuhart","Copyright":"Julien Neuhart","CreationDate":"2006-09-18T16:27:50-04:00","Creator":"Gotenberg","Keywords":["first","second"],"Marked":true,"ModDate":"2006-09-18T16:27:50-04:00","PDFVersion":1.7,"Producer":"Gotenberg","Subject":"Sample","Title":"Sample","Trapped":"Unknown"}' \
+
+</div><div>-o my.pdf
+
+</div></code></pre><div> </div></div></div></div></div>
+<h3  id="attachments-pdf-engines">Attachments (PDF Engines)<a href="#attachments-pdf-engines"  aria-label="Direct link to Attachments (PDF Engines)" title="Direct link to Attachments (PDF Engines)" translate="no">​</a></h3>
+<p>Attach external files directly inside the PDF container. Commonly used for e-invoicing standards like <strong><a href="https://fnfe-mpe.org/factur-x/" target="_blank" rel="noopener noreferrer">ZUGFeRD / Factur-X</a></strong>, which require a machine-readable XML invoice as an attachment.</p>
+<p>Provide per-attachment metadata with <code>embedsMetadata</code> to satisfy PDF/A-3 and Factur-X requirements: each entry sets the embedded file stream's <code>/Subtype</code>, writes <code>/AFRelationship</code> on the file specification, and references the attachment from the Document Catalog's <code>/AF</code> array.</p>
+<div><div><div><div>Form Fields</div><div><div><div>embedsMetadatajson</div><div>Per-attachment metadata keyed by filename. Each entry accepts `mimeType` (written to the embedded file stream's `/Subtype`) and `relationship` (the `/AFRelationship` value, e.g., `Source`, `Data`, `Alternative`, `Supplement`, `Unspecified`). Requires a PDF engine that supports the feature (QPDF by default).</div><div>Default:<code>None</code></div></div></div></div><div><div>Form Files</div><div><div><div>embedsfile[]</div><div>Embeds files into the PDF.</div><div>Default:<code>None</code></div></div></div></div></div><div><div>Example Request</div><div><div>cURL</div><div><pre tabindex="0"><code><div>curl \
+
+</div><div>--request POST http://localhost:3000/forms/libreoffice/convert \
+
+</div><div>--form files=@/path/to/document.docx \
+
+</div><div>--form embeds=@factur-x.xml \
+
+</div><div>--form embeds=@logo.png \
+
+</div><div>--form embedsMetadata='{"factur-x.xml":{"mimeType":"text/xml","relationship":"Alternative"},"logo.png":{"mimeType":"image/png","relationship":"Supplement"}}' \
+
+</div><div>-o my.pdf
+
+</div></code></pre><div> </div></div></div></div></div>
+<h3  id="flatten-pdf-engines">Flatten (PDF Engines)<a href="#flatten-pdf-engines"  aria-label="Direct link to Flatten (PDF Engines)" title="Direct link to Flatten (PDF Engines)" translate="no">​</a></h3>
+<p>Merges all interactive form fields (text inputs, checkboxes, etc.) into the page content, making the PDF non-editable.</p>
+<div><div><div><div>Form Fields</div><div><div><div>flattenboolean</div><div>Converts form fields into static content, preventing further editing.</div><div>Default:<code>false</code></div></div></div></div></div><div><div>Example Request</div><div><div>cURL</div><div><pre tabindex="0"><code><div>curl \
+
+</div><div>--request POST http://localhost:3000/forms/libreoffice/convert \
+
+</div><div>--form files=@/path/to/document.docx \
+
+</div><div>--form flatten=true \
+
+</div><div>-o my.pdf
+
+</div></code></pre><div> </div></div></div></div></div>
+<h2  id="merge-pdf-engines">Merge (PDF Engines)<a href="#merge-pdf-engines"  aria-label="Direct link to Merge (PDF Engines)" title="Direct link to Merge (PDF Engines)" translate="no">​</a></h2>
+<p>Converts each file to PDF individually, then merges them in <strong>alphanumeric order</strong> (numbers first, then alphabetical).</p>
+<div><div><div><div>Form Files</div><div><div><div>mergeboolean</div><div>Merge the resulting PDFs.</div></div></div></div></div><div><div>Example Request</div><div><div>cURL</div><div><pre tabindex="0"><code><div>curl \
+
+</div><div>--request POST http://localhost:3000/forms/libreoffice/convert \
+
+</div><div>--form files=@/path/to/1_document.docx \
+
+</div><div>--form files=@/path/to/2_document.docx \
+
+</div><div>--form merge=true \
+
+</div><div>-o my.pdf
+
+</div></code></pre><div> </div></div></div></div></div>
+<h2  id="split--page-ranges">Split &amp; Page Ranges<a href="#split--page-ranges"  aria-label="Direct link to Split &amp; Page Ranges" title="Direct link to Split &amp; Page Ranges" translate="no">​</a></h2>
+<h3  id="native-printing-libreoffice">Native Printing (LibreOffice)<a href="#native-printing-libreoffice"  aria-label="Direct link to Native Printing (LibreOffice)" title="Direct link to Native Printing (LibreOffice)" translate="no">​</a></h3>
+<p>Happens <em>during</em> the conversion. Applied independently to each uploaded file.</p>
+<div><div><div><div>Form Fields</div><div><div><div>nativePageRangesstring</div><div>Page ranges to print, e.g., '1-4'. Empty means all pages. Applied independently to each file.</div><div>Default:<code>All pages</code></div></div></div></div></div><div><div>Example Request</div><div><div>cURL</div><div><pre tabindex="0"><code><div>curl \
+
+</div><div>--request POST http://localhost:3000/forms/libreoffice/convert \
+
+</div><div>--form files=@/path/to/document.docx \
+
+</div><div>--form nativePageRanges=1-5 \
+
+</div><div>-o my.pdf
+
+</div></code></pre><div> </div></div></div></div></div>
+<h3  id="post-processing-pdf-engines-split-page-ranges">Post-Processing (PDF Engines)<a href="#post-processing-pdf-engines-split-page-ranges"  aria-label="Direct link to Post-Processing (PDF Engines)" title="Direct link to Post-Processing (PDF Engines)" translate="no">​</a></h3>
+<p>Splits pages <em>after</em> the PDF has been generated using a PDF Engine (pdfcpu, QPDF, or PDFtk). Applied to each file individually, or to the combined output <em>after</em> the merge operation.</p>
+<p>When <code>splitMode</code> is set to <strong>pages</strong>, Gotenberg does <strong>not</strong> validate the <code>splitSpan</code> syntax. The value is passed directly to the underlying PDF Engine, and the valid syntax depends on which engine you have configured:</p>
+<table><thead><tr><th>Engine</th><th>Syntax Reference</th></tr></thead><tbody><tr><td><strong>pdfcpu</strong> (Default)</td><td><a href="https://pdfcpu.io/core/trim" target="_blank" rel="noopener noreferrer">See pdfcpu /trim documentation</a></td></tr><tr><td><strong>QPDF</strong></td><td><a href="https://qpdf.readthedocs.io/en/stable/cli.html#page-ranges" target="_blank" rel="noopener noreferrer">See QPDF page-ranges documentation</a></td></tr><tr><td><strong>PDFtk</strong></td><td><a href="https://www.pdflabs.com/docs/pdftk-man-page/#dest-op-cat" target="_blank" rel="noopener noreferrer">See PDFtk cat operation</a></td></tr></tbody></table>
+<p>Check the <a  href="/docs/configuration#pdf-engines">PDF Engines Configuration</a> to see which engine is active.</p>
+<div><div><div><div>Form Fields</div><div><div><div>splitModeenum</div><div>Either 'intervals' or 'pages'. Configures how the PDF should be split.</div><div>Default:<code>None</code></div></div><div><div>splitSpanstring</div><div>The intervals or page ranges to extract, based on the splitMode.</div><div>Default:<code>None</code></div></div><div><div>splitUnifyboolean</div><div>If true, puts extracted pages into a single file. Only works with 'pages' mode.</div><div>Default:<code>false</code></div></div></div></div></div><div><div>Example Request</div><div><div>cURL</div><div><pre tabindex="0"><code><div>curl \
+
+</div><div>--request POST http://localhost:3000/forms/libreoffice/convert \
+
+</div><div>--form files=@/path/to/document.docx \
+
+</div><div>--form splitMode=intervals \
+
+</div><div>--form splitSpan=1 \
+
+</div><div>-o my.zip
+
+</div></code></pre><div> </div></div></div></div></div>
+<h2  id="watermark--stamp">Watermark &amp; Stamp<a href="#watermark--stamp"  aria-label="Direct link to Watermark &amp; Stamp" title="Direct link to Watermark &amp; Stamp" translate="no">​</a></h2>
+<h3  id="native-watermarks-libreoffice">Native Watermarks (LibreOffice)<a href="#native-watermarks-libreoffice"  aria-label="Direct link to Native Watermarks (LibreOffice)" title="Direct link to Native Watermarks (LibreOffice)" translate="no">​</a></h3>
+<p>Text-only watermarks applied <em>during</em> conversion. For image or PDF watermarks, use the PDF Engines watermark below.</p>
+<div><div><div><div>Form Fields</div><div><div><div>nativeWatermarkTextstring</div><div>A single-line text watermark rendered behind the document content.</div><div>Default:<code>None</code></div></div><div><div>nativeWatermarkColorinteger</div><div>The color of the native watermark text as a decimal RGB value (e.g., 16711680 for red).</div><div>Default:<code>8388223</code></div></div><div><div>nativeWatermarkFontHeightinteger</div><div>The font height (size) in points. 0 means auto-sized.</div><div>Default:<code>0</code></div></div><div><div>nativeWatermarkRotateAngleinteger</div><div>The rotation angle in tenths of a degree (e.g., 450 = 45°).</div><div>Default:<code>0</code></div></div><div><div>nativeWatermarkFontNamestring</div><div>The font name for the watermark text (e.g., 'Times New Roman').</div><div>Default:<code>Helvetica</code></div></div><div><div>nativeTiledWatermarkTextstring</div><div>A tiled (repeating) text watermark rendered behind the document content.</div><div>Default:<code>None</code></div></div></div></div></div><div><div>Example Request</div><div><div>cURL</div><div><pre tabindex="0"><code><div>curl \
+
+</div><div>--request POST http://localhost:3000/forms/libreoffice/convert \
+
+</div><div>--form files=@/path/to/document.docx \
+
+</div><div>--form nativeWatermarkText=CONFIDENTIAL \
+
+</div><div>--form nativeWatermarkFontHeight=48 \
+
+</div><div>--form nativeWatermarkRotateAngle=450 \
+
+</div><div>-o my.pdf
+
+</div></code></pre><div> </div></div></div></div></div>
+<h3  id="watermark-pdf-engines">Watermark (PDF Engines)<a href="#watermark-pdf-engines"  aria-label="Direct link to Watermark (PDF Engines)" title="Direct link to Watermark (PDF Engines)" translate="no">​</a></h3>
+<p><code>image</code> and <code>pdf</code> sources require an uploaded <code>watermark</code> file. <code>watermarkExpression</code> cannot reference an arbitrary filesystem path; the route returns <code>400 Bad Request</code>.</p>
+<div><div><div><div>Form Fields</div><div><div><div>watermarkSourceenum</div><div>The watermark source type. Options: 'text', 'image', 'pdf'.</div><div>Default:<code>None</code></div></div><div><div>watermarkExpressionstring</div><div>The watermark content. For 'text', the string to render. For 'image' or 'pdf', the filename of the uploaded watermark file.</div><div>Default:<code>None</code></div></div><div><div>watermarkPagesstring</div><div>Page ranges to watermark (e.g., '1-3', '5'). Empty means all pages.</div><div>Default:<code>None</code></div></div><div><div>watermarkOptionsjson</div><div>Advanced watermark options in JSON format (e.g., font, color, rotation, opacity, scaling).</div><div>Default:<code>None</code></div></div></div></div><div><div>Form Files</div><div><div><div>watermarkfile</div><div>An image or PDF file used as watermark source.</div><div>Default:<code>None</code></div></div></div></div></div><div><div>Example Request</div><div><div>cURL</div><div><pre tabindex="0"><code><div>curl \
+
+</div><div>--request POST http://localhost:3000/forms/libreoffice/convert \
+
+</div><div>--form files=@/path/to/document.docx \
+
+</div><div>--form watermarkSource=text \
+
+</div><div>--form watermarkExpression=CONFIDENTIAL \
+
+</div><div>--form 'watermarkOptions={"opacity":0.25,"rotation":45}' \
+
+</div><div>-o my.pdf
+
+</div></code></pre><div> </div></div></div></div></div>
+<h3  id="stamp-pdf-engines">Stamp (PDF Engines)<a href="#stamp-pdf-engines"  aria-label="Direct link to Stamp (PDF Engines)" title="Direct link to Stamp (PDF Engines)" translate="no">​</a></h3>
+<p><code>image</code> and <code>pdf</code> sources require an uploaded <code>stamp</code> file. <code>stampExpression</code> cannot reference an arbitrary filesystem path; the route returns <code>400 Bad Request</code>.</p>
+<div><div><div><div>Form Fields</div><div><div><div>stampSourceenum</div><div>The stamp source type. Options: 'text', 'image', 'pdf'.</div><div>Default:<code>None</code></div></div><div><div>stampExpressionstring</div><div>The stamp content. For 'text', the string to render. For 'image' or 'pdf', the filename of the uploaded stamp file.</div><div>Default:<code>None</code></div></div><div><div>stampPagesstring</div><div>Page ranges to stamp (e.g., '1-3', '5'). Empty means all pages.</div><div>Default:<code>None</code></div></div><div><div>stampOptionsjson</div><div>Advanced stamp options in JSON format (e.g., font, color, rotation, opacity, scaling).</div><div>Default:<code>None</code></div></div></div></div><div><div>Form Files</div><div><div><div>stampfile</div><div>An image or PDF file used as stamp source.</div><div>Default:<code>None</code></div></div></div></div></div><div><div>Example Request</div><div><div>cURL</div><div><pre tabindex="0"><code><div>curl \
+
+</div><div>--request POST http://localhost:3000/forms/libreoffice/convert \
+
+</div><div>--form files=@/path/to/document.docx \
+
+</div><div>--form stampSource=text \
+
+</div><div>--form stampExpression=APPROVED \
+
+</div><div>--form 'stampOptions={"opacity":0.5,"rotation":0}' \
+
+</div><div>-o my.pdf
+
+</div></code></pre><div> </div></div></div></div></div>
+<h2  id="rotate-pdf-engines">Rotate (PDF Engines)<a href="#rotate-pdf-engines"  aria-label="Direct link to Rotate (PDF Engines)" title="Direct link to Rotate (PDF Engines)" translate="no">​</a></h2>
+<p>Rotates pages by <code>90</code>, <code>180</code>, or <code>270</code> degrees during post-processing.</p>
+<div><div><div><div>Form Fields</div><div><div><div>rotateAngleenum</div><div>The rotation angle. Options: '90', '180', '270'.</div></div><div><div>rotatePagesstring</div><div>Page ranges to rotate (e.g., '1-3', '5'). Empty means all pages.</div></div></div></div></div><div><div>Example Request</div><div><div>cURL</div><div><pre tabindex="0"><code><div>curl \
+
+</div><div>--request POST http://localhost:3000/forms/libreoffice/convert \
+
+</div><div>--form files=@/path/to/document.docx \
+
+</div><div>--form rotateAngle=90 \
+
+</div><div>-o my.pdf
+
+</div></code></pre><div> </div></div></div></div></div>
+<h2  id="pdfa--pdfua">PDF/A &amp; PDF/UA<a href="#pdfa--pdfua"  aria-label="Direct link to PDF/A &amp; PDF/UA" title="Direct link to PDF/A &amp; PDF/UA" translate="no">​</a></h2>
+<p>Use the <code>pdfa</code> and <code>pdfua</code> form fields to convert the PDF into a standardized format.</p>
+<ul>
+<li><strong>PDF/A:</strong> Specialized for the digital preservation of electronic documents (Archival).</li>
+<li><strong>PDF/UA:</strong> Specialized for Universal Accessibility, ensuring documents are accessible to assistive technologies.</li>
+</ul>
+<div><div><div><div>Form Fields</div><div><div><div>pdfaenum</div><div>Converts to a specific PDF/A archival standard. Options: 'PDF/A-1b', 'PDF/A-2b', 'PDF/A-3b'.</div><div>Default:<code>None</code></div></div><div><div>pdfuaboolean</div><div>Enables PDF/UA (Universal Accessibility) compliance.</div><div>Default:<code>false</code></div></div></div></div></div><div><div>Example Request</div><div><div>cURL</div><div><pre tabindex="0"><code><div>curl \
+
+</div><div>--request POST http://localhost:3000/forms/libreoffice/convert \
+
+</div><div>--form files=@/path/to/document.docx \
+
+</div><div>--form pdfa=PDF/A-1b \
+
+</div><div>--form pdfua=true \
+
+</div><div>-o my.pdf
+
+</div></code></pre><div> </div></div></div></div></div>
+<h2  id="encryption">Encryption<a href="#encryption"  aria-label="Direct link to Encryption" title="Direct link to Encryption" translate="no">​</a></h2>
+<div><div><div><div>Form Fields</div><div><div><div>passwordstring</div><div>LibreOffice feature. The password for opening the source file.</div><div>Default:<code>None</code></div></div><div><div>userPasswordstring</div><div>The password required to open the PDF.</div><div>Default:<code>None</code></div></div><div><div>ownerPasswordstring</div><div>The password required to change permissions or edit the PDF.</div><div>Default:<code>None</code></div></div></div></div></div></div>
+<h3  id="open-document-libreoffice">Open Document (LibreOffice)<a href="#open-document-libreoffice"  aria-label="Direct link to Open Document (LibreOffice)" title="Direct link to Open Document (LibreOffice)" translate="no">​</a></h3>
+<p>Use the <code>password</code> form field if the source file is password-protected.</p>
+<div><div><div>Example Request</div><div><div>cURL</div><div><pre tabindex="0"><code><div>curl \
+
+</div><div>--request POST http://localhost:3000/forms/libreoffice/convert \
+
+</div><div>--form files=@/path/to/document.docx \
+
+</div><div>--form password=foo \
+
+</div><div>-o my.pdf
+
+</div></code></pre><div> </div></div></div></div></div>
+<h3  id="post-processing-pdf-engines-encryption">Post-Processing (PDF Engines)<a href="#post-processing-pdf-engines-encryption"  aria-label="Direct link to Post-Processing (PDF Engines)" title="Direct link to Post-Processing (PDF Engines)" translate="no">​</a></h3>
+<p>Set passwords to control PDF access. The <strong>user password</strong> is required to open the PDF; the <strong>owner password</strong> controls permissions (printing, copying, editing).</p>
+<p>Encryption strength (e.g., AES-256) depends on the active PDF Engine. See <a  href="/docs/configuration#pdf-engines">PDF Engines Configuration</a>.</p>
+
+<div><div><div>Example Request</div><div><div>cURL</div><div><pre tabindex="0"><code><div>curl \
+
+</div><div>--request POST http://localhost:3000/forms/libreoffice/convert \
+
+</div><div>--form files=@/path/to/document.docx \
+
+</div><div>--form userPassword=my_user_password \
+
+</div><div>--form ownerPassword=my_owner_password \
+
+</div><div>-o my.pdf
+
+</div></code></pre><div> </div></div></div></div></div>
+<h2  id="pdf-viewer-preferences">PDF Viewer Preferences<a href="#pdf-viewer-preferences"  aria-label="Direct link to PDF Viewer Preferences" title="Direct link to PDF Viewer Preferences" translate="no">​</a></h2>
+<p>Control how PDF viewers display the document on open. These preferences are embedded during conversion and take effect when a reader (Adobe Acrobat, browser PDF viewer, etc.) opens the file.</p>
+<div><div><div><div>Form Fields</div><div><div><div>initialViewinteger</div><div>Initial view when opening the PDF. 0: neither document outline nor thumbnails. 1: document outline visible. 2: thumbnail images visible.</div><div>Default:<code>0</code></div></div><div><div>initialPageinteger</div><div>The page on which the PDF opens.</div><div>Default:<code>1</code></div></div><div><div>magnificationinteger</div><div>Initial magnification level. 0: default. 1: fit page. 2: fit width. 3: fit visible. 4: use zoom value.</div><div>Default:<code>0</code></div></div><div><div>zoominteger</div><div>Initial zoom percentage when magnification is set to 4.</div><div>Default:<code>100</code></div></div><div><div>pageLayoutinteger</div><div>Page layout. 0: default. 1: single page. 2: one column. 3: two columns.</div><div>Default:<code>0</code></div></div><div><div>firstPageOnLeftboolean</div><div>Place the first page on the left when using two-column page layout.</div><div>Default:<code>false</code></div></div><div><div>resizeWindowToInitialPageboolean</div><div>Resize the viewer window to the size of the first page.</div><div>Default:<code>false</code></div></div><div><div>centerWindowboolean</div><div>Center the viewer window on the screen.</div><div>Default:<code>false</code></div></div><div><div>openInFullScreenModeboolean</div><div>Open the PDF in full-screen mode.</div><div>Default:<code>false</code></div></div><div><div>displayPDFDocumentTitleboolean</div><div>Display the document title in the viewer title bar instead of the filename.</div><div>Default:<code>true</code></div></div><div><div>hideViewerMenubarboolean</div><div>Hide the viewer menu bar.</div><div>Default:<code>false</code></div></div><div><div>hideViewerToolbarboolean</div><div>Hide the viewer toolbar.</div><div>Default:<code>false</code></div></div><div><div>hideViewerWindowControlsboolean</div><div>Hide the viewer window controls.</div><div>Default:<code>false</code></div></div><div><div>useTransitionEffectsboolean</div><div>Use transition effects when advancing slides in Impress presentations.</div><div>Default:<code>true</code></div></div><div><div>openBookmarkLevelsinteger</div><div>Number of bookmark levels to show when opening the PDF. -1 shows all levels.</div><div>Default:<code>-1</code></div></div></div></div></div><div><div>Example Request</div><div><div>cURL</div><div><pre tabindex="0"><code><div>curl \
+
+</div><div>--request POST http://localhost:3000/forms/libreoffice/convert \
+
+</div><div>--form files=@/path/to/document.docx \
+
+</div><div>--form initialView=1 \
+
+</div><div>--form magnification=2 \
+
+</div><div>--form displayPDFDocumentTitle=true \
+
+</div><div>--form hideViewerToolbar=true \
+
+</div><div>-o my.pdf
+
+</div></code></pre><div> </div></div></div></div></div>
+<div><div>Sponsors<div><a href="https://thecodingmachine.com" target="_blank"><img src="/img/thecodingmachine-logo.png" alt="TheCodingMachine"></a><a href="https://pdfme.com" target="_blank"><img src="/img/pdfme-logo.png" alt="pdfme"></a><a href="https://pdfbolt.com" target="_blank"><img src="/img/pdfbolt-logo.svg" alt="PdfBolt"></a><a href="https://filetopdf.dev" target="_blank"><img src="/img/filetopdf-logo.png" alt="FileToPDF"></a></div></div><div>Powered by<div><a href="https://docs.docker.com/docker-hub/repos/manage/trusted-content/dsos-program/" target="_blank"><img src="/img/docker-logo-blue.svg" alt="Docker"></a><a href="https://jb.gg/OpenSourceSupport" target="_blank"><img src="/img/jetbrains-logo.svg" alt="JetBrains"></a></div></div><div><a href="https://github.com/sponsors/gulien" target="_blank">❤️ Become a sponsor</a></div></div>

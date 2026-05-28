@@ -34,10 +34,14 @@ lint: check-uv
 	cd gateway && uv sync --extra lint && uv run ruff format --check app/ tests/ && uv run ruff check app/ tests/ && uv run pyright app/
 
 test-unit: check-uv
-	cd gateway && uv sync --extra test && uv run pytest tests/unit -q
+	cd gateway && uv sync --extra test && uv run pytest tests/unit -q --cov=app --cov-report=term-missing
 
 test-integration:
 	docker compose -f docker-compose.test.yml up --build --abort-on-container-exit --exit-code-from tests
+	docker compose -f docker-compose.test.yml down -v
+
+test-focus:
+	FOCUS_TESTS=1 docker compose -f docker-compose.test.yml up --build --abort-on-container-exit --exit-code-from tests
 	docker compose -f docker-compose.test.yml down -v
 
 test-smoke: check-uv
@@ -81,7 +85,7 @@ deploy: test gateway-push portal-push
 # Portal
 # ---------------------------------------------------------------------------
 portal-dev:
-	cd portal && npm run dev
+	cd portal && DEV_MODE=true npm run dev
 
 portal-build:
 	docker build --platform linux/amd64 \

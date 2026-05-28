@@ -46,9 +46,6 @@ class TestEncryptDecrypt:
         with pytest.raises(Exception):
             decrypt(bytes(ciphertext), key)
 
-    def test_no_key_raises(self):
-        with pytest.raises(ValueError, match="No encryption key"):
-            encrypt(b"data", None)
-
-        with pytest.raises(ValueError, match="No encryption key"):
-            decrypt(b"data", None)
+    def test_key_wrong_length_raises(self):
+        with pytest.raises(Exception):
+            encrypt(b"data", b"short")

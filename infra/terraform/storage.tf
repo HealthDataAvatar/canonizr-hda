@@ -1,8 +1,8 @@
 # ---------------------------------------------------------------------------
-# Azure Storage — shared file mount for encrypted job blobs
+# Azure Blob Storage — retained job blobs (input + output, per-user encrypted)
 # ---------------------------------------------------------------------------
-resource "azurerm_storage_account" "blobs" {
-  name                     = replace("st${local.prefix}", "-", "")
+resource "azurerm_storage_account" "results" {
+  name                     = replace("stresults${local.prefix}", "-", "")
   location                 = azurerm_resource_group.this.location
   resource_group_name      = azurerm_resource_group.this.name
   account_tier             = "Standard"
@@ -10,14 +10,50 @@ resource "azurerm_storage_account" "blobs" {
   min_tls_version          = "TLS1_2"
 }
 
-resource "azurerm_storage_share" "jobs" {
-  name               = "jobs"
-  storage_account_id = azurerm_storage_account.blobs.id
-  quota              = 1 # GB — blobs are ephemeral, 1GB is plenty
+resource "azurerm_storage_container" "jobs" {
+  name                  = "jobs"
+  storage_account_id    = azurerm_storage_account.results.id
+  container_access_type = "private"
+}
+
+# Hard cap: delete all blobs older than 31 days regardless of application-level retention
+resource "azurerm_storage_management_policy" "results_lifecycle" {
+  storage_account_id = azurerm_storage_account.results.id
+
+  rule {
+    name    = "delete-expired-blobs"
+    enabled = true
+
+    filters {
+      blob_types   = ["blockBlob"]
+      prefix_match = ["jobs/"]
+    }
+
+    actions {
+      base_blob {
+        delete_after_days_since_creation_greater_than = 31
+      }
+    }
+  }
+}
+
+# Gateway needs to read/write blobs (encrypt input, decrypt output on /result)
+resource "azurerm_role_assignment" "gateway_blob_contributor" {
+  scope                = azurerm_storage_account.results.id
+  role_definition_name = "Storage Blob Data Contributor"
+  principal_id         = azurerm_user_assigned_identity.gateway.principal_id
+}
+
+# Worker needs to read/write blobs (decrypt input, encrypt output)
+resource "azurerm_role_assignment" "worker_blob_contributor" {
+  scope                = azurerm_storage_account.results.id
+  role_definition_name = "Storage Blob Data Contributor"
+  principal_id         = azurerm_user_assigned_identity.worker.principal_id
 }
 
 # ---------------------------------------------------------------------------
-# Key Vault — encryption key for job data at rest
+# Key Vault — kept for portal secrets, APIM credentials, etc.
+# Shared encryption key removed — per-user keys live in Table Storage.
 # ---------------------------------------------------------------------------
 resource "azurerm_key_vault" "this" {
   name                = "kv-${local.prefix}"
@@ -52,16 +88,3 @@ resource "azurerm_key_vault_access_policy" "worker" {
 
   secret_permissions = ["Get"]
 }
-
-resource "azurerm_key_vault_secret" "encryption_key" {
-  name         = "job-encryption-key"
-  value        = "initial-rotate-me"
-  key_vault_id = azurerm_key_vault.this.id
-
-  depends_on = [azurerm_key_vault_access_policy.terraform]
-
-  lifecycle {
-    ignore_changes = [value]
-  }
-}
-
