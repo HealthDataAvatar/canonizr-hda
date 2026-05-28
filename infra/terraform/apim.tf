@@ -70,6 +70,9 @@ resource "azurerm_api_management_diagnostic" "all" {
       "X-Images-Captioned",
       "X-Document-Hash",
       "X-Processing-Pipeline",
+      "X-Processing-Time-Ms",
+      "X-Captioning-Prompt-Tokens",
+      "X-Captioning-Completion-Tokens",
     ]
   }
 }
@@ -177,6 +180,24 @@ resource "azurerm_api_management_api_policy" "canonizr" {
       </backend>
       <outbound>
         <base />
+        <!-- Forward billing headers to client for transparency -->
+        <set-header name="X-Input-Size-Bytes" exists-action="skip">
+          <value>@(context.Response.Headers.GetValueOrDefault("X-Input-Size-Bytes", ""))</value>
+        </set-header>
+        <set-header name="X-Document-Hash" exists-action="skip">
+          <value>@(context.Response.Headers.GetValueOrDefault("X-Document-Hash", ""))</value>
+        </set-header>
+        <set-header name="X-Processing-Time-Ms" exists-action="skip">
+          <value>@(context.Response.Headers.GetValueOrDefault("X-Processing-Time-Ms", ""))</value>
+        </set-header>
+        <set-header name="X-Billable-Units" exists-action="skip">
+          <value>@{
+            var bytes = context.Response.Headers.GetValueOrDefault("X-Input-Size-Bytes", "0");
+            int inputBytes;
+            int.TryParse(bytes, out inputBytes);
+            return ((int)Math.Ceiling(inputBytes / 100000.0)).ToString();
+          }</value>
+        </set-header>
       </outbound>
       <on-error>
         <base />

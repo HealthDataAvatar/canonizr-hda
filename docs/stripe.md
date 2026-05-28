@@ -1,0 +1,2 @@
+Sandbox credentials:
+- Public: pk_test_51Tc1BWIogTExr5FWNUGC4qMPqaqi07Kufkc3KJPArZoJtPYgI8EwWvyOWCjBRjb94LOPIVRhV8lUHlloBmtBVbtJ00EdCllm3y

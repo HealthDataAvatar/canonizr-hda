@@ -8,13 +8,12 @@ terraform {
     }
   }
 
-  # Uncomment and configure when ready for remote state
-  # backend "azurerm" {
-  #   resource_group_name  = "rg-canonizr-tfstate"
-  #   storage_account_name = "stcanonizrtfstate"
-  #   container_name       = "tfstate"
-  #   key                  = "canonizr.tfstate"
-  # }
+  backend "azurerm" {
+    resource_group_name  = "rg-canonizr-tfstate"
+    storage_account_name = "stcanonizrtfstate"
+    container_name       = "tfstate"
+    key                  = "canonizr.tfstate"
+  }
 }
 
 provider "azurerm" {

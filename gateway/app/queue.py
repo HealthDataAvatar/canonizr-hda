@@ -10,6 +10,7 @@ Redis handles: job queue, result signals, quota counters (all small).
 Blob storage handles: encrypted file inputs and outputs (potentially large).
 """
 
+import asyncio
 import json
 import os
 import uuid
@@ -145,32 +146,43 @@ async def acknowledge(r: aioredis.Redis, job: Job) -> None:
     await r.xack(STREAM_KEY, GROUP_NAME, job.stream_id)
 
 
-async def store_result(r: aioredis.Redis, job_id: str, result: JobResult, ttl: int = 300):
-    """Signal that a job result is ready.
+RESULT_KEY_PREFIX = "result:"
+POLL_INTERVAL = 0.5  # seconds between polls
 
-    LPUSH to result:{job_id} for BLPOP waiters (gateway long-poll).
-    SET resultcache:{job_id} with TTL for polling.
+
+def result_key(job_id: str) -> str:
+    """Redis key for job result. Single key per job, no pipelines needed."""
+    return f"{RESULT_KEY_PREFIX}{job_id}"
+
+
+async def store_result(r: aioredis.Redis, job_id: str, result: JobResult, ttl: int = 300):
+    """Store job result in Redis with a TTL. Single SET — no pipelines, no LPUSH.
+
     The actual output payload is in blob storage, not Redis.
+    This stores only the small JobResult metadata (status, job_id, error).
     """
-    serialized = result.serialize()
-    pipe = r.pipeline()
-    pipe.lpush(f"result:{job_id}", serialized)
-    pipe.set(f"resultcache:{job_id}", serialized, ex=ttl)
-    await pipe.execute()
+    await r.set(result_key(job_id), result.serialize(), ex=ttl)
 
 
 async def await_result(r: aioredis.Redis, job_id: str, timeout: float) -> JobResult | None:
-    """Block-wait for a job result signal. Returns None on timeout."""
-    result = await r.blpop(f"result:{job_id}", timeout=int(timeout))  # type: ignore[misc]
-    if result is None:
-        return None
-    _, data = result
-    return JobResult.deserialize(data)
+    """Poll for a job result until it appears or timeout is reached.
+
+    Polls every POLL_INTERVAL seconds. Returns None on timeout.
+    Compatible with Redis Cluster (no BLPOP, single key GET).
+    """
+    elapsed = 0.0
+    while elapsed < timeout:
+        data = await r.get(result_key(job_id))
+        if data is not None:
+            return JobResult.deserialize(data)
+        await asyncio.sleep(POLL_INTERVAL)
+        elapsed += POLL_INTERVAL
+    return None
 
 
 async def get_result(r: aioredis.Redis, job_id: str) -> JobResult | None:
-    """Poll for a job result signal. Returns None if not found."""
-    data = await r.get(f"resultcache:{job_id}")
+    """Single poll for a job result. Returns None if not ready."""
+    data = await r.get(result_key(job_id))
     if data is None:
         return None
     return JobResult.deserialize(data)

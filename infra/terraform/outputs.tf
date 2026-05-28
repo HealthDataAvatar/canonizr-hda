@@ -28,9 +28,5 @@ output "app_insights_connection_string" {
 }
 
 output "redis_hostname" {
-  value = azurerm_redis_cache.this.hostname
-}
-
-output "redis_port" {
-  value = azurerm_redis_cache.this.ssl_port
+  value = azurerm_managed_redis.this.hostname
 }

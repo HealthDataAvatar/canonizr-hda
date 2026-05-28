@@ -5,13 +5,14 @@ TAG         ?= latest
 TF_DIR      ?= infra/terraform
 DEPLOY_TIME ?= $(shell date -u +%Y%m%dT%H%M%SZ)
 
-.PHONY: build push deploy test test-unit test-integration check-uv fmt lint check install-hooks gateway-logs worker-logs
+.PHONY: build push deploy test test-unit test-integration test-smoke check-uv fmt lint check install-hooks setup-secrets gen-key gateway-logs worker-logs
 
 # ---------------------------------------------------------------------------
 # Prerequisites
 # ---------------------------------------------------------------------------
 check-uv:
 	@command -v uv >/dev/null 2>&1 || { echo "Error: uv is not installed. See https://docs.astral.sh/uv/getting-started/installation/"; exit 1; }
+	@cd gateway && uv sync --all-extras -q
 
 install-hooks:
 	@mkdir -p .git/hooks
@@ -40,7 +41,27 @@ test-integration:
 	docker compose -f docker-compose.test.yml up --build --abort-on-container-exit --exit-code-from tests
 	docker compose -f docker-compose.test.yml down -v
 
+test-smoke: check-uv
+	@test -n "$$APIM_KEY" || { echo "Error: set GATEWAY_URL and APIM_KEY"; exit 1; }
+	cd gateway && uv run pytest tests/smoke -q --timeout=120
+
 test: test-unit test-integration
+
+# ---------------------------------------------------------------------------
+# Stripe
+# ---------------------------------------------------------------------------
+stripe-setup: check-uv
+	@test -n "$$STRIPE_SECRET_KEY" || { echo "Error: set STRIPE_SECRET_KEY"; exit 1; }
+	cd gateway && uv sync && uv run python ../infra/stripe/setup.py
+
+# ---------------------------------------------------------------------------
+# Secrets
+# ---------------------------------------------------------------------------
+gen-key:
+	@openssl rand -hex 32
+
+setup-secrets:
+	./infra/scripts/setup-secrets.sh
 
 # ---------------------------------------------------------------------------
 # Build & deploy
@@ -54,8 +75,8 @@ push: build
 	az acr login --name $(ACR_NAME)
 	docker push $(ACR_SERVER)/$(IMAGE_NAME):$(TAG)
 
-deploy: push
-	tofu -chdir=$(TF_DIR) apply -var="deploy_time=$(DEPLOY_TIME)" -auto-approve
+deploy: test push
+	tofu -chdir=$(TF_DIR) apply -var="deploy_time=$(DEPLOY_TIME)"
 
 # ---------------------------------------------------------------------------
 # Logs

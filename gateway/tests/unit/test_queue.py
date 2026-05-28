@@ -1,6 +1,6 @@
 """Unit tests for the Redis Streams job queue — mocks Redis."""
 
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -15,6 +15,7 @@ from app.queue import (
     enqueue,
     ensure_group,
     get_result,
+    result_key,
     store_result,
 )
 
@@ -102,13 +103,11 @@ class TestDequeue:
         fields = Job.create(
             sub_id="sub_1", mime_type="text/plain", filename="test.txt", deadline_seconds=30.0
         ).to_fields()
-        # xautoclaim returns (next_id, [(stream_id, fields)], deleted_ids)
         r.xautoclaim.return_value = ("0-0", [("1-1", fields)], [])
         result = await dequeue(r, timeout=5000)
         assert result is not None
         assert result.stream_id == "1-1"
         assert result.sub_id == "sub_1"
-        # Should NOT have called xreadgroup since xautoclaim found a job
         r.xreadgroup.assert_not_called()
 
     @pytest.mark.asyncio
@@ -119,7 +118,6 @@ class TestDequeue:
         fields = Job.create(
             sub_id="sub_1", mime_type="text/plain", filename="test.txt", deadline_seconds=30.0
         ).to_fields()
-        # xreadgroup returns [[stream_name, [(stream_id, fields)]]]
         r.xreadgroup.return_value = [[STREAM_KEY, [("2-0", fields)]]]
         result = await dequeue(r, timeout=5000)
         assert result is not None
@@ -145,44 +143,83 @@ class TestAcknowledge:
 
 class TestStoreResult:
     @pytest.mark.asyncio
-    async def test_stores_signal_in_both_locations(self):
-        pipe = AsyncMock()
+    async def test_stores_with_set(self):
         r = AsyncMock()
-        r.pipeline = lambda: pipe
         result = JobResult(job_id="abc", status="ok", status_code=200)
         await store_result(r, "abc", result, ttl=60)
-        pipe.lpush.assert_called_once()
-        pipe.set.assert_called_once()
-        pipe.execute.assert_called_once()
+        r.set.assert_called_once_with(result_key("abc"), result.serialize(), ex=60)
+
+    @pytest.mark.asyncio
+    async def test_uses_correct_key_format(self):
+        assert result_key("abc123") == "result:abc123"
 
 
 class TestAwaitResult:
     @pytest.mark.asyncio
-    async def test_returns_result(self):
+    async def test_returns_result_on_first_poll(self):
+        """Result already available — returns immediately."""
         result = JobResult(job_id="abc", status="ok", status_code=200)
         r = AsyncMock()
-        r.blpop.return_value = ("result:abc", result.serialize())
+        r.get.return_value = result.serialize()
         got = await await_result(r, "abc", timeout=10)
         assert got is not None
         assert got.status == "ok"
+        assert r.get.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_returns_result_after_polling(self):
+        """Result appears after a few polls."""
+        result = JobResult(job_id="abc", status="ok", status_code=200)
+        r = AsyncMock()
+        r.get.side_effect = [None, None, result.serialize()]
+        with patch("app.queue.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+            got = await await_result(r, "abc", timeout=10)
+        assert got is not None
+        assert got.status == "ok"
+        assert r.get.call_count == 3
+        assert mock_sleep.call_count == 2
 
     @pytest.mark.asyncio
     async def test_returns_none_on_timeout(self):
+        """Result never appears — returns None after timeout."""
         r = AsyncMock()
-        r.blpop.return_value = None
-        got = await await_result(r, "abc", timeout=1)
+        r.get.return_value = None
+        with patch("app.queue.asyncio.sleep", new_callable=AsyncMock):
+            got = await await_result(r, "abc", timeout=1.0)
         assert got is None
+
+    @pytest.mark.asyncio
+    async def test_polls_at_correct_interval(self):
+        """Verify sleep is called with POLL_INTERVAL."""
+        from app.queue import POLL_INTERVAL
+
+        r = AsyncMock()
+        r.get.return_value = None
+        with patch("app.queue.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+            await await_result(r, "abc", timeout=1.0)
+        for call in mock_sleep.call_args_list:
+            assert call[0][0] == POLL_INTERVAL
+
+    @pytest.mark.asyncio
+    async def test_redis_error_during_poll_propagates(self):
+        """If Redis raises during polling, the error should propagate."""
+        import redis.asyncio as aioredis
+
+        r = AsyncMock()
+        r.get.side_effect = aioredis.ConnectionError("lost connection")
+        with pytest.raises(aioredis.ConnectionError):
+            await await_result(r, "abc", timeout=10)
 
 
 class TestGetResult:
     @pytest.mark.asyncio
-    async def test_returns_cached_result(self):
+    async def test_returns_result(self):
         result = JobResult(job_id="abc", status="ok", status_code=200)
         r = AsyncMock()
         r.get.return_value = result.serialize()
         got = await get_result(r, "abc")
         assert got is not None
-        r.get.assert_called_once_with("resultcache:abc")
+        r.get.assert_called_once_with(result_key("abc"))
 
     @pytest.mark.asyncio
     async def test_returns_none_when_missing(self):
@@ -200,7 +237,6 @@ class TestFailureAndRecovery:
         Another worker reclaims it via XAUTOCLAIM."""
         r = AsyncMock()
 
-        # First worker reads the job
         fields = Job.create(
             sub_id="sub_1", mime_type="text/plain", filename="test.txt", deadline_seconds=30.0
         ).to_fields()
@@ -228,25 +264,36 @@ class TestFailureAndRecovery:
         r.xautoclaim.return_value = ("0-0", [], [])
         r.xreadgroup.return_value = [[STREAM_KEY, [("1-0", fields)]]]
         job = await dequeue(r, timeout=5000)
+        assert job is not None
 
-        # Worker ACKs successfully
         await acknowledge(r, job)
         r.xack.assert_called_once_with(STREAM_KEY, GROUP_NAME, "1-0")
 
     @pytest.mark.asyncio
     async def test_result_survives_gateway_restart(self):
-        """Result is in both LPUSH (for active waiters) and SET (for polling).
-        If gateway restarts and misses the BLPOP, it can poll via GET."""
-        pipe = AsyncMock()
+        """Result stored via SET persists. If gateway restarts, it polls via GET."""
         r = AsyncMock()
-        r.pipeline = lambda: pipe
         result = JobResult(job_id="abc", status="ok", status_code=200)
 
         # Worker stores result
         await store_result(r, "abc", result, ttl=300)
+        r.set.assert_called_once()
 
-        # Gateway restarts, missed the BLPOP — polls instead
+        # Gateway restarts — polls instead of BLPOP
         r.get.return_value = result.serialize()
         polled = await get_result(r, "abc")
         assert polled is not None
         assert polled.status == "ok"
+
+    @pytest.mark.asyncio
+    async def test_result_expires_after_ttl(self):
+        """store_result sets a TTL — after expiry, get_result returns None."""
+        r = AsyncMock()
+        result = JobResult(job_id="abc", status="ok", status_code=200)
+        await store_result(r, "abc", result, ttl=60)
+        # Verify TTL was set
+        r.set.assert_called_once_with(result_key("abc"), result.serialize(), ex=60)
+
+        # Simulate TTL expiry
+        r.get.return_value = None
+        assert await get_result(r, "abc") is None

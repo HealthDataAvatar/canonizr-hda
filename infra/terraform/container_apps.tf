@@ -71,6 +71,11 @@ resource "azurerm_container_app" "gateway" {
   resource_group_name          = azurerm_resource_group.this.name
   revision_mode                = "Single"
 
+  identity {
+    type         = "UserAssigned"
+    identity_ids = [azurerm_user_assigned_identity.gateway.id]
+  }
+
   registry {
     server               = azurerm_container_registry.this.login_server
     username             = azurerm_container_registry.this.admin_username
@@ -84,12 +89,12 @@ resource "azurerm_container_app" "gateway" {
 
   secret {
     name  = "redis-connection-string"
-    value = azurerm_redis_cache.this.primary_connection_string
+    value = "rediss://:${azurerm_managed_redis.this.default_database[0].primary_access_key}@${azurerm_managed_redis.this.hostname}:10000"
   }
 
   secret {
     name  = "encryption-key"
-    value = random_bytes.encryption_key.hex
+    value = azurerm_key_vault_secret.encryption_key.value
   }
 
   template {
@@ -177,6 +182,11 @@ resource "azurerm_container_app" "worker" {
   resource_group_name          = azurerm_resource_group.this.name
   revision_mode                = "Single"
 
+  identity {
+    type         = "UserAssigned"
+    identity_ids = [azurerm_user_assigned_identity.worker.id]
+  }
+
   registry {
     server               = azurerm_container_registry.this.login_server
     username             = azurerm_container_registry.this.admin_username
@@ -195,12 +205,12 @@ resource "azurerm_container_app" "worker" {
 
   secret {
     name  = "redis-connection-string"
-    value = azurerm_redis_cache.this.primary_connection_string
+    value = "rediss://:${azurerm_managed_redis.this.default_database[0].primary_access_key}@${azurerm_managed_redis.this.hostname}:10000"
   }
 
   secret {
     name  = "encryption-key"
-    value = random_bytes.encryption_key.hex
+    value = azurerm_key_vault_secret.encryption_key.value
   }
 
   template {

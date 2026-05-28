@@ -18,5 +18,6 @@
         "titleBar.inactiveBackground": "#b850d899",
         "titleBar.inactiveForeground": "#e7e7e799"
     },
-    "peacock.color": "#b850d8"
+    "peacock.color": "#b850d8",
+    "python.defaultInterpreterPath": "${workspaceFolder}/gateway/.venv/bin/python",
 }

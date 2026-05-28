@@ -2,26 +2,25 @@
 
 ## Current State
 
-- Gateway + Docling on Azure Container Apps (uksouth)
+- Gateway (thin API) + Worker (job processing) + Docling on Azure Container Apps (uksouth)
+- Redis Streams job queue with consumer groups for reliable delivery (at-least-once, XREADGROUP/XACK/XAUTOCLAIM)
+- Azure Managed Redis (Balanced B0, ~$10/month)
 - Azure APIM (Consumption tier) for auth, rate limiting, usage logging
 - Azure OpenAI GPT-4o for image captioning (DataZoneStandard, swedencentral)
-- LibreOffice disabled — legacy formats (.doc, .xls, .ppt) rejected with 400
-- CI/CD via GitHub Actions, manual deploy via Makefile
-- Terraform (OpenTofu) manages all infrastructure in `rg-canonizr-prod`
+- Encrypted blob storage (AES-256-GCM) on Azure Files shared mount between gateway and worker
+- Encryption key in Azure Key Vault, accessed via user-assigned managed identities
+- LibreOffice disabled -- legacy formats (.doc, .xls, .ppt) rejected with 400
+- CI: GitHub Actions (lint + unit tests), integration tests via docker-compose (local)
+- Deploy: `make deploy` builds linux/amd64, pushes to ACR, runs `tofu apply`
+- Terraform state in Azure Blob Storage backend (shared access for team)
 
 ## Pricing: $0.003 per 100KB, captioning included
 
 - One universal unit: **per 100KB of input file size** (rounded up)
-- Image captioning included — no separate line item
+- Image captioning included -- no separate line item
 - Only `200` responses are billed
 - All formats charged the same way
-- **Exception**: passthrough formats (HTML, plain text) are billed as 1KB regardless of actual size. Needs upstream gateway change to report `input_bytes: 1024` when pipeline is `passthrough`.
-
-### Why this model
-- Universal across all formats (PDF, HTML, DOCX, spreadsheets, images)
-- No ambiguity about what a "page" is
-- Captioning cost on GPT-4o (~$0.002/document) is negligible against per-100KB pricing
-- Simpler than every competitor: one price, one unit, no surcharges
+- **Exception**: passthrough formats (HTML, plain text) billed as 1KB regardless of actual size (upstream change pending)
 
 ### Competitive landscape (May 2026)
 
@@ -35,22 +34,25 @@
 | Azure Document Intelligence | ~$0.01/page | Per page | No |
 | **Canonizr** | **$0.003/100KB** | **Per 100KB** | **Yes, included** |
 
+### Tested unit economics
 
-### Cost base
-- Standing infra: ~$194/month (Docling 2 vCPU/4GiB is the bulk)
-- Per-request compute: ~$0.002-0.01
-- Per-caption (GPT-4o): ~$0.002/document — negligible against pricing
-- Verify against real Azure bills, not estimates
+| Document | Size | Docling | Captioning | Total time | Revenue | Cost | Margin |
+|---|---|---|---|---|---|---|---|
+| Multi-page PDF (images) | 2.1MB | 12s | 3 images, 1.5s | 13.6s | $0.063 | ~$0.005 | 92% |
+| 1-page invoice (table) | 94KB | 8s | 1 image, 1s | 9s | $0.003 | ~$0.002 | 33% |
+| Tiny text PDF | 540B | 2s | none | 2s | $0.003 | ~$0.0001 | 97% |
+| Standalone image (PNG) | 1.8KB | n/a | 1 image, 6.8s | 6.8s | $0.003 | ~$0.0001 | 97% |
+| HTML passthrough | 2.3KB | n/a | none | 0ms | $0.003 | ~$0 | ~100% |
+
+Docling base overhead: ~2s regardless of content. Scales with document complexity (tables, layout) more than file size. Break-even at ~7.1 GB/month (~$220 standing cost / $0.003 per unit).
 
 ### Captioning provider
 
-**Current**: Azure OpenAI GPT-4o (~$0.004/caption). Already deployed, covered by Azure credits.
+**Current**: Azure OpenAI GPT-4o (DataZoneStandard, swedencentral). ~$0.002/caption. Data stays within EU/EEA data zone.
 
-**Tested**: GPT-5-nano — 50x cheaper but ~7x slower on vision tasks (7s/image vs ~0.5s). Reasoning tokens consumed even with `reasoning_effort: none`. Unusable for interactive latency. Revisit when vision performance improves.
+**Tested and rejected**: GPT-5-nano -- 50x cheaper but ~7x slower on vision tasks (7s/image vs ~0.5s). Burns reasoning tokens even with `reasoning_effort: none`. `max_tokens` parameter rejected (requires `max_completion_tokens`). Unusable for interactive latency.
 
-**Decision**: Stay on GPT-4o. Cost per caption (~$0.002) is negligible against $0.003/100KB pricing. Latency matters more than token cost.
-
-Nebius (Qwen2.5-VL) was considered but deferred — licensing complexity (attribution, MAU cap) and more expensive than GPT-5-nano.
+**Future candidates**: Phi-4 Multimodal (~$0.02/1M input) via Azure AI Foundry serverless. Much cheaper, no reasoning overhead, but untested for caption quality. Nebius (Qwen2.5-VL) deferred -- licensing complexity.
 
 ### Licensing
 
@@ -58,184 +60,224 @@ Nebius (Qwen2.5-VL) was considered but deferred — licensing complexity (attrib
 |---|---|---|
 | Docling | MIT | None |
 | MarkItDown | MIT | None |
-| Azure OpenAI (GPT-4o/5) | Azure ToS | None |
+| Azure OpenAI (GPT-4o) | Azure ToS | None |
 
-## Feature Gaps
+## Architecture
 
-| Feature | Status |
-|---|---|
-| Structured JSON extraction | Not supported — markdown only |
-| Document splitting (multi-doc PDFs) | Not supported |
-| Async/webhook processing | Planned — via job queue (see below) |
-| SOC2 / HIPAA compliance | Not certified |
-| MCP server | Not supported |
-| Legacy formats (.doc, .xls) | Planned — via LibreOffice container + job queue |
+### Current (deployed)
 
-### Differentiators
-- Image captioning included (same as Unstructured, but most competitors don't offer it)
-- Simpler pricing — one unit, one price, no surcharges
-- Lower cost base (no GPUs)
+```
+User --> APIM (auth, rate limit, logging) --> Gateway (enqueue) --> Redis Streams
+                                                                        |
+                                                                    Worker (dequeue)
+                                                                    /           \
+                                                              Docling        Azure OpenAI
+                                                           (PDF/doc)        (captioning)
+                                                                    \           /
+                                                                  Encrypted blob
+                                                                        |
+                                                                    Gateway <-- long-poll
+                                                                        |
+                                                                      User
+```
 
-## Response Design
+Gateway is thin: validate, check quota, encrypt file to blob, enqueue job metadata to Redis Streams, long-poll for result. Worker does all processing.
 
-See [response-headers.md](response-headers.md) for full spec.
+### Standing costs (~$220/month)
 
-Key headers on all responses:
-- `X-Input-Size-Bytes` — raw file size (billing unit)
-- `X-Images-Captioned` — count of captioned images (transparency, not billed separately)
-- `X-Document-Hash` — SHA-256 for audit trail and deduplication
+| Service | SKU | Monthly cost |
+|---|---|---|
+| Docling (Container App) | 2 vCPU / 4 GiB, min_replicas=1 | ~$130 |
+| Gateway (Container App) | 0.5 vCPU / 1 GiB, min_replicas=1 | ~$30 |
+| Worker (Container App) | 0.5 vCPU / 1 GiB, min_replicas=1 | ~$30 |
+| Azure Managed Redis | Balanced B0, 1 GB | ~$10 |
+| Container Registry | Basic | ~$5 |
+| Log Analytics + App Insights | PerGB2018 | ~$2-5 |
+| Storage Account (Files + state) | Standard LRS | ~$1 |
+| Key Vault | Standard | ~$0.03/10K ops |
+| APIM | Consumption | ~$3.50/million calls |
+| Azure OpenAI (GPT-4o) | DataZoneStandard, pay-per-token | Usage dependent |
 
-## Platform: canonizr.com
+Docling is the dominant cost. Scale-to-zero possible (saves ~$130/month) but adds 30-60s cold start. Keep at min_replicas=1 while testing; revisit when traffic patterns are known.
 
-### Architecture
+### Capacity
 
-- **Portal**: Next.js on canonizr.com
-- **Auth**: Auth.js (self-hosted, OAuth + magic link email, all PII in Azure UK South)
-- **Billing**: Stripe usage-based billing with meters
-- **Key provisioning**: Portal calls APIM Management API to create subscriptions
-- **Quota enforcement**: Redis (real-time, in gateway request lifecycle)
-- **Usage reporting**: Azure Function (timer) reads Redis counters, pushes to Stripe Meter Events API
+| Component | Current | Max (auto-scale) | Constraint |
+|---|---|---|---|
+| Docling | 1 replica | 3 replicas | CPU-bound, ~12s/PDF |
+| Gateway | 1 replica | 5 replicas | Lightweight |
+| Worker | 1 replica | 3 replicas | Orchestration only |
+| Azure OpenAI | 10K TPM | Configurable | Bump to 50K+ before real traffic |
 
-Clerk rejected (consumer PII in US, adds third-party data processor). APIM Developer Portal rejected (needs Standard tier +$150/mo, still generic). Third-party monetisation layers (Zuplo etc.) rejected (unnecessary vendor between us and APIM).
+At 1 Docling replica: ~5 PDFs/minute. At 3: ~15 PDFs/minute (~21,600/day).
 
-### Signup flow
+## Billing & Payments
 
-1. User signs up via Auth.js (GitHub/Google OAuth or magic link email)
-2. User record stored in Azure Table Storage (UK South)
-3. Backend creates Stripe Customer with usage-based subscription (free tier via included units)
-4. Backend calls APIM Management API → creates subscription under `paid` product → returns API key
-5. User mapping stored in Azure Table Storage
-6. User gets their key instantly
+### Model: post-paid, usage-based (Stripe)
 
-APIM `paid` product: `approval_required = false`, `subscriptions_limit = 5` (multiple named keys).
+Prepaid/credit model considered and rejected -- adds e-money regulation risk under UK Payment Services Regulations 2017, deferred revenue accounting complexity, and VAT timing ambiguity. Post-paid is legally simpler.
 
-### Stripe billing
+### Stripe setup
 
+- **Meter**: `conversion_bytes` (sum aggregation, event payload key: `value`)
+- **Product**: "Canonizr API"
+- **Price**: $0.003/unit (1 unit = 100KB), monthly billing, metered
+- **Free tier**: 500 included units/month (50MB) via Stripe included units
 - **Billing period**: Monthly (anchor = signup date)
-- **Meter**: `conversion_bytes` (sum of `X-Input-Size-Bytes`)
-- **Product**: "Canonizr API" with one usage-based price linked to the meter
-- **Free tier**: Stripe included units (e.g. first 50MB/month free)
-- **Usage reporting**: Azure Function (hourly) reads Redis counters per subscription → Stripe meter events
+- Setup script: `infra/stripe/setup.py` (idempotent, safe to run repeatedly)
+
+### Audit trail (APIM --> App Insights)
+
+All billing headers logged at 100% sampling. Per-request record includes:
+
+| Field | Source | Purpose |
+|---|---|---|
+| `apim_subscriptionId` | APIM built-in | Group by customer |
+| `X-Input-Size-Bytes` | Backend response | Calculate billable units |
+| `X-Billable-Units` | APIM outbound policy (calculated) | What the user is charged |
+| `X-Document-Hash` | Backend response | Deduplicate / verify |
+| `X-Processing-Pipeline` | Backend response | What actions ran |
+| `X-Processing-Time-Ms` | Backend response | Compute cost attribution |
+| `X-Captioning-Prompt-Tokens` | Backend response | Captioning cost |
+| `X-Captioning-Completion-Tokens` | Backend response | Captioning cost |
+| `X-Images-Captioned` | Backend response | Captioning volume |
+
+Billing headers also forwarded to client in response for transparency.
+
+### Usage reporting
+
+Azure Function (timer, hourly) reads App Insights via KQL, maps subscriptions to Stripe customers via Table Storage, pushes meter events to Stripe.
 
 ### Quota enforcement (three layers)
 
 | Layer | Where | What it catches |
 |---|---|---|
-| Rate limit | APIM policy (`rate-limit-by-key`) | Burst protection — e.g. 60 req/min per key |
-| Quota pre-check | Gateway (inbound, before processing) | Reads Redis usage, rejects if over quota. Checks `Content-Length` against remaining quota to block oversized files before wasting compute |
+| Rate limit | APIM policy (`rate-limit-by-key`) | Burst protection (e.g. 60 req/min per key) |
+| Quota pre-check | Gateway (inbound, before processing) | Reads Redis usage, rejects if over quota. Checks `Content-Length` to block oversized files before wasting compute |
 | Quota post-update | Gateway (outbound, after processing) | `INCRBY` Redis counter with actual `input_size_bytes` |
 
-Per-key quotas are optional — users set them in the portal. Absent = unlimited (billed via Stripe).
+Per-key quotas optional -- users set them in the portal. Absent = unlimited (billed via Stripe). Abuse detection: Redis tracks rejected attempts per key (short TTL), escalating backoff on repeated rejections.
 
-Abuse detection: Redis tracks rejected attempts per key (short TTL). Repeated rejections trigger escalating backoff or temporary block.
+## Portal: canonizr.com
 
-### Redis data model
+### Auth: Auth.js (self-hosted)
 
-```
-sub:{sub_id}:bytes          # cumulative bytes this period (INCRBY, EXPIRE at period end)
-sub:{sub_id}:quota:bytes    # user-configured limit (or absent = unlimited)
-sub:{sub_id}:rejected       # rejected attempt count (short TTL)
-```
+All user PII stays in Azure UK South. No third-party auth processor. OAuth (GitHub, Google) + magic link email. Session cookies.
 
-Counters auto-reset via `EXPIRE`. The usage reporting job reads from the same counters — single source of truth.
+Clerk rejected: consumer PII in US by default, EU hosting only on Enterprise tier, adds a data processor to GDPR chain. For a consumer product targeting UK users, self-hosted auth eliminates the data transfer question entirely.
 
-### User mapping (Azure Table Storage)
+### Signup flow
 
-```
-| user_id | stripe_customer_id | apim_subscription_id | key_name | quota_bytes_monthly |
-|---------|--------------------|-----------------------|----------|---------------------|
-| usr_abc | cus_123            | sub_aaaa              | prod     | null                |
-| usr_abc | cus_123            | sub_bbbb              | agent-1  | 524288000 (500MB)   |
-```
+1. User signs up via Auth.js (OAuth or magic link)
+2. User record + per-user AES-256 encryption key stored in Azure Table Storage (UK South)
+3. Backend creates Stripe Customer with usage-based subscription (free tier via included units)
+4. Backend calls APIM Management API --> creates subscription under `paid` product --> returns API key
+5. User gets key instantly
 
-### Infrastructure additions
+APIM `paid` product: `approval_required = false`, `subscriptions_limit = 5` (multiple named keys).
 
-- **Azure Cache for Redis** (Basic C0, ~$15/month) — same region, accessible from Container Apps
-- **Azure Function** (Consumption plan) — usage reporting job, timer trigger
-- **Azure Table Storage** — user mapping (Auth.js users, Stripe customers, APIM subscriptions)
-- Redis connection string passed to gateway container as a secret
+### GDPR / consumer privacy
 
-### Job queue architecture
+- Targeting consumers -- stronger protections than B2B
+- All PII in Azure UK South (no US transfers)
+- Auth.js self-hosted (no third-party processor for auth)
+- Azure OpenAI DataZoneStandard (data stays in EU/EEA)
+- Captioning = describing user's own images, returned to sender only -- low risk
+- AI captions may be inaccurate -- terms of service must state this
+- Per-user encryption keys enable crypto-shredding on account deletion
+- Privacy policy required (plain language, Consumer Rights Act 2015)
+- Cookie consent banner required (Auth.js uses session cookies)
+- 14-day cooling-off period applies (Consumer Contracts Regulations 2013)
 
-Serves multiple purposes: legacy format conversion, captioning retry on 429s, Docling overflow, and result caching.
+### Content filtering
 
-**Flow (default — zero data retention):**
-1. File uploaded → encrypted with per-user AES-256 key → queued
-2. Worker decrypts, processes (LibreOffice → Docling → captioning)
-3. Encrypted result stored in Redis (5 min TTL)
-4. Client collects result → deleted
+Azure OpenAI content filter set to "Lax" (custom policy on `captioning` deployment). Jailbreak detection disabled (false positives on normal documents). Severity filters at High. Content filter rejections handled gracefully -- image returned unconverted, not a 502.
 
-**Flow (opt-in caching):**
-1. Same as above, but result also stored against `{sub_id}:{document_hash}`
-2. Same file sent again → cache hit → instant response, no reprocessing
-3. Fixed TTL tiers controlled by us (e.g. `cache=short` 1h, `cache=long` 24h)
-4. Response header: `X-Cache: HIT` or `X-Cache: MISS`
+## Encryption & Data Retention
 
-**Encryption:**
-- Per-user AES-256 key generated on signup, stored in Azure Table Storage (alongside user mapping)
-- All queued/cached data encrypted with user's key
-- Account deletion = delete key → all cached data becomes unrecoverable (crypto-shredding)
-- Even with access to Redis/blob storage, data is unreadable without the key
+### Ephemeral job pipeline (default -- zero data retention)
 
-**API surface:**
-```
-POST /convert                    → synchronous (current behaviour, short jobs)
-POST /convert                    → 202 + job_id (if processing exceeds timeout)
-GET  /jobs/{job_id}              → poll for result
-POST /convert?cache=short        → process + cache result for 1h
-POST /convert?cache=long         → process + cache result for 24h
-DELETE /cache/{doc_hash}         → purge cached result early
-```
+1. Gateway encrypts file with AES-256-GCM --> blob storage
+2. Job metadata enqueued to Redis Streams (no payload, just job ID)
+3. Worker reads blob, decrypts, processes, encrypts result --> blob storage
+4. Gateway long-polls Redis for completion signal, reads result blob, decrypts, returns to user
+5. Both blobs deleted after retrieval
 
-Gateway long-polls internally — callers still get a synchronous response for most requests. Only falls back to 202 + polling for slow jobs (LibreOffice conversions, large documents).
+Encryption key stored in Azure Key Vault, accessed via user-assigned managed identities. Rotatable at any time -- ephemeral blobs live seconds, so rotation just fails in-flight jobs (user resubmits).
 
-**Queue benefits beyond legacy formats:**
-- Captioning 429s → requeue with backoff instead of failing
-- Docling at capacity → queue instead of rejecting
-- Natural backpressure and rate limiting
+### Opt-in caching (future, Phase 3)
 
-**Infrastructure:**
-- **Redis** — job queue (LPUSH/BRPOP), result signals (tiny JSON), quota counters. No large payloads.
-- **Ephemeral blob store** (Azure Files shared mount) — encrypted job inputs/outputs. Lives seconds to minutes. Disposable — if lost, user resubmits. Encryption key managed by Terraform, rotatable.
-- **Cache service** (future, Phase 3) — dedicated durable storage for opt-in cached results. Separate from the ephemeral blob store so infra changes to the job pipeline don't affect cached data. Per-user encryption keys (from Table Storage). Access via internal API. Backed by Azure Blob Storage with its own lifecycle and backups. Account deletion = delete key = crypto-shredding.
-- **LibreOffice container** (0.5 vCPU/1GiB, scale-to-zero) for legacy formats.
+- Result stored against `{sub_id}:{document_hash}`
+- Encrypted with per-user key (from Table Storage, not the job pipeline key)
+- Fixed TTL tiers: `cache=short` (1h), `cache=long` (24h)
+- Cache hits: `X-Cache: HIT` header, no reprocessing, free (not billed)
+- `DELETE /cache/{doc_hash}` to purge early
+- Account deletion = delete per-user key = crypto-shredding
 
-### What's already deployed
+### Storage separation
 
-- APIM with `internal` (HDA free) and `paid` (metered) products
-- `paid` product: `subscriptions_limit = 5`, subscription ID injected via inbound policy
-- App Insights + Log Analytics logging all requests at 100% sampling
-- Backend response headers logged: `X-Input-Size-Bytes`, `X-Images-Captioned`, `X-Document-Hash`, `X-Processing-Pipeline`
-- Gateway returns billing headers on all 200 responses
+| Store | Purpose | Lifecycle | Durability |
+|---|---|---|---|
+| Azure Files (shared mount) | Ephemeral job blobs | Seconds to minutes | Disposable -- if lost, user resubmits |
+| Cache service (future) | Opt-in cached results | Hours to days | Durable, backed up, separate lifecycle |
+| Azure Table Storage | User accounts, Stripe mappings, per-user keys | Permanent | Critical -- back up |
 
-### Remaining APIM changes
+Ephemeral and cache storage deliberately separated so infra changes to the job pipeline don't affect cached data.
 
-- `paid` product: flip `approval_required` from `true` to `false`
-- Outbound policy: forward billing headers to client (currently only logged, not passed through)
+## Testing
 
-### Roadmap
+| Layer | Tool | What it tests | Runs |
+|---|---|---|---|
+| Unit | pytest + mocks | Quota logic, queue, crypto, response formatting | `make check` (CI + local) |
+| Integration | docker-compose (gateway, worker, Redis, Docling) | Full queue round-trip, encryption, real Redis | `make test-integration` (local) |
+| Smoke | pytest + requests against live APIM | Deployment verification, headers, end-to-end | `make test-smoke` (post-deploy) |
 
-**Phase 1 — Billable API**
-1. Redis (foundation for quotas, usage tracking, queue, caching)
-2. Stripe meters + usage reporting Azure Function
-3. APIM `paid` product: `approval_required = false`
-4. Passthrough billing fix (upstream: report `input_bytes: 1024` for passthrough)
+Pre-commit hook: `make install-hooks` (ruff format + ruff check). Hook self-validates against repo copy.
 
-**Phase 2 — Self-service portal**
-5. canonizr.com (Next.js + Auth.js + Azure Table Storage)
-6. Signup flow (Stripe customer + APIM subscription + API key)
-7. Per-user encryption key (generated on signup, stored in Table Storage)
-8. Usage dashboard (keys, consumption, billing — reads from Stripe + Redis)
-9. Per-key quotas (UI to set/manage, gateway enforces via Redis)
+## Feature Gaps
 
-**Phase 3 — Production hardening**
-10. Job queue (Redis-based, async processing, 429 retry, backpressure)
-11. Result caching (encrypted, opt-in, `cache=short`/`cache=long`)
-12. LibreOffice container (scale-to-zero, legacy format support)
-13. Abuse detection (rejected attempt tracking, escalating backoff)
+| Feature | Status |
+|---|---|
+| Structured JSON extraction | Not supported -- markdown only |
+| Document splitting (multi-doc PDFs) | Not supported |
+| Legacy formats (.doc, .xls) | Planned -- LibreOffice container + job queue (Phase 3) |
+| Async/webhook processing | Queue infrastructure deployed, webhook callbacks Phase 4 |
+| SOC2 / HIPAA compliance | Not certified |
+| MCP server | Not supported (Phase 4) |
 
-**Phase 4 — Growth**
-14. Webhook callbacks
-15. MCP server
-16. Privacy policy + terms of service
-17. Monitoring/alerting (usage anomalies, error rate spikes)
+### Differentiators
+
+- Image captioning included (most competitors don't offer it or charge extra)
+- Simpler pricing -- one unit, one price, no surcharges
+- Per-key spend caps for agentic workflows (unique feature)
+- Zero data retention by default, with opt-in caching
+- Lower cost base (no GPUs)
+
+## Roadmap
+
+**Phase 1 -- Billable API** (in progress)
+1. ~~Redis + job queue (Streams with consumer groups)~~ Done
+2. ~~Encrypted blob storage~~ Done
+3. ~~APIM paid product: approval_required = false~~ Done
+4. ~~Audit trail: billing headers in App Insights~~ Done
+5. Stripe meters + usage reporting Azure Function
+6. Passthrough billing fix (upstream: report `input_bytes: 1024` for passthrough)
+
+**Phase 2 -- Self-service portal**
+7. canonizr.com (Next.js + Auth.js + Azure Table Storage)
+8. Signup flow (Stripe customer + APIM subscription + API key)
+9. Per-user encryption key (generated on signup, stored in Table Storage)
+10. Usage dashboard (keys, consumption, billing -- reads from Stripe + Redis)
+11. Per-key quotas (UI to set/manage, gateway enforces via Redis)
+
+**Phase 3 -- Production hardening**
+12. Result caching (encrypted, opt-in, separate durable store)
+13. LibreOffice container (scale-to-zero, legacy format support)
+14. Abuse detection (rejected attempt tracking, escalating backoff)
+15. GPU evaluation for Docling (T4 scale-to-zero vs CPU always-on)
+
+**Phase 4 -- Growth**
+16. Webhook callbacks
+17. MCP server
+18. Privacy policy + terms of service
+19. Monitoring/alerting (usage anomalies, error rate spikes)
