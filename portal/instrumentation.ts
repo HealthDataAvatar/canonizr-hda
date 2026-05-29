@@ -36,20 +36,11 @@ export async function register() {
     const users = TableClient.fromConnectionString(connStr, "Users", opts);
     const gwKeys = TableClient.fromConnectionString(connStr, "GwEncryptionKeys", opts);
 
-    const adminEmail = "admin@canonizr.com";
+    const adminEmail = "a@a";
     const adminId = "admin-local";
-
-    try {
-      await users.getEntity("email", adminEmail);
-      return;
-    } catch {
-      // Not found — create
-    }
-
-    // Fixed key for local dev only — never used in production
     const encryptionKey = "a".repeat(64);
 
-    await users.createEntity({
+    await users.upsertEntity({
       partitionKey: "user",
       rowKey: adminId,
       email: adminEmail,
@@ -66,7 +57,7 @@ export async function register() {
       blocked: false,
     });
 
-    await users.createEntity({
+    await users.upsertEntity({
       partitionKey: "email",
       rowKey: adminEmail,
       userId: adminId,
