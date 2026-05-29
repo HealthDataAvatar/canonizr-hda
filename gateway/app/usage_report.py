@@ -27,7 +27,7 @@ from datetime import UTC, datetime, timedelta
 
 import stripe
 from azure.identity import DefaultAzureCredential
-from azure.monitor.query import LogsQueryClient, LogsQueryStatus
+from azure.monitor.query import LogsQueryClient, LogsQueryStatus  # pyright: ignore[reportPrivateImportUsage]
 
 logger = logging.getLogger(__name__)
 

@@ -216,6 +216,9 @@ class TestDeleteResult:
     async def test_wrong_user_rejected(self):
         svc, _, _ = _make_svc()
         other_key = os.urandom(32)
+        from tests.fakes import FakeUserResolver
+
+        assert isinstance(svc.users, FakeUserResolver)
         svc.users.add("sub_other", UserContext(user_id="user_other", encryption_key=other_key))
 
         result = await accept_job(b"hello", "test.txt", "text/plain", "sub_1", svc)

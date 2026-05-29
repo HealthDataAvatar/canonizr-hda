@@ -108,27 +108,30 @@ def test_sub():
 DEFAULT_HEADERS: dict[str, str] = {}  # overridden per-test via test_sub fixture
 
 
-def submit_and_poll(files, sub_id, headers=None, timeout=TIMEOUT):
-    """Submit a file and poll until the result is ready. Returns (submit_response, result_response).
+def submit_and_poll(
+    files: dict, sub_id: str, headers: dict[str, str] | None = None, timeout: float = TIMEOUT
+) -> tuple[requests.Response, requests.Response]:
+    """Submit a file and poll until the result is ready.
 
     sub_id is required — use the test_sub fixture for isolation.
+    Raises AssertionError if the result never arrives.
     """
     merged_headers = {"X-Subscription-Id": sub_id, **(headers or {})}
     submit = requests.post(f"{GATEWAY_URL}/v1/jobs", files=files, headers=merged_headers, timeout=timeout)
     if submit.status_code != 202:
-        return submit, None
+        pytest.fail(f"Expected 202 from POST /v1/jobs, got {submit.status_code}: {submit.text}")
 
     poll_url = submit.json().get("poll_url", "")
-    if not poll_url:
-        return submit, None
+    assert poll_url, "202 response missing poll_url"
 
-    result = None
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         result = requests.get(f"{GATEWAY_URL}{poll_url}", timeout=timeout)
         if result.status_code != 202:
             return submit, result
         time.sleep(POLL_INTERVAL)
+
+    pytest.fail(f"Timed out polling {poll_url} after {timeout}s")
 
     return submit, result
 

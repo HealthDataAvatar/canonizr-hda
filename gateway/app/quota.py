@@ -11,6 +11,7 @@ Redis keys:
 
 import logging
 import os
+from typing import Any
 
 import redis.asyncio as redis
 
@@ -44,7 +45,7 @@ class QuotaService:
 
     def __init__(
         self,
-        r: redis.Redis,
+        r: "redis.Redis | Any",  # noqa: F821 — accepts FakeRedis in tests
         rejected_ttl: int = 3600,
         max_rejected: int = 50,
         billing_period_ttl: int = 2_678_400,
