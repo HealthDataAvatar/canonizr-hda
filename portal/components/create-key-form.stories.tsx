@@ -56,6 +56,7 @@ export const Interactive: Story = {
 };
 
 export const AllStates: Story = {
+  args: { existingNames: [] },
   render: () => (
     <div className="space-y-8 max-w-2xl">
       <div>
