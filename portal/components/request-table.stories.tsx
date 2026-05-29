@@ -71,21 +71,6 @@ export const Realistic: Story = {
   },
 };
 
-export const Mobile: Story = {
-  name: "Mobile view (375px, paginated)",
-  decorators: [
-    (Story) => (
-      <div style={{ width: 375 }}>
-        <Story />
-      </div>
-    ),
-  ],
-  args: {
-    onDelete: (id: string) => alert(`Delete ${id}`),
-    requests: generateRows(50),
-  },
-};
-
 export const Paginated: Story = {
   name: "Paginated (50 rows)",
   args: {

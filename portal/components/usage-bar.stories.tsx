@@ -9,22 +9,30 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Normal: Story = {
-  args: { usageKB: 3200, quotaKB: 10000 },
-};
-
-export const NearFull: Story = {
-  args: { usageKB: 9500, quotaKB: 10000 },
-};
-
-export const Full: Story = {
-  args: { usageKB: 10000, quotaKB: 10000 },
-};
-
-export const NoQuota: Story = {
-  args: { usageKB: 5000, quotaKB: null },
-};
-
-export const Empty: Story = {
+export const AllStates: Story = {
   args: { usageKB: 0, quotaKB: 10000 },
+  render: () => (
+    <div className="space-y-6 max-w-md">
+      <div>
+        <p className="text-xs text-muted-foreground mb-1">Empty</p>
+        <UsageBar usageKB={0} quotaKB={10000} />
+      </div>
+      <div>
+        <p className="text-xs text-muted-foreground mb-1">Normal (32%)</p>
+        <UsageBar usageKB={3200} quotaKB={10000} />
+      </div>
+      <div>
+        <p className="text-xs text-muted-foreground mb-1">Near full (95%)</p>
+        <UsageBar usageKB={9500} quotaKB={10000} />
+      </div>
+      <div>
+        <p className="text-xs text-muted-foreground mb-1">Full (100%)</p>
+        <UsageBar usageKB={10000} quotaKB={10000} />
+      </div>
+      <div>
+        <p className="text-xs text-muted-foreground mb-1">No quota (unlimited)</p>
+        <UsageBar usageKB={5000} quotaKB={null} />
+      </div>
+    </div>
+  ),
 };
