@@ -33,13 +33,9 @@ setup_vault() {
 setup_vault "kv-canonizr-prod" \
     job-encryption-key
 
-# Portal KV — auth, billing, OAuth
+# Portal KV — auth, billing, email
 setup_vault "kv-portal-canonizr-prod" \
     auth-secret \
-    stripe-secret-key \
-    github-client-id \
-    github-client-secret \
-    google-client-id \
-    google-client-secret
+    stripe-secret-key
 
 echo "Done."

@@ -19,6 +19,14 @@ resource "azurerm_user_assigned_identity" "portal" {
   resource_group_name = azurerm_resource_group.this.name
 }
 
+# Portal identity can manage APIM subscriptions (create/list/delete/rotate keys)
+resource "azurerm_role_assignment" "portal_apim_contributor" {
+  scope                = azurerm_api_management.this.id
+  role_definition_name = "API Management Service Contributor"
+  principal_id         = azurerm_user_assigned_identity.portal.principal_id
+}
+
+
 # ---------------------------------------------------------------------------
 # Dedicated Key Vault for portal secrets
 # ---------------------------------------------------------------------------
@@ -37,7 +45,7 @@ resource "azurerm_key_vault_access_policy" "portal_terraform" {
   tenant_id    = data.azurerm_client_config.current.tenant_id
   object_id    = data.azurerm_client_config.current.object_id
 
-  secret_permissions = ["Get", "Set", "Delete", "List"]
+  secret_permissions = ["Get", "Set", "Delete", "List", "Purge"]
 }
 
 # Portal identity can read secrets at container spin-up
@@ -68,37 +76,18 @@ resource "azurerm_key_vault_secret" "portal_stripe_secret_key" {
   lifecycle { ignore_changes = [value] }
 }
 
-resource "azurerm_key_vault_secret" "portal_github_client_id" {
-  name         = "github-client-id"
-  value        = "initial-rotate-me"
+resource "azurerm_key_vault_secret" "portal_email_from" {
+  name         = "email-from"
+  value        = "DoNotReply@${azurerm_email_communication_service_domain.azure_managed.from_sender_domain}"
   key_vault_id = azurerm_key_vault.portal.id
   depends_on   = [azurerm_key_vault_access_policy.portal_terraform]
-  lifecycle { ignore_changes = [value] }
 }
 
-resource "azurerm_key_vault_secret" "portal_github_client_secret" {
-  name         = "github-client-secret"
-  value        = "initial-rotate-me"
-  key_vault_id = azurerm_key_vault.portal.id
-  depends_on   = [azurerm_key_vault_access_policy.portal_terraform]
-  lifecycle { ignore_changes = [value] }
-}
-
-resource "azurerm_key_vault_secret" "portal_google_client_id" {
-  name         = "google-client-id"
-  value        = "initial-rotate-me"
-  key_vault_id = azurerm_key_vault.portal.id
-  depends_on   = [azurerm_key_vault_access_policy.portal_terraform]
-  lifecycle { ignore_changes = [value] }
-}
-
-resource "azurerm_key_vault_secret" "portal_google_client_secret" {
-  name         = "google-client-secret"
-  value        = "initial-rotate-me"
-  key_vault_id = azurerm_key_vault.portal.id
-  depends_on   = [azurerm_key_vault_access_policy.portal_terraform]
-  lifecycle { ignore_changes = [value] }
-}
+# TODO: Add these back when OAuth apps are registered
+# resource "azurerm_key_vault_secret" "portal_github_client_id" { ... }
+# resource "azurerm_key_vault_secret" "portal_github_client_secret" { ... }
+# resource "azurerm_key_vault_secret" "portal_google_client_id" { ... }
+# resource "azurerm_key_vault_secret" "portal_google_client_secret" { ... }
 
 # Table Storage connection string — not a user-managed secret, but still
 # sensitive, so store in KV rather than Terraform state / env vars.
@@ -155,26 +144,14 @@ resource "azurerm_container_app" "portal" {
   }
 
   secret {
-    name                = "github-client-id"
-    key_vault_secret_id = azurerm_key_vault_secret.portal_github_client_id.versionless_id
+    name                = "comms-connection-string"
+    key_vault_secret_id = azurerm_key_vault_secret.comms_connection_string.versionless_id
     identity            = azurerm_user_assigned_identity.portal.id
   }
 
   secret {
-    name                = "github-client-secret"
-    key_vault_secret_id = azurerm_key_vault_secret.portal_github_client_secret.versionless_id
-    identity            = azurerm_user_assigned_identity.portal.id
-  }
-
-  secret {
-    name                = "google-client-id"
-    key_vault_secret_id = azurerm_key_vault_secret.portal_google_client_id.versionless_id
-    identity            = azurerm_user_assigned_identity.portal.id
-  }
-
-  secret {
-    name                = "google-client-secret"
-    key_vault_secret_id = azurerm_key_vault_secret.portal_google_client_secret.versionless_id
+    name                = "email-from"
+    key_vault_secret_id = azurerm_key_vault_secret.portal_email_from.versionless_id
     identity            = azurerm_user_assigned_identity.portal.id
   }
 
@@ -201,6 +178,11 @@ resource "azurerm_container_app" "portal" {
       }
 
       env {
+        name  = "AZURE_CLIENT_ID"
+        value = azurerm_user_assigned_identity.portal.client_id
+      }
+
+      env {
         name  = "APIM_RESOURCE_GROUP"
         value = azurerm_resource_group.this.name
       }
@@ -208,11 +190,6 @@ resource "azurerm_container_app" "portal" {
       env {
         name  = "APIM_SERVICE_NAME"
         value = azurerm_api_management.this.name
-      }
-
-      env {
-        name  = "LOG_ANALYTICS_WORKSPACE_ID"
-        value = azurerm_log_analytics_workspace.this.id
       }
 
       env {
@@ -238,34 +215,24 @@ resource "azurerm_container_app" "portal" {
       }
 
       env {
-        name        = "GITHUB_CLIENT_ID"
-        secret_name = "github-client-id"
+        name        = "COMMS_CONNECTION_STRING"
+        secret_name = "comms-connection-string"
       }
 
       env {
-        name        = "GITHUB_CLIENT_SECRET"
-        secret_name = "github-client-secret"
-      }
-
-      env {
-        name        = "GOOGLE_CLIENT_ID"
-        secret_name = "google-client-id"
-      }
-
-      env {
-        name        = "GOOGLE_CLIENT_SECRET"
-        secret_name = "google-client-secret"
+        name        = "EMAIL_FROM"
+        secret_name = "email-from"
       }
 
       liveness_probe {
         transport = "HTTP"
-        path      = "/"
+        path      = "/api/health"
         port      = 3000
       }
 
       readiness_probe {
         transport = "HTTP"
-        path      = "/"
+        path      = "/api/health"
         port      = 3000
       }
     }

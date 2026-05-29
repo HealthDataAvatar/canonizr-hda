@@ -99,13 +99,18 @@ resource "azurerm_container_app" "gateway" {
       }
 
       env {
-        name  = "BLOB_STORAGE_CONNECTION_STRING"
-        value = azurerm_storage_account.results.primary_connection_string
+        name  = "AZURE_CLIENT_ID"
+        value = azurerm_user_assigned_identity.gateway.client_id
       }
 
       env {
-        name  = "TABLE_STORAGE_CONNECTION_STRING"
-        value = azurerm_storage_account.portal.primary_connection_string
+        name  = "BLOB_STORAGE_URL"
+        value = azurerm_storage_account.results.primary_blob_endpoint
+      }
+
+      env {
+        name  = "TABLE_STORAGE_URL"
+        value = azurerm_storage_account.portal.primary_table_endpoint
       }
 
       env {
@@ -200,13 +205,18 @@ resource "azurerm_container_app" "worker" {
       }
 
       env {
-        name  = "BLOB_STORAGE_CONNECTION_STRING"
-        value = azurerm_storage_account.results.primary_connection_string
+        name  = "AZURE_CLIENT_ID"
+        value = azurerm_user_assigned_identity.worker.client_id
       }
 
       env {
-        name  = "TABLE_STORAGE_CONNECTION_STRING"
-        value = azurerm_storage_account.portal.primary_connection_string
+        name  = "BLOB_STORAGE_URL"
+        value = azurerm_storage_account.results.primary_blob_endpoint
+      }
+
+      env {
+        name  = "TABLE_STORAGE_URL"
+        value = azurerm_storage_account.portal.primary_table_endpoint
       }
 
       env {

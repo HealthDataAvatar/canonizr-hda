@@ -51,6 +51,20 @@ resource "azurerm_role_assignment" "worker_blob_contributor" {
   principal_id         = azurerm_user_assigned_identity.worker.principal_id
 }
 
+# Gateway needs to read/write table storage (job metadata, user resolution)
+resource "azurerm_role_assignment" "gateway_table_contributor" {
+  scope                = azurerm_storage_account.portal.id
+  role_definition_name = "Storage Table Data Contributor"
+  principal_id         = azurerm_user_assigned_identity.gateway.principal_id
+}
+
+# Worker needs to read/write table storage (update job metadata)
+resource "azurerm_role_assignment" "worker_table_contributor" {
+  scope                = azurerm_storage_account.portal.id
+  role_definition_name = "Storage Table Data Contributor"
+  principal_id         = azurerm_user_assigned_identity.worker.principal_id
+}
+
 # ---------------------------------------------------------------------------
 # Key Vault — kept for portal secrets, APIM credentials, etc.
 # Shared encryption key removed — per-user keys live in Table Storage.
