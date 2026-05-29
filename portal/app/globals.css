@@ -43,7 +43,7 @@
    Orange accent: oklch(0.65 0.19 45)
    ----------------------------------------------------------------------- */
 :root {
-  --background: oklch(0.985 0.005 45);
+  --background: hsl(20, 20%, 98%);
   --foreground: oklch(0.15 0.01 45);
   --surface: oklch(0.97 0.005 45);
   --card: oklch(0.985 0.005 45);
@@ -92,6 +92,32 @@
   --border: oklch(0.25 0.005 45);
   --input: oklch(0.25 0.005 45);
   --ring: oklch(0.65 0.19 45);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) {
+    --background: oklch(0.13 0.005 45);
+    --foreground: oklch(0.93 0.008 45);
+    --surface: oklch(0.18 0.005 45);
+    --card: oklch(0.18 0.005 45);
+    --card-foreground: oklch(0.93 0.008 45);
+    --popover: oklch(0.18 0.005 45);
+    --popover-foreground: oklch(0.93 0.008 45);
+    --primary: oklch(0.93 0.008 45);
+    --primary-foreground: oklch(0.13 0.005 45);
+    --secondary: oklch(0.22 0.005 45);
+    --secondary-foreground: oklch(0.93 0.008 45);
+    --muted: oklch(0.22 0.005 45);
+    --muted-foreground: oklch(0.55 0.008 45);
+    --accent: oklch(0.65 0.19 45);
+    --accent-hover: oklch(0.58 0.19 45);
+    --accent-subtle: oklch(0.65 0.19 45 / 8%);
+    --accent-foreground: oklch(0.985 0.005 45);
+    --destructive: oklch(0.704 0.191 22.216);
+    --border: oklch(0.25 0.005 45);
+    --input: oklch(0.25 0.005 45);
+    --ring: oklch(0.65 0.19 45);
+  }
 }
 
 @layer base {

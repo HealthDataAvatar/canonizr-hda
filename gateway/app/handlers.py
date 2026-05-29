@@ -32,7 +32,13 @@ DEFAULT_RETENTION_SECONDS = 86_400  # 24 hours
 class AcceptResult:
     job_id: str
     estimated_seconds: int
+    input_bytes: int = 0
     deduplicated: bool = False
+
+    @property
+    def billable_units(self) -> int:
+        """Number of 100KB units (rounded up, minimum 1)."""
+        return max(1, -(-self.input_bytes // 100_000))
 
 
 class Rejected(Exception):
@@ -82,6 +88,7 @@ async def accept_job(
         return AcceptResult(
             job_id=existing,
             estimated_seconds=estimate_seconds(mime_type, len(file_bytes)),
+            input_bytes=len(file_bytes),
             deduplicated=True,
         )
 
@@ -129,6 +136,7 @@ async def accept_job(
     return AcceptResult(
         job_id=job.job_id,
         estimated_seconds=estimate_seconds(mime_type, len(file_bytes)),
+        input_bytes=len(file_bytes),
     )
 
 

@@ -1,4 +1,4 @@
-"""Integration tests for the /result/{job_id} polling endpoint."""
+"""Integration tests for polling and deletion."""
 
 import requests
 from conftest import GATEWAY_URL, TIMEOUT, submit_and_poll
@@ -29,3 +29,52 @@ class TestPolling:
         second = requests.get(f"{GATEWAY_URL}{poll_url}", timeout=TIMEOUT)
         assert second.status_code == 200
         assert second.json()["markdown"] == result.json()["markdown"]
+
+
+class TestDelete:
+    def test_delete_returns_204(self, test_sub):
+        submit, result = submit_and_poll(
+            files={"file": ("test.txt", b"Delete me", "text/plain")},
+            sub_id=test_sub,
+        )
+        assert result.status_code == 200
+
+        job_id = submit.json()["job_id"]
+        resp = requests.delete(
+            f"{GATEWAY_URL}/result/{job_id}",
+            headers={"X-Subscription-Id": test_sub},
+            timeout=TIMEOUT,
+        )
+        assert resp.status_code == 204
+
+    def test_poll_after_delete_returns_410(self, test_sub):
+        submit, result = submit_and_poll(
+            files={"file": ("test.txt", b"Delete then poll", "text/plain")},
+            sub_id=test_sub,
+        )
+        assert result.status_code == 200
+
+        job_id = submit.json()["job_id"]
+        requests.delete(
+            f"{GATEWAY_URL}/result/{job_id}",
+            headers={"X-Subscription-Id": test_sub},
+            timeout=TIMEOUT,
+        )
+
+        poll = requests.get(f"{GATEWAY_URL}/result/{job_id}", timeout=TIMEOUT)
+        assert poll.status_code == 410
+
+    def test_delete_nonexistent_returns_404(self, test_sub):
+        resp = requests.delete(
+            f"{GATEWAY_URL}/result/nonexistent_job_id",
+            headers={"X-Subscription-Id": test_sub},
+            timeout=TIMEOUT,
+        )
+        assert resp.status_code == 404
+
+    def test_delete_without_subscription_returns_401(self):
+        resp = requests.delete(
+            f"{GATEWAY_URL}/result/some_job_id",
+            timeout=TIMEOUT,
+        )
+        assert resp.status_code == 401

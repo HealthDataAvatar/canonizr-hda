@@ -101,10 +101,14 @@ async def convert_document(
             "status": "processing",
             "poll_url": f"/result/{result.job_id}",
             "estimated_seconds": result.estimated_seconds,
+            "input_bytes": result.input_bytes,
+            "billable_units": result.billable_units,
         },
         headers={
             "Location": f"/result/{result.job_id}",
             "Retry-After": str(result.estimated_seconds),
+            "X-Input-Size-Bytes": str(result.input_bytes),
+            "X-Billable-Units": str(result.billable_units),
         },
     )
 
@@ -153,14 +157,16 @@ async def startup():
     if r is None:
         raise RuntimeError("REDIS_URL is required")
 
+    blob_url = os.environ.get("BLOB_STORAGE_URL", "")
     blob_conn = os.environ.get("BLOB_STORAGE_CONNECTION_STRING", "")
+    table_url = os.environ.get("TABLE_STORAGE_URL", "")
     table_conn = os.environ.get("TABLE_STORAGE_CONNECTION_STRING", "")
 
     queue = RedisQueue(r)
     _svc = Services(
-        blobs=AzureBlobStore(blob_conn),
-        jobs=TableJobStore(table_conn),
-        users=TableUserResolver(r, table_conn),
+        blobs=AzureBlobStore(account_url=blob_url, connection_string=blob_conn),
+        jobs=TableJobStore(endpoint=table_url, connection_string=table_conn),
+        users=TableUserResolver(r, endpoint=table_url, connection_string=table_conn),
         queue=queue,
         quota=QuotaService(r),
     )

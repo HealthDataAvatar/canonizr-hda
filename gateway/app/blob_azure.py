@@ -1,17 +1,29 @@
 """Azure Blob Storage implementation of BlobStore protocol.
 
-For integration tests, Azurite provides the same interface locally
-with connection string "UseDevelopmentStorage=true".
+Production: ManagedIdentityCredential with account URL.
+Tests (Azurite): connection string.
 """
 
 from azure.storage.blob.aio import BlobServiceClient
+
+from .azure_auth import get_async_credential
 
 
 class AzureBlobStore:
     """BlobStore backed by Azure Blob Storage."""
 
-    def __init__(self, connection_string: str, container: str = "jobs"):
-        self._client = BlobServiceClient.from_connection_string(connection_string)
+    def __init__(self, *, account_url: str = "", connection_string: str = "", container: str = "jobs"):
+        if account_url:
+            credential = get_async_credential()
+            if credential is None:
+                raise ValueError("AZURE_CLIENT_ID required when using account_url")
+            self._credential = credential
+            self._client = BlobServiceClient(account_url, credential=credential)
+        elif connection_string:
+            self._credential = None
+            self._client = BlobServiceClient.from_connection_string(connection_string)
+        else:
+            raise ValueError("Either account_url or connection_string is required")
         self._container = container
 
     async def put(self, key: str, data: bytes) -> None:
@@ -46,3 +58,5 @@ class AzureBlobStore:
 
     async def close(self) -> None:
         await self._client.close()
+        if self._credential:
+            await self._credential.close()

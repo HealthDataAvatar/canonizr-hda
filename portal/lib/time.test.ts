@@ -54,4 +54,19 @@ describe("timeAgo", () => {
     const result = timeAgo(new Date(Date.now() - 5 * MINUTE));
     expect(result).toBe("5 minutes ago");
   });
+
+  it("returns 'about 1 year ago' for old timestamps", () => {
+    const result = timeAgo(ago(365 * DAY));
+    expect(result).toBe("about 1 year ago");
+  });
+
+  it("returns 'over X years ago' for very old timestamps", () => {
+    const result = timeAgo(ago(2 * 365 * DAY));
+    expect(result).toMatch(/years ago/);
+  });
+
+  it("handles ISO string format", () => {
+    const result = timeAgo("2020-01-01T00:00:00Z");
+    expect(result).toMatch(/years ago/);
+  });
 });

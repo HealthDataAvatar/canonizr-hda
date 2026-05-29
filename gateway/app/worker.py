@@ -26,14 +26,16 @@ async def run():
     if r is None:
         raise RuntimeError("REDIS_URL is required for the worker")
 
+    blob_url = os.environ.get("BLOB_STORAGE_URL", "")
     blob_conn = os.environ.get("BLOB_STORAGE_CONNECTION_STRING", "")
+    table_url = os.environ.get("TABLE_STORAGE_URL", "")
     table_conn = os.environ.get("TABLE_STORAGE_CONNECTION_STRING", "")
 
     queue = RedisQueue(r)
     svc = Services(
-        blobs=AzureBlobStore(blob_conn),
-        jobs=TableJobStore(table_conn),
-        users=TableUserResolver(r, table_conn),
+        blobs=AzureBlobStore(account_url=blob_url, connection_string=blob_conn),
+        jobs=TableJobStore(endpoint=table_url, connection_string=table_conn),
+        users=TableUserResolver(r, endpoint=table_url, connection_string=table_conn),
         queue=queue,
         quota=QuotaService(r),
     )

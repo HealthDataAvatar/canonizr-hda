@@ -6,7 +6,7 @@ TAG         ?= latest
 TF_DIR      ?= infra/terraform
 DEPLOY_TIME ?= $(shell date -u +%Y%m%dT%H%M%SZ)
 
-.PHONY: build gateway-push deploy test test-unit test-integration test-smoke check-uv fmt lint check install-hooks setup-secrets gen-key gateway-logs worker-logs portal-dev portal-build portal-push portal-logs
+.PHONY: build gateway-push deploy test test-unit test-integration test-portal-integration test-smoke check-uv fmt lint check install-hooks setup-secrets gen-key gateway-logs worker-logs portal-dev portal-build portal-push portal-logs
 
 # ---------------------------------------------------------------------------
 # Prerequisites
@@ -40,6 +40,10 @@ test-integration:
 	docker compose -f docker-compose.test.yml up --build --abort-on-container-exit --exit-code-from tests
 	docker compose -f docker-compose.test.yml down -v
 
+test-portal-integration:
+	docker compose -f docker-compose.portal-test.yml up --build --abort-on-container-exit --exit-code-from tests
+	docker compose -f docker-compose.portal-test.yml down -v
+
 test-focus:
 	FOCUS_TESTS=1 docker compose -f docker-compose.test.yml up --build --abort-on-container-exit --exit-code-from tests
 	docker compose -f docker-compose.test.yml down -v
@@ -48,7 +52,7 @@ test-smoke: check-uv
 	@test -n "$$APIM_KEY" || { echo "Error: set GATEWAY_URL and APIM_KEY"; exit 1; }
 	cd gateway && uv run pytest tests/smoke -q --timeout=120
 
-test: test-unit test-integration
+test: test-unit test-integration test-portal-integration
 
 # ---------------------------------------------------------------------------
 # Stripe
@@ -85,7 +89,10 @@ deploy: test gateway-push portal-push
 # Portal
 # ---------------------------------------------------------------------------
 portal-dev:
-	cd portal && DEV_MODE=true npm run dev
+	docker compose -f docker-compose.portal-test.yml up azurite mail-stub -d
+	docker compose -f docker-compose.portal-test.yml logs -f mail-stub &
+	cd portal && npm run dev; \
+	docker compose -f docker-compose.portal-test.yml down
 
 portal-build:
 	docker build --platform linux/amd64 \

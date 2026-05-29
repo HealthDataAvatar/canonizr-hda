@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/session";
-import { listSubscriptions, createSubscription } from "@/lib/apim";
+import { getServices } from "@/lib/services";
 import { getUserRecord } from "@/lib/table-storage";
 
 export async function GET() {
   try {
     const { userId } = await requireUser();
-    const keys = await listSubscriptions(userId);
+    const { keys: keyStore } = getServices();
+    const keys = await keyStore.list(userId);
     return NextResponse.json({ keys });
   } catch {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -26,10 +27,11 @@ export async function POST(request: Request) {
 
   try {
     const { userId } = await requireUser();
+    const { keys: keyStore } = getServices();
 
     const connectionString = process.env.TABLE_STORAGE_CONNECTION_STRING!;
     const userRecord = await getUserRecord(connectionString, userId);
-    const existing = await listSubscriptions(userId);
+    const existing = await keyStore.list(userId);
 
     if (existing.length >= userRecord.maxKeys) {
       return NextResponse.json(
@@ -38,7 +40,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const result = await createSubscription(userId, name);
+    const result = await keyStore.create(userId, name);
     return NextResponse.json(result, { status: 201 });
   } catch {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

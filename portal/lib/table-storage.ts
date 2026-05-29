@@ -6,17 +6,17 @@
  */
 
 import { TableClient } from "@azure/data-tables";
-import { DEV_MODE } from "./dev";
 import type { Adapter, AdapterUser, AdapterAccount, AdapterSession } from "next-auth/adapters";
 import { randomUUID, randomBytes } from "crypto";
 
 export function AzureTableStorageAdapter(
   connectionString: string
 ): Adapter {
-  const users = TableClient.fromConnectionString(connectionString, "Users");
-  const accounts = TableClient.fromConnectionString(connectionString, "Accounts");
-  const sessions = TableClient.fromConnectionString(connectionString, "Sessions");
-  const verificationTokens = TableClient.fromConnectionString(connectionString, "VerificationTokens");
+  const opts = connectionString.includes("http://") ? { allowInsecureConnection: true } : {};
+  const users = TableClient.fromConnectionString(connectionString, "Users", opts);
+  const accounts = TableClient.fromConnectionString(connectionString, "Accounts", opts);
+  const sessions = TableClient.fromConnectionString(connectionString, "Sessions", opts);
+  const verificationTokens = TableClient.fromConnectionString(connectionString, "VerificationTokens", opts);
 
   const initPromise = Promise.all([
     users.createTable().catch(() => {}),
@@ -204,7 +204,7 @@ export function AzureTableStorageAdapter(
 
     async createVerificationToken(token) {
       await initPromise;
-      await verificationTokens.createEntity({
+      await verificationTokens.upsertEntity({
         partitionKey: "token",
         rowKey: token.identifier,
         token: token.token,
@@ -233,19 +233,8 @@ export function AzureTableStorageAdapter(
 
 /** Read user-specific fields from Table Storage (encryption key, Stripe ID, admin overrides). */
 export async function getUserRecord(connectionString: string, userId: string) {
-  if (DEV_MODE) {
-    return {
-      id: userId,
-      email: "dev@canonizr.local",
-      encryptionKey: "0".repeat(64),
-      stripeCustomerId: "cus_dev_001",
-      maxKeys: 100,
-      freeUnits: 500 as number | null,
-      pricePerUnit: 0.003,
-      notes: "",
-    };
-  }
-  const client = TableClient.fromConnectionString(connectionString, "Users");
+  const opts = connectionString.includes("http://") ? { allowInsecureConnection: true } : {};
+  const client = TableClient.fromConnectionString(connectionString, "Users", opts);
   const entity = await client.getEntity("user", userId);
   return {
     id: entity.rowKey as string,
@@ -265,8 +254,8 @@ export async function updateUserRecord(
   userId: string,
   fields: Record<string, unknown>
 ) {
-  if (DEV_MODE) return;
-  const client = TableClient.fromConnectionString(connectionString, "Users");
+  const opts = connectionString.includes("http://") ? { allowInsecureConnection: true } : {};
+  const client = TableClient.fromConnectionString(connectionString, "Users", opts);
   await client.updateEntity(
     { partitionKey: "user", rowKey: userId, ...fields },
     "Merge"

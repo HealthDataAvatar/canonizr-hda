@@ -6,52 +6,36 @@
  */
 
 import { requireUser } from "./session";
-import { listSubscriptions, type ApimKey } from "./apim";
-import { getUsage } from "./stripe";
+import { getServices, type Invoice } from "./services";
 import { getUserRecord } from "./table-storage";
-import { getRecentRequests } from "./app-insights";
-import type { RequestRow, BlobState } from "@/components/request-table";
+import { getJobsForUser } from "./jobs";
+import type { RequestRow } from "@/components/request-table";
 import type { KeyRow } from "@/components/key-table";
 
 const KB_PER_UNIT = 100;
 
 // -------------------------------------------------------------------------
-// Dashboard
+// Recent error (used by layout error banner)
 // -------------------------------------------------------------------------
 
-export interface DashboardData {
-  hasKeys: boolean;
-  recentError: {
-    id: string;
-    keyName: string;
-    subscriptionId: string;
-    status: number;
-    timestamp: string;
-  } | null;
-}
+import type { RecentError } from "@/components/error-banner";
 
-export async function getDashboardData(): Promise<DashboardData> {
+export async function getRecentError(): Promise<RecentError | null> {
   const { userId } = await requireUser();
-  const keys = await listSubscriptions(userId);
-  const keyMap = buildKeyMap(keys);
+  const connectionString = process.env.TABLE_STORAGE_CONNECTION_STRING!;
+  const jobs = await getJobsForUser(connectionString, userId, 10);
 
-  const requests = await getRecentRequests(keys.map((k) => k.id));
   const fiveMinAgo = Date.now() - 5 * 60 * 1000;
-  const error = requests.find(
-    (r) => r.status !== 200 && new Date(r.timestamp).getTime() > fiveMinAgo
+  const error = jobs.find(
+    (r) => r.status !== 200 && r.status !== 202 && new Date(r.timestamp).getTime() > fiveMinAgo
   );
 
+  if (!error) return null;
   return {
-    hasKeys: keys.length > 0,
-    recentError: error
-      ? {
-          id: error.id,
-          keyName: keyMap[error.subscriptionId] ?? error.subscriptionId,
-          subscriptionId: error.subscriptionId,
-          status: error.status,
-          timestamp: error.timestamp,
-        }
-      : null,
+    id: error.id,
+    keyName: error.keyName,
+    status: error.status,
+    timestamp: error.timestamp,
   };
 }
 
@@ -65,11 +49,13 @@ export interface KeysData {
 
 export async function getKeysData(): Promise<KeysData> {
   const { userId } = await requireUser();
-  const keys = await listSubscriptions(userId);
+  const { keys: keyStore } = getServices();
+  const keys = await keyStore.list(userId);
   return {
     keys: keys.map((k) => ({
       id: k.id,
       displayName: k.displayName,
+      keyHint: k.keyHint,
       createdDate: k.createdDate,
       lastUsed: k.lastUsed,
       usageKB: k.usageKB,
@@ -79,36 +65,36 @@ export async function getKeysData(): Promise<KeysData> {
 }
 
 // -------------------------------------------------------------------------
-// Usage
+// Billing
 // -------------------------------------------------------------------------
 
-export interface UsageData {
+export interface BillingData {
   processedKB: number;
   freeRemainingKB: number | null;
   freeTotalKB: number | null;
   estimatedCost: number;
-  requests: RequestRow[];
+  pricePerUnit: number;
+  invoices: Invoice[];
 }
 
-export async function getUsageData(): Promise<UsageData> {
+export async function getBillingData(): Promise<BillingData> {
   const { userId } = await requireUser();
   const connectionString = process.env.TABLE_STORAGE_CONNECTION_STRING!;
   const userRecord = await getUserRecord(connectionString, userId);
-  const keys = await listSubscriptions(userId);
-  const keyMap = buildKeyMap(keys);
+  const { billing } = getServices();
 
-  const [usage, requests] = await Promise.all([
+  const [usage, invoices] = await Promise.all([
     userRecord.stripeCustomerId
-      ? getUsage(userRecord.stripeCustomerId)
+      ? billing.getUsage(userRecord.stripeCustomerId)
       : Promise.resolve({ totalUnits: 0, periodStart: "", periodEnd: "" }),
-    getRecentRequests(keys.map((k) => k.id)),
+    userRecord.stripeCustomerId
+      ? billing.getInvoices(userRecord.stripeCustomerId)
+      : Promise.resolve([]),
   ]);
 
   const totalUnits = usage.totalUnits;
   const freeUnits = userRecord.freeUnits;
   const pricePerUnit = userRecord.pricePerUnit;
-
-  const none: BlobState = { status: "none" };
 
   return {
     processedKB: totalUnits * KB_PER_UNIT,
@@ -119,28 +105,21 @@ export async function getUsageData(): Promise<UsageData> {
     freeTotalKB: freeUnits !== null ? freeUnits * KB_PER_UNIT : null,
     estimatedCost:
       Math.max(0, totalUnits - (freeUnits ?? 0)) * (pricePerUnit ?? 0.003),
-    requests: requests.map((r) => ({
-      id: r.id,
-      timestamp: r.timestamp,
-      keyName: keyMap[r.subscriptionId] ?? r.subscriptionId,
-      inputSizeBytes: r.inputSizeBytes,
-      processingTimeMs: r.processingTimeMs,
-      pipeline: r.pipeline,
-      status: r.status,
-      // Blob state will come from job index (Table Storage) once built.
-      // For now, all blobs show as unavailable.
-      result: none,
-      input: none,
-    })),
+    pricePerUnit: pricePerUnit ?? 0.003,
+    invoices,
   };
 }
 
 // -------------------------------------------------------------------------
-// Helpers
+// History
 // -------------------------------------------------------------------------
 
-function buildKeyMap(keys: ApimKey[]): Record<string, string> {
-  const map: Record<string, string> = {};
-  for (const k of keys) map[k.id] = k.displayName;
-  return map;
+export interface HistoryData {
+  requests: RequestRow[];
+}
+
+export async function getHistoryData(): Promise<HistoryData> {
+  const { userId } = await requireUser();
+  const connectionString = process.env.TABLE_STORAGE_CONNECTION_STRING!;
+  return { requests: await getJobsForUser(connectionString, userId) };
 }

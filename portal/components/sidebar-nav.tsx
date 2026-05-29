@@ -4,27 +4,24 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const links = [
-  { href: "/dashboard", label: "Dashboard", exact: true },
   { href: "/dashboard/keys", label: "API Keys" },
-  { href: "/dashboard/usage", label: "Usage" },
   { href: "/dashboard/billing", label: "Billing" },
-  { href: "/dashboard/docs", label: "Docs" },
+  { href: "/dashboard/history", label: "History" },
 ];
 
 export function SidebarNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="mt-8 flex flex-col gap-1">
-      {links.map(({ href, label, exact }) => {
-        const active = exact
-          ? pathname === href
-          : pathname.startsWith(href);
+    <nav className="mt-8 flex flex-col gap-1" aria-label="Main navigation">
+      {links.map(({ href, label }) => {
+        const active = pathname.startsWith(href);
 
         return (
           <Link
             key={href}
             href={href}
+            aria-current={active ? "page" : undefined}
             className={`text-[0.9375rem] py-1 transition-colors ${
               active
                 ? "text-accent font-semibold"

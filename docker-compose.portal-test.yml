@@ -1,0 +1,80 @@
+services:
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite:latest
+    command: "azurite --blobHost 0.0.0.0 --tableHost 0.0.0.0 --loose --skipApiVersionCheck"
+    ports:
+      - "10002:10002"
+    networks:
+      - portal-test
+    healthcheck:
+      test: ["CMD", "nc", "-z", "127.0.0.1", "10002"]
+      interval: 2s
+      timeout: 2s
+      retries: 5
+
+  portal:
+    build:
+      context: ./portal
+      dockerfile: Dockerfile
+    environment:
+      USE_LOCAL_SERVICES: "true"
+      AUTH_SECRET: "test-secret-at-least-32-chars-long!!"
+      AUTH_URL: "http://portal:3000"
+      TABLE_STORAGE_CONNECTION_STRING: "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;TableEndpoint=http://azurite:10002/devstoreaccount1"
+      EMAIL_FROM: "noreply@test.local"
+      MAIL_STUB_ENDPOINT: "http://mail-stub:4300"
+    networks:
+      - portal-test
+    depends_on:
+      azurite:
+        condition: service_healthy
+      mail-stub:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/health').then(r=>{if(!r.ok)throw r.status})"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  mail-stub:
+    build:
+      context: ./portal
+      dockerfile: portal-tests.dockerfile
+    command: ["node", "stubs/server.mjs"]
+    ports:
+      - "4300:4300"
+    environment:
+      AZURITE_TABLE_CONN: "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;TableEndpoint=http://azurite:10002/devstoreaccount1"
+    networks:
+      - portal-test
+    depends_on:
+      azurite:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:4300/health').then(r=>{if(!r.ok)throw r.status})"]
+      interval: 2s
+      timeout: 2s
+      retries: 10
+
+  tests:
+    build:
+      context: ./portal
+      dockerfile: portal-tests.dockerfile
+    environment:
+      PORTAL_URL: http://portal:3000
+      MAIL_STUB_URL: http://mail-stub:4300
+      AZURITE_TABLE_CONN: "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;TableEndpoint=http://azurite:10002/devstoreaccount1"
+    networks:
+      - portal-test
+    depends_on:
+      portal:
+        condition: service_healthy
+      azurite:
+        condition: service_healthy
+      mail-stub:
+        condition: service_healthy
+
+networks:
+  portal-test:
+    driver: bridge

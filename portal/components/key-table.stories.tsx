@@ -24,6 +24,7 @@ function KeyTablePreview({ keys }: { keys: KeyRow[] }) {
       <TableHeader>
         <TableRow>
           <TableHead>Name</TableHead>
+          <TableHead>Key</TableHead>
           <TableHead>Created</TableHead>
           <TableHead>Last used</TableHead>
           <TableHead>Usage / Quota</TableHead>
@@ -35,6 +36,9 @@ function KeyTablePreview({ keys }: { keys: KeyRow[] }) {
           <TableRow key={key.id}>
             <TableCell className="font-medium font-mono text-[0.875rem]">
               {key.displayName}
+            </TableCell>
+            <TableCell className="font-mono text-[0.8125rem] text-muted-foreground">
+              •••• {key.keyHint}
             </TableCell>
             <TableCell className="text-[0.8125rem] text-muted-foreground">
               {key.createdDate}
@@ -69,9 +73,9 @@ type Story = StoryObj<typeof meta>;
 export const WithKeys: Story = {
   args: {
     keys: [
-      { id: "1", displayName: "agent-bold-crane", createdDate: "20 May 2026", lastUsed: "2 hours ago", usageKB: 3200, quotaKB: 10000 },
-      { id: "2", displayName: "agent-quiet-raven", createdDate: "25 May 2026", lastUsed: "5 min ago", usageKB: 800, quotaKB: 10000 },
-      { id: "3", displayName: "agent-swift-otter", createdDate: "28 May 2026", lastUsed: "Never", usageKB: 0, quotaKB: null },
+      { id: "1", displayName: "agent-bold-crane", keyHint: "a3f2", createdDate: "20 May 2026", lastUsed: "2 hours ago", usageKB: 3200, quotaKB: 10000 },
+      { id: "2", displayName: "agent-quiet-raven", keyHint: "9c1e", createdDate: "25 May 2026", lastUsed: "5 min ago", usageKB: 800, quotaKB: 10000 },
+      { id: "3", displayName: "agent-swift-otter", keyHint: "7b4d", createdDate: "28 May 2026", lastUsed: "Never", usageKB: 0, quotaKB: null },
     ],
   },
 };
@@ -79,8 +83,8 @@ export const WithKeys: Story = {
 export const NearQuota: Story = {
   args: {
     keys: [
-      { id: "1", displayName: "agent-bold-crane", createdDate: "20 May 2026", lastUsed: "1 min ago", usageKB: 9500, quotaKB: 10000 },
-      { id: "2", displayName: "agent-quiet-raven", createdDate: "25 May 2026", lastUsed: "3 hours ago", usageKB: 10000, quotaKB: 10000 },
+      { id: "1", displayName: "agent-bold-crane", keyHint: "a3f2", createdDate: "20 May 2026", lastUsed: "1 min ago", usageKB: 9500, quotaKB: 10000 },
+      { id: "2", displayName: "agent-quiet-raven", keyHint: "9c1e", createdDate: "25 May 2026", lastUsed: "3 hours ago", usageKB: 10000, quotaKB: 10000 },
     ],
   },
 };
@@ -88,7 +92,7 @@ export const NearQuota: Story = {
 export const SingleKey: Story = {
   args: {
     keys: [
-      { id: "1", displayName: "agent-bold-crane", createdDate: "20 May 2026", lastUsed: "Never", usageKB: 0, quotaKB: null },
+      { id: "1", displayName: "agent-bold-crane", keyHint: "a3f2", createdDate: "20 May 2026", lastUsed: "Never", usageKB: 0, quotaKB: null },
     ],
   },
 };

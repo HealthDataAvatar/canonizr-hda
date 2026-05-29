@@ -16,10 +16,10 @@ def test_convert_html(headers):
         headers=headers,
     )
     assert submit.status_code == 202
+    assert "job_id" in submit.json()
+    assert "estimated_seconds" in submit.json()
     assert result.status_code == 200
-    data = result.json()
-    assert "markdown" in data
-    assert "Hello" in data["markdown"]
+    assert "Hello" in result.json()["markdown"]
 
 
 def test_convert_plain_text(headers):
@@ -44,14 +44,16 @@ def test_convert_pdf(headers):
     assert "Hello world" in result.json()["markdown"]
 
 
-def test_billing_headers_present(headers):
+def test_result_has_billing_headers(headers):
+    """Billing headers should be present on the /result response."""
     submit, result = submit_and_poll(
         files={"file": ("test.txt", b"Check headers", "text/plain")},
         headers=headers,
     )
     assert submit.status_code == 202
     assert result.status_code == 200
-    assert "X-Input-Size-Bytes" in result.headers or "metadata" in result.json()
+    assert "X-Input-Size-Bytes" in result.headers
+    assert "X-Processing-Pipeline" in result.headers
 
 
 def test_oversized_file_rejected(headers):

@@ -1,20 +1,37 @@
-"""Azure Table Storage implementation of JobStore protocol."""
+"""Azure Table Storage implementation of JobStore protocol.
+
+Production: uses DefaultAzureCredential (managed identity) with endpoint URL.
+Tests (Azurite): uses connection string.
+"""
 
 import logging
 
 from azure.data.tables import TableServiceClient
 
+from .azure_auth import get_credential
 from .protocols import JobMeta
 from .tables import Table
 
 logger = logging.getLogger(__name__)
 
 
+def _make_table_service(*, endpoint: str = "", connection_string: str = "") -> TableServiceClient:
+    if endpoint:
+        credential = get_credential()
+        if credential is None:
+            raise ValueError("AZURE_CLIENT_ID required when using endpoint")
+        return TableServiceClient(endpoint, credential=credential)
+    elif connection_string:
+        return TableServiceClient.from_connection_string(connection_string)
+    else:
+        raise ValueError("Either endpoint or connection_string is required")
+
+
 class TableJobStore:
     """JobStore backed by Azure Table Storage."""
 
-    def __init__(self, connection_string: str):
-        service = TableServiceClient.from_connection_string(connection_string)
+    def __init__(self, *, endpoint: str = "", connection_string: str = ""):
+        service = _make_table_service(endpoint=endpoint, connection_string=connection_string)
         service.create_table_if_not_exists(Table.JOBS)
         self._table = service.get_table_client(Table.JOBS)
 

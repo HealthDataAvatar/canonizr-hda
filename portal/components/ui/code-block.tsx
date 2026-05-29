@@ -28,7 +28,7 @@ const codeBlockVariants = cva("rounded-lg overflow-hidden border border-border",
 });
 
 const tabVariants = cva(
-  "px-3 py-2 text-[0.8125rem] cursor-pointer transition-colors",
+  "px-3 py-2 text-[0.8125rem] cursor-pointer transition-colors rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring",
   {
     variants: {
       active: {

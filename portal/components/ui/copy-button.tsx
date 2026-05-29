@@ -6,7 +6,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const copyButtonVariants = cva(
-  "relative inline-flex items-center justify-center cursor-pointer text-muted-foreground hover:text-foreground transition-colors duration-300",
+  "relative inline-flex items-center justify-center cursor-pointer rounded-md text-muted-foreground hover:text-foreground transition-colors duration-300 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background outline-none",
   {
     variants: {
       size: {
