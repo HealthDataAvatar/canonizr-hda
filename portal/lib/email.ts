@@ -1,10 +1,27 @@
 import { EmailClient } from "@azure/communication-email";
 import type { EmailProviderSendVerificationRequestParams } from "@auth/core/providers/email";
+import { RateLimiter, MemoryRateLimitStore } from "./rate-limit";
+
+const FIFTEEN_MINUTES = 15 * 60 * 1000;
+const store = new MemoryRateLimitStore();
+const emailLimiter = new RateLimiter(store, { max: 3, windowMs: FIFTEEN_MINUTES });
+const ipLimiter = new RateLimiter(store, { max: 10, windowMs: FIFTEEN_MINUTES });
 
 export async function sendVerificationRequest({
   identifier: email,
   url,
+  request,
 }: EmailProviderSendVerificationRequestParams) {
+  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+
+  const [emailAllowed, ipAllowed] = await Promise.all([
+    emailLimiter.check(`email:${email}`),
+    ipLimiter.check(`ip:${ip}`),
+  ]);
+
+  if (!emailAllowed || !ipAllowed) {
+    throw new Error("Too many sign-in requests. Please try again later.");
+  }
   const mailStub = process.env.MAIL_STUB_ENDPOINT;
   if (mailStub) {
     await fetch(mailStub, {

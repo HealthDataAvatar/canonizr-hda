@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/session";
 import { getServices } from "@/lib/services";
+import { logUserAction } from "@/lib/audit";
 
 export async function GET(
   _request: Request,
@@ -28,7 +29,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { userId } = await requireUser();
+    const { userId, email } = await requireUser();
     const { id } = await params;
     const { keys: keyStore } = getServices();
 
@@ -38,6 +39,13 @@ export async function DELETE(
     }
 
     await keyStore.delete(id);
+    const conn = process.env.TABLE_STORAGE_CONNECTION_STRING!;
+    await logUserAction(conn, {
+      userId,
+      userEmail: email,
+      action: "key_delete",
+      detail: { keyId: id },
+    });
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/session";
 import { getServices } from "@/lib/services";
 import { getUserRecord } from "@/lib/table-storage";
+import { logUserAction } from "@/lib/audit";
 
 export async function GET() {
   let userId: string;
@@ -57,6 +58,12 @@ export async function POST(request: Request) {
     }
 
     const result = await keyStore.create(userId, name);
+    await logUserAction(connectionString, {
+      userId,
+      userEmail: userRecord.email,
+      action: "key_create",
+      detail: { keyId: result.id, name },
+    });
     return NextResponse.json(result, { status: 201 });
   } catch (err) {
     console.error("POST /api/keys error:", err);

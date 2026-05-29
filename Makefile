@@ -31,7 +31,7 @@ fmt: check-uv
 	cd gateway && uv sync --extra lint && uv run ruff format app/ tests/
 
 lint: check-uv
-	cd gateway && uv sync --extra lint && uv run ruff format --check app/ tests/ && uv run ruff check app/ tests/ && uv run pyright app/
+	cd gateway && uv sync --extra lint && uv run ruff format --check app/ tests/ && uv run ruff check app/ tests/ && uv run pyright app/ tests/
 
 test-unit: check-uv
 	cd gateway && uv sync --extra test && uv run pytest tests/unit -q --cov=app --cov-report=term-missing

@@ -45,7 +45,7 @@ const nextAuth = NextAuth({
         stripeCustomerId: customerId,
       });
 
-      await keys.create(user.id, "default");
+      await keys.create(user.id, "my-first-key");
     },
   },
 });

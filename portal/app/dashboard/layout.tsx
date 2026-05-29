@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { getRecentError } from "@/lib/data";
+import { getUserRecord } from "@/lib/table-storage";
 import { SignOutButton } from "@/components/sign-out-button";
 import { SidebarNav } from "@/components/sidebar-nav";
 import { MobileNav } from "@/components/mobile-nav";
@@ -17,6 +18,14 @@ export default async function DashboardLayout({
 
   const recentError = await getRecentError();
   const email = session.user.email ?? "";
+
+  let isAdmin = false;
+  try {
+    const conn = process.env.TABLE_STORAGE_CONNECTION_STRING!;
+    const record = await getUserRecord(conn, session.user.id!);
+    isAdmin = record.isAdmin;
+  } catch {}
+
 
   return (
     <div className="flex flex-1">
@@ -38,7 +47,7 @@ export default async function DashboardLayout({
           Canonizr
         </Link>
 
-        <SidebarNav />
+        <SidebarNav isAdmin={isAdmin} />
 
         <div className="mt-auto space-y-2">
           <p className="truncate text-[0.8125rem] text-muted-foreground">
@@ -58,7 +67,7 @@ export default async function DashboardLayout({
           >
             Canonizr
           </Link>
-          <MobileNav email={email} />
+          <MobileNav email={email} isAdmin={isAdmin} />
         </header>
 
         <main id="main-content" className="mx-auto w-full max-w-4xl flex-1 px-6 py-8 space-y-8">

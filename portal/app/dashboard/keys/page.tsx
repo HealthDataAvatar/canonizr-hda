@@ -1,16 +1,7 @@
 import { getKeysData } from "@/lib/data";
 import { CreateKeyForm } from "@/components/create-key-form";
-import { KeyActions } from "@/components/key-actions";
-import { UsageBar } from "@/components/usage-bar";
+import { KeyTable } from "@/components/key-table";
 import { CodeBlock } from "@/components/ui/code-block";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 
 export default async function KeysPage() {
   const { keys } = await getKeysData();
@@ -21,49 +12,7 @@ export default async function KeysPage() {
 
       <CreateKeyForm existingNames={keys.map((k) => k.displayName)} />
 
-      {keys.length === 0 ? (
-        <p className="py-8 text-center text-[0.9375rem] text-muted-foreground">
-          No API keys yet. Name your first key above to get started.
-        </p>
-      ) : (
-        <Table>
-          <caption className="sr-only">API keys</caption>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead></TableHead>
-              <TableHead>Key</TableHead>
-              <TableHead>Created</TableHead>
-              <TableHead>Last used</TableHead>
-              <TableHead>Usage / Quota</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {keys.map((key) => (
-              <TableRow key={key.id}>
-                <TableCell className="font-medium font-mono text-[0.875rem]">
-                  {key.displayName}
-                </TableCell>
-                <TableCell>
-                  <KeyActions keyId={key.id} />
-                </TableCell>
-                <TableCell className="font-mono text-[0.8125rem] text-muted-foreground">
-                  •••• {key.keyHint}
-                </TableCell>
-                <TableCell className="text-[0.8125rem] text-muted-foreground">
-                  {key.createdDate}
-                </TableCell>
-                <TableCell className="text-[0.8125rem] text-muted-foreground">
-                  {key.lastUsed}
-                </TableCell>
-                <TableCell>
-                  <UsageBar usageKB={key.usageKB} quotaKB={key.quotaKB} />
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      )}
+      <KeyTable keys={keys} />
 
       <div>
         <h2 className="mb-4 text-[1.125rem] font-semibold">Quick start</h2>

@@ -12,7 +12,7 @@ const links = [
   { href: "/dashboard/history", label: "History" },
 ];
 
-export function MobileNav({ email }: { email: string }) {
+export function MobileNav({ email, isAdmin = false }: { email: string; isAdmin?: boolean }) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
 
@@ -57,6 +57,21 @@ export function MobileNav({ email }: { email: string }) {
                   </li>
                 );
               })}
+              {isAdmin && (
+                <li>
+                  <Link
+                    href="/dashboard/admin/users"
+                    className={`block py-2 text-[0.9375rem] ${
+                      pathname.startsWith("/dashboard/admin")
+                        ? "text-accent font-semibold"
+                        : "text-muted-foreground"
+                    }`}
+                    aria-current={pathname.startsWith("/dashboard/admin") ? "page" : undefined}
+                  >
+                    Admin
+                  </Link>
+                </li>
+              )}
             </ul>
           </nav>
           <div className="flex items-center justify-between border-t border-border pt-4">

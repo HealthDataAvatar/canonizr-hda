@@ -1,0 +1,112 @@
+import { notFound } from "next/navigation";
+import Link from "next/link";
+import { getUserDetail } from "@/lib/admin-data";
+import { AdminUserForm } from "@/components/admin-user-form";
+import { RequestTable } from "@/components/request-table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { UsageBar } from "@/components/usage-bar";
+
+export default async function AdminUserDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const user = await getUserDetail(id);
+  if (!user) notFound();
+
+  return (
+    <div className="space-y-8">
+      <Link
+        href="/dashboard/admin/users"
+        className="text-[0.875rem] text-muted-foreground hover:text-foreground"
+      >
+        &larr; All users
+      </Link>
+
+      <h1 className="text-[1.5rem] font-semibold">{user.email}</h1>
+
+      {/* Identity */}
+      <section className="space-y-2">
+        <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1 text-[0.9375rem]">
+          <dt className="text-muted-foreground">User ID</dt>
+          <dd className="font-mono text-[0.875rem]">{user.id}</dd>
+          <dt className="text-muted-foreground">Name</dt>
+          <dd>{user.name || "—"}</dd>
+          <dt className="text-muted-foreground">Joined</dt>
+          <dd>{user.joined || "—"}</dd>
+          <dt className="text-muted-foreground">Stripe</dt>
+          <dd className="font-mono text-[0.875rem]">
+            {user.stripeCustomerId || "—"}
+          </dd>
+          <dt className="text-muted-foreground">Status</dt>
+          <dd>
+            {user.blocked ? (
+              <span className="font-medium text-destructive">Blocked</span>
+            ) : (
+              <span>Active</span>
+            )}
+          </dd>
+        </dl>
+      </section>
+
+      {/* Editable plan + actions */}
+      <AdminUserForm user={user} />
+
+      {/* Keys */}
+      {user.keys.length > 0 && (
+        <section className="space-y-4">
+          <h2 className="text-[1.125rem] font-semibold">
+            API Keys ({user.keys.length})
+          </h2>
+          <Table>
+            <caption className="sr-only">API keys</caption>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Key</TableHead>
+                <TableHead>Created</TableHead>
+                <TableHead>Usage / Quota</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {user.keys.map((key) => (
+                <TableRow key={key.id}>
+                  <TableCell className="font-medium font-mono text-[0.875rem]">
+                    {key.displayName}
+                  </TableCell>
+                  <TableCell className="font-mono text-[0.8125rem] text-muted-foreground">
+                    ···· {key.keyHint}
+                  </TableCell>
+                  <TableCell className="text-[0.8125rem] text-muted-foreground">
+                    {key.createdDate}
+                  </TableCell>
+                  <TableCell>
+                    <UsageBar usageKB={key.usageKB} quotaKB={key.quotaKB} />
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </section>
+      )}
+
+      {/* Recent jobs */}
+      {user.recentJobs.length > 0 && (
+        <section className="space-y-4">
+          <h2 className="text-[1.125rem] font-semibold">
+            Recent jobs ({user.recentJobs.length})
+          </h2>
+          <RequestTable requests={user.recentJobs} />
+        </section>
+      )}
+    </div>
+  );
+}

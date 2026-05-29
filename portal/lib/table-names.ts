@@ -20,4 +20,8 @@ export const TableName = {
   GW_SUBSCRIPTIONS: "GwSubscriptions",
   GW_ENCRYPTION_KEYS: "GwEncryptionKeys",
   GW_JOBS: "GwJobs",
+
+  // Audit logs (append-only)
+  ADMIN_AUDIT_LOG: "AdminAuditLog",
+  USER_AUDIT_LOG: "UserAuditLog",
 } as const;

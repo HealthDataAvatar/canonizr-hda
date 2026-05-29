@@ -6,7 +6,7 @@ import { validateKeyName } from "@/lib/key-name-validation";
 import { generateKeyName } from "@/lib/key-names";
 
 // ---------------------------------------------------------------------------
-// CreateKeyInput stories
+// Interactive wrapper for CreateKeyInput
 // ---------------------------------------------------------------------------
 
 function InputInteractive({
@@ -27,6 +27,10 @@ function InputInteractive({
         setName(v);
         if (!touched) setTouched(true);
       }}
+      onRandomise={() => {
+        setName(generateKeyName());
+        setTouched(false);
+      }}
       error={error}
       showError={touched && !!error}
       loading={false}
@@ -35,50 +39,85 @@ function InputInteractive({
   );
 }
 
-const inputMeta = {
+// ---------------------------------------------------------------------------
+// All states
+// ---------------------------------------------------------------------------
+
+const meta = {
   title: "Components/CreateKeyInput",
   component: InputInteractive,
 } satisfies Meta<typeof InputInteractive>;
 
-export default inputMeta;
-type InputStory = StoryObj<typeof inputMeta>;
+export default meta;
+type Story = StoryObj<typeof meta>;
 
-export const Default: InputStory = {
+export const Interactive: Story = {
   args: { existingNames: [] },
 };
 
-export const DuplicateName: InputStory = {
-  args: {
-    existingNames: ["agent-bold-crane", "agent-quiet-raven"],
-    initialName: "agent-bold-crane",
-  },
-};
-
-export const Loading: InputStory = {
-  args: { existingNames: [] },
+export const AllStates: Story = {
   render: () => (
-    <CreateKeyInput
-      name="agent-bold-crane"
-      onNameChange={() => {}}
-      error={null}
-      showError={false}
-      loading={true}
-      onCreate={() => {}}
-    />
-  ),
-};
+    <div className="space-y-8 max-w-2xl">
+      <div>
+        <p className="text-xs text-muted-foreground mb-2">Default</p>
+        <CreateKeyInput
+          name="agent-bold-crane"
+          onNameChange={() => {}}
+          onRandomise={() => {}}
+          error={null}
+          showError={false}
+          loading={false}
+          onCreate={() => {}}
+        />
+      </div>
 
-// ---------------------------------------------------------------------------
-// CreatedKeyCard stories
-// ---------------------------------------------------------------------------
+      <div>
+        <p className="text-xs text-muted-foreground mb-2">Empty name</p>
+        <CreateKeyInput
+          name=""
+          onNameChange={() => {}}
+          onRandomise={() => {}}
+          error="Key name is required."
+          showError={true}
+          loading={false}
+          onCreate={() => {}}
+        />
+      </div>
 
-export const KeyCreated: InputStory = {
-  args: { existingNames: [] },
-  render: () => (
-    <CreatedKeyCard
-      keyName="agent-bold-crane"
-      keyValue="abc123def456ghi789jkl012mno345pq"
-      onDismiss={() => {}}
-    />
+      <div>
+        <p className="text-xs text-muted-foreground mb-2">Duplicate name</p>
+        <CreateKeyInput
+          name="agent-bold-crane"
+          onNameChange={() => {}}
+          onRandomise={() => {}}
+          error="A key with this name already exists."
+          showError={true}
+          loading={false}
+          onCreate={() => {}}
+        />
+      </div>
+
+      <div>
+        <p className="text-xs text-muted-foreground mb-2">Loading</p>
+        <CreateKeyInput
+          name="agent-bold-crane"
+          onNameChange={() => {}}
+          onRandomise={() => {}}
+          error={null}
+          showError={false}
+          loading={true}
+          onCreate={() => {}}
+        />
+      </div>
+
+      <div>
+        <p className="text-xs text-muted-foreground mb-2">Key created</p>
+        <CreatedKeyCard
+          keyName="agent-bold-crane"
+          keyValue="abc123def456ghi789jkl012mno345pq"
+          onDismiss={() => {}}
+        />
+      </div>
+    </div>
   ),
 };

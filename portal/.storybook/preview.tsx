@@ -13,6 +13,9 @@ const preview: Preview = {
     a11y: {
       test: "todo",
     },
+    nextjs: {
+      appDirectory: true,
+    },
     backgrounds: {
       default: "light",
       values: [

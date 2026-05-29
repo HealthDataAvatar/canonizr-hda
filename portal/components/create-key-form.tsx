@@ -60,6 +60,10 @@ export function CreateKeyForm({
         setName(v);
         if (!touched) setTouched(true);
       }}
+      onRandomise={() => {
+        setName(generateKeyName());
+        setTouched(false);
+      }}
       error={error}
       showError={touched && !!error}
       loading={loading}

@@ -13,13 +13,14 @@ import logging
 import redis.asyncio as aioredis
 from azure.data.tables import TableServiceClient
 
-from .keys import encryption_key_cache, key_name_cache, user_id_cache
+from .keys import encryption_key_cache, key_name_cache, user_blocked, user_id_cache
 from .protocols import UserContext
 from .tables import Table
 
 logger = logging.getLogger(__name__)
 
 CACHE_TTL = 3600  # 1 hour
+BLOCKED_CACHE_TTL = 300  # 5 minutes — blocks take effect quickly
 
 
 class TableUserResolver:
@@ -35,6 +36,10 @@ class TableUserResolver:
         if not uid:
             return None
 
+        if await self._is_blocked(uid):
+            logger.warning("Blocked user %s attempted request", uid)
+            return None
+
         key_hex = await self._get_user_key(uid)
         if not key_hex:
             logger.error("User %s has no encryption key", uid)
@@ -43,6 +48,17 @@ class TableUserResolver:
         kname = await self._get_key_name(sub_id)
 
         return UserContext(user_id=uid, encryption_key=bytes.fromhex(key_hex), key_name=kname)
+
+    async def _is_blocked(self, user_id: str) -> bool:
+        ck = user_blocked(user_id=user_id)
+        cached = await self._r.get(ck)
+        if cached is not None:
+            return cached == "1"
+
+        val = self._table_lookup("Users", "user", user_id, "blocked")
+        blocked = val is True or val == "true"
+        await self._r.set(ck, "1" if blocked else "0", ex=BLOCKED_CACHE_TTL)
+        return blocked
 
     async def _get_user_id(self, sub_id: str) -> str | None:
         ck = user_id_cache(sub_id=sub_id)

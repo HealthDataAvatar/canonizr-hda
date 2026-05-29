@@ -254,6 +254,8 @@ export async function getUserRecord(connectionString: string, userId: string) {
     freeUnits: entity.freeUnits as number | null,
     pricePerUnit: (entity.pricePerUnit as number) ?? 0.003,
     notes: (entity.notes as string) ?? "",
+    isAdmin: (entity.isAdmin as boolean) ?? false,
+    blocked: (entity.blocked as boolean) ?? false,
   };
 }
 

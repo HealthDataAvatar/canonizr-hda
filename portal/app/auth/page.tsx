@@ -1,15 +1,21 @@
 "use client";
 
 import { signIn } from "next-auth/react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { useState } from "react";
+import { AuthSignInForm } from "@/components/auth-sign-in-form";
+import { AuthEmailSent } from "@/components/auth-email-sent";
 
 export default function AuthPage() {
   const [email, setEmail] = useState("");
-  const [sent, setSent] = useState(false);
+  const [sentAt, setSentAt] = useState<Date | null>(null);
   const [loading, setLoading] = useState(false);
+
+  async function handleSubmit() {
+    setLoading(true);
+    const res = await signIn("email", { email, callbackUrl: "/dashboard", redirect: false });
+    setLoading(false);
+    if (res?.ok) setSentAt(new Date());
+  }
 
   return (
     <div className="flex flex-1 items-center justify-center px-6 py-24">
@@ -19,64 +25,28 @@ export default function AuthPage() {
             Canonizr
           </h1>
           <p className="text-[0.9375rem] text-muted-foreground">
-            Convert documents to Markdown.
+            Read any file.{" "}
+            <a
+              href="https://canonizr.com"
+              className="text-accent hover:underline"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Learn more
+            </a>
           </p>
         </div>
 
-        {sent ? (
-          <div className="text-center space-y-2">
-            <p className="text-[0.9375rem] font-semibold">Check your email</p>
-            <p className="text-[0.8125rem] text-muted-foreground">
-              We sent a sign-in link to{" "}
-              <span className="font-mono text-foreground">{email}</span>.
-            </p>
-            <button
-              type="button"
-              onClick={() => setSent(false)}
-              className="text-[0.8125rem] text-accent hover:underline cursor-pointer"
-            >
-              Use a different email
-            </button>
-          </div>
+        {sentAt ? (
+          <AuthEmailSent email={email} sentAt={sentAt} onGoBack={() => setSentAt(null)} />
         ) : (
-          <form
-            onSubmit={async (e) => {
-              e.preventDefault();
-              setLoading(true);
-              const res = await signIn("email", { email, callbackUrl: "/dashboard", redirect: false });
-              setLoading(false);
-              if (res?.ok) setSent(true);
-            }}
-            className="space-y-3"
-          >
-            <div className="space-y-1.5">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-            </div>
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Sending…" : "Send sign-in link"}
-            </Button>
-          </form>
+          <AuthSignInForm
+            email={email}
+            onEmailChange={setEmail}
+            loading={loading}
+            onSubmit={handleSubmit}
+          />
         )}
-
-        <p className="text-center text-[0.75rem] text-muted-foreground">
-          New here?{" "}
-          <a
-            href="https://canonizr.com"
-            className="text-accent hover:underline"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Learn more at canonizr.com
-          </a>
-        </p>
       </div>
     </div>
   );

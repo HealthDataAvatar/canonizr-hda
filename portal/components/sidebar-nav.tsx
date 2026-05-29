@@ -9,7 +9,7 @@ const links = [
   { href: "/dashboard/history", label: "History" },
 ];
 
-export function SidebarNav() {
+export function SidebarNav({ isAdmin = false }: { isAdmin?: boolean }) {
   const pathname = usePathname();
 
   return (
@@ -32,6 +32,23 @@ export function SidebarNav() {
           </Link>
         );
       })}
+
+      {isAdmin && (
+        <>
+          <div className="my-3 border-t border-border" />
+          <Link
+            href="/dashboard/admin/users"
+            aria-current={pathname.startsWith("/dashboard/admin") ? "page" : undefined}
+            className={`text-[0.9375rem] py-1 transition-colors ${
+              pathname.startsWith("/dashboard/admin")
+                ? "text-accent font-semibold"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Admin
+          </Link>
+        </>
+      )}
     </nav>
   );
 }

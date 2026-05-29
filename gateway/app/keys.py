@@ -41,6 +41,14 @@ def quota_rejected(*, sub_id: str) -> str:
     return f"sub:{sub_id}:rejected"
 
 
+# -- User status --
+
+
+def user_blocked(*, user_id: str) -> str:
+    """Cache: whether user is blocked (short TTL)."""
+    return f"user:{user_id}:blocked"
+
+
 # -- Job queue --
 
 
