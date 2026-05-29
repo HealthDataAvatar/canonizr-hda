@@ -68,8 +68,8 @@ async def _read_file(file: UploadFile) -> bytes:
     return content.read()
 
 
-@app.post("/convert")
-async def convert_document(
+@app.post("/v1/jobs")
+async def create_job(
     request: Request,
     file: UploadFile = File(...),
     verbose: bool = Query(False),
@@ -99,13 +99,13 @@ async def convert_document(
         content={
             "job_id": result.job_id,
             "status": "processing",
-            "poll_url": f"/result/{result.job_id}",
+            "poll_url": f"/v1/jobs/{result.job_id}",
             "estimated_seconds": result.estimated_seconds,
             "input_bytes": result.input_bytes,
             "billable_units": result.billable_units,
         },
         headers={
-            "Location": f"/result/{result.job_id}",
+            "Location": f"/v1/jobs/{result.job_id}",
             "Retry-After": str(result.estimated_seconds),
             "X-Input-Size-Bytes": str(result.input_bytes),
             "X-Billable-Units": str(result.billable_units),
@@ -113,8 +113,8 @@ async def convert_document(
     )
 
 
-@app.get("/result/{job_id}")
-async def get_result_endpoint(job_id: str):
+@app.get("/v1/jobs/{job_id}")
+async def get_job(job_id: str):
     assert _svc is not None
 
     result = await poll_result(job_id, _svc)
@@ -131,8 +131,8 @@ async def get_result_endpoint(job_id: str):
     return JSONResponse(status_code=result.status_code, content=result.body or {})
 
 
-@app.delete("/result/{job_id}")
-async def delete_result_endpoint(request: Request, job_id: str):
+@app.delete("/v1/jobs/{job_id}")
+async def delete_job(request: Request, job_id: str):
     assert _svc is not None
 
     sub_id = request.headers.get("x-subscription-id", "")

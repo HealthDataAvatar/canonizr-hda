@@ -6,7 +6,7 @@ TAG         ?= latest
 TF_DIR      ?= infra/terraform
 DEPLOY_TIME ?= $(shell date -u +%Y%m%dT%H%M%SZ)
 
-.PHONY: build gateway-push deploy test test-unit test-integration test-portal-integration test-smoke check-uv fmt lint check install-hooks setup-secrets gen-key gateway-logs worker-logs portal-dev portal-build portal-push portal-logs
+.PHONY: build gateway-push deploy test test-unit test-gateway-integration test-portal-integration test-integration test-smoke test-focus check-uv fmt lint check install-hooks setup-secrets gen-key gateway-logs worker-logs portal-dev portal-build portal-push portal-logs
 
 # ---------------------------------------------------------------------------
 # Prerequisites
@@ -36,13 +36,15 @@ lint: check-uv
 test-unit: check-uv
 	cd gateway && uv sync --extra test && uv run pytest tests/unit -q --cov=app --cov-report=term-missing
 
-test-integration:
+test-gateway-integration:
 	docker compose -f docker-compose.test.yml up --build --abort-on-container-exit --exit-code-from tests
 	docker compose -f docker-compose.test.yml down -v
 
 test-portal-integration:
 	docker compose -f docker-compose.portal-test.yml up --build --abort-on-container-exit --exit-code-from tests
 	docker compose -f docker-compose.portal-test.yml down -v
+
+test-integration: test-gateway-integration test-portal-integration
 
 test-focus:
 	FOCUS_TESTS=1 docker compose -f docker-compose.test.yml up --build --abort-on-container-exit --exit-code-from tests
@@ -52,7 +54,7 @@ test-smoke: check-uv
 	@test -n "$$APIM_KEY" || { echo "Error: set GATEWAY_URL and APIM_KEY"; exit 1; }
 	cd gateway && uv run pytest tests/smoke -q --timeout=120
 
-test: test-unit test-integration test-portal-integration
+test: test-unit test-integration
 
 # ---------------------------------------------------------------------------
 # Stripe

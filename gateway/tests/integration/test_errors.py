@@ -9,7 +9,7 @@ from conftest import GATEWAY_URL, TIMEOUT, submit_and_poll
 def test_unsupported_format(test_sub):
     garbage = b"\x00\x01\x02\x03\x04\x05\x06\x07"
     r = requests.post(
-        f"{GATEWAY_URL}/convert",
+        f"{GATEWAY_URL}/v1/jobs",
         files={"file": ("test.xyz", io.BytesIO(garbage), "application/octet-stream")},
         headers={"X-Subscription-Id": test_sub},
         timeout=TIMEOUT,
@@ -20,7 +20,7 @@ def test_unsupported_format(test_sub):
 def test_file_too_large(test_sub):
     large_data = b"\x00" * (51 * 1024 * 1024)
     r = requests.post(
-        f"{GATEWAY_URL}/convert",
+        f"{GATEWAY_URL}/v1/jobs",
         files={"file": ("large.pdf", io.BytesIO(large_data), "application/pdf")},
         headers={"X-Subscription-Id": test_sub},
         timeout=TIMEOUT,
@@ -39,7 +39,7 @@ def test_empty_file(test_sub):
 
 def test_missing_subscription_returns_401():
     r = requests.post(
-        f"{GATEWAY_URL}/convert",
+        f"{GATEWAY_URL}/v1/jobs",
         files={"file": ("test.txt", b"hello", "text/plain")},
         timeout=TIMEOUT,
     )

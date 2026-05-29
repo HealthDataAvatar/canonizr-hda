@@ -25,7 +25,7 @@ def r(test_sub):
 
 def _convert(file_bytes, sub_id):
     return requests.post(
-        f"{GATEWAY_URL}/convert",
+        f"{GATEWAY_URL}/v1/jobs",
         files={"file": ("test.txt", file_bytes, "text/plain")},
         headers={"X-Subscription-Id": sub_id},
         timeout=TIMEOUT,

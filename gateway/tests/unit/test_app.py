@@ -25,7 +25,7 @@ class TestFileSizeLimit:
             patch("app.app.MAX_FILE_SIZE", 10),
         ):
             resp = client.post(
-                "/convert",
+                "/v1/jobs",
                 files={"file": ("test.txt", b"x" * 20, "text/plain")},
                 headers={"X-Subscription-Id": "sub_1"},
             )
@@ -36,7 +36,7 @@ class TestMissingSubscription:
     def test_returns_401_without_subscription_header(self, client):
         with patch("app.app._svc", AsyncMock()):
             resp = client.post(
-                "/convert",
+                "/v1/jobs",
                 files={"file": ("test.txt", b"hello", "text/plain")},
             )
         assert resp.status_code == 401
@@ -52,7 +52,7 @@ class TestErrorSanitisation:
             patch("app.app.DEBUG_MODE", False),
         ):
             resp = client.post(
-                "/convert",
+                "/v1/jobs",
                 files={"file": ("test.pdf", b"hello", "application/pdf")},
                 headers={"X-Subscription-Id": "sub_1"},
             )
@@ -68,7 +68,7 @@ class TestErrorSanitisation:
             patch("app.app.DEBUG_MODE", True),
         ):
             resp = client.post(
-                "/convert",
+                "/v1/jobs",
                 files={"file": ("test.pdf", b"hello", "application/pdf")},
                 headers={"X-Subscription-Id": "sub_1"},
             )

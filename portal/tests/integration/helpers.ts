@@ -174,7 +174,7 @@ export async function submitAndPoll(
   const formData = new FormData();
   formData.append("file", new Blob([file.content], { type: file.type }), file.name);
 
-  const submit = await fetch(`${APIM_STUB_URL}/convert`, {
+  const submit = await fetch(`${APIM_STUB_URL}/v1/jobs`, {
     method: "POST",
     headers: { "Ocp-Apim-Subscription-Key": apiKey },
     body: formData,

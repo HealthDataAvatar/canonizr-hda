@@ -6,7 +6,7 @@ from conftest import GATEWAY_URL, TIMEOUT, submit_and_poll
 
 class TestPolling:
     def test_poll_nonexistent_job_returns_202(self):
-        resp = requests.get(f"{GATEWAY_URL}/result/nonexistent_job_id", timeout=TIMEOUT)
+        resp = requests.get(f"{GATEWAY_URL}/v1/jobs/nonexistent_job_id", timeout=TIMEOUT)
         assert resp.status_code == 202
 
     def test_successful_conversion_is_pollable(self, test_sub):
@@ -41,7 +41,7 @@ class TestDelete:
 
         job_id = submit.json()["job_id"]
         resp = requests.delete(
-            f"{GATEWAY_URL}/result/{job_id}",
+            f"{GATEWAY_URL}/v1/jobs/{job_id}",
             headers={"X-Subscription-Id": test_sub},
             timeout=TIMEOUT,
         )
@@ -56,17 +56,17 @@ class TestDelete:
 
         job_id = submit.json()["job_id"]
         requests.delete(
-            f"{GATEWAY_URL}/result/{job_id}",
+            f"{GATEWAY_URL}/v1/jobs/{job_id}",
             headers={"X-Subscription-Id": test_sub},
             timeout=TIMEOUT,
         )
 
-        poll = requests.get(f"{GATEWAY_URL}/result/{job_id}", timeout=TIMEOUT)
+        poll = requests.get(f"{GATEWAY_URL}/v1/jobs/{job_id}", timeout=TIMEOUT)
         assert poll.status_code == 410
 
     def test_delete_nonexistent_returns_404(self, test_sub):
         resp = requests.delete(
-            f"{GATEWAY_URL}/result/nonexistent_job_id",
+            f"{GATEWAY_URL}/v1/jobs/nonexistent_job_id",
             headers={"X-Subscription-Id": test_sub},
             timeout=TIMEOUT,
         )
@@ -74,7 +74,7 @@ class TestDelete:
 
     def test_delete_without_subscription_returns_401(self):
         resp = requests.delete(
-            f"{GATEWAY_URL}/result/some_job_id",
+            f"{GATEWAY_URL}/v1/jobs/some_job_id",
             timeout=TIMEOUT,
         )
         assert resp.status_code == 401

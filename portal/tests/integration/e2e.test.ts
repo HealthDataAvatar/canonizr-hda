@@ -55,11 +55,11 @@ describe("gateway table contract", () => {
 });
 
 describe("gateway accepts portal-issued key", () => {
-  it("POST /convert returns 202 with correct fields", async () => {
+  it("POST /v1/jobs returns 202 with correct fields", async () => {
     const formData = new FormData();
     formData.append("file", new Blob(["Hello from e2e"], { type: "text/plain" }), "test.txt");
 
-    const res = await fetch(`${APIM_STUB_URL}/convert`, {
+    const res = await fetch(`${APIM_STUB_URL}/v1/jobs`, {
       method: "POST",
       headers: { "Ocp-Apim-Subscription-Key": apiKey },
       body: formData,

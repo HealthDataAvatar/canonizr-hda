@@ -114,7 +114,7 @@ def submit_and_poll(files, sub_id, headers=None, timeout=TIMEOUT):
     sub_id is required — use the test_sub fixture for isolation.
     """
     merged_headers = {"X-Subscription-Id": sub_id, **(headers or {})}
-    submit = requests.post(f"{GATEWAY_URL}/convert", files=files, headers=merged_headers, timeout=timeout)
+    submit = requests.post(f"{GATEWAY_URL}/v1/jobs", files=files, headers=merged_headers, timeout=timeout)
     if submit.status_code != 202:
         return submit, None
 

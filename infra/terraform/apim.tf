@@ -92,14 +92,46 @@ resource "azurerm_api_management_api" "canonizr" {
   service_url = "https://${azurerm_container_app.gateway.ingress[0].fqdn}"
 }
 
-resource "azurerm_api_management_api_operation" "convert" {
-  operation_id        = "convert"
+resource "azurerm_api_management_api_operation" "create_job" {
+  operation_id        = "create-job"
   api_name            = azurerm_api_management_api.canonizr.name
   api_management_name = azurerm_api_management.this.name
   resource_group_name = azurerm_resource_group.this.name
-  display_name        = "Convert Document"
+  display_name        = "Create Job"
   method              = "POST"
-  url_template        = "/convert"
+  url_template        = "/v1/jobs"
+}
+
+resource "azurerm_api_management_api_operation" "get_job" {
+  operation_id        = "get-job"
+  api_name            = azurerm_api_management_api.canonizr.name
+  api_management_name = azurerm_api_management.this.name
+  resource_group_name = azurerm_resource_group.this.name
+  display_name        = "Get Job"
+  method              = "GET"
+  url_template        = "/v1/jobs/{jobId}"
+
+  template_parameter {
+    name     = "jobId"
+    required = true
+    type     = "string"
+  }
+}
+
+resource "azurerm_api_management_api_operation" "delete_job" {
+  operation_id        = "delete-job"
+  api_name            = azurerm_api_management_api.canonizr.name
+  api_management_name = azurerm_api_management.this.name
+  resource_group_name = azurerm_resource_group.this.name
+  display_name        = "Delete Job"
+  method              = "DELETE"
+  url_template        = "/v1/jobs/{jobId}"
+
+  template_parameter {
+    name     = "jobId"
+    required = true
+    type     = "string"
+  }
 }
 
 resource "azurerm_api_management_api_operation" "health" {
