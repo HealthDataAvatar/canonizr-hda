@@ -23,16 +23,16 @@ export interface KeyRow {
 
 function DesktopKeyTable({ keys }: { keys: KeyRow[] }) {
   return (
-    <Table>
+    <Table className="table-fixed">
       <caption className="sr-only">API keys</caption>
       <TableHeader>
         <TableRow>
-          <TableHead>Name</TableHead>
-          <TableHead></TableHead>
-          <TableHead>Key</TableHead>
-          <TableHead>Created</TableHead>
-          <TableHead>Last used</TableHead>
-          <TableHead>Usage / Quota</TableHead>
+          <TableHead className="w-3/12">Name</TableHead>
+          <TableHead className="w-2/12"></TableHead>
+          <TableHead className="w-2/12">Key</TableHead>
+          <TableHead className="w-2/12">Created</TableHead>
+          <TableHead className="w-2/12">Last used</TableHead>
+          <TableHead className="w-3/12">Usage / Quota</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
