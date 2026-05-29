@@ -16,6 +16,9 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
 
+# Import gateway table names — these must match portal/lib/table-names.ts
+from app.tables import Table
+
 
 def pytest_collection_modifyitems(config, items):
     """When FOCUS_TESTS=1, run only tests marked @pytest.mark.focus."""
@@ -50,9 +53,9 @@ def seed_azurite():
     from azure.storage.blob import BlobServiceClient
 
     ts = TableServiceClient.from_connection_string(AZURITE_TABLE_CONN)
-    ts.create_table_if_not_exists("users")  # Table.USERS
-    ts.create_table_if_not_exists("encryptionkeys")  # Table.ENCRYPTION_KEYS
-    ts.create_table_if_not_exists("jobs")  # Table.JOBS
+    ts.create_table_if_not_exists(Table.GW_SUBSCRIPTIONS)
+    ts.create_table_if_not_exists(Table.GW_ENCRYPTION_KEYS)
+    ts.create_table_if_not_exists(Table.GW_JOBS)
 
     # Create blob container (gateway/worker need it to exist)
     blob_conn = AZURITE_TABLE_CONN.replace("TableEndpoint", "BlobEndpoint").replace(":10002/", ":10000/")
@@ -77,8 +80,8 @@ def test_sub():
     ts = TableServiceClient.from_connection_string(AZURITE_TABLE_CONN)
 
     # Seed subscription -> user mapping
-    ts.get_table_client("users").upsert_entity(
-        {  # Table.USERS
+    ts.get_table_client(Table.GW_SUBSCRIPTIONS).upsert_entity(
+        {
             "PartitionKey": "subscription",
             "RowKey": sub_id,
             "user_id": user_id,
@@ -87,9 +90,9 @@ def test_sub():
     )
 
     # Seed encryption key
-    ts.get_table_client("encryptionkeys").upsert_entity(
-        {  # Table.ENCRYPTION_KEYS
-            "PartitionKey": "encryptionkeys",
+    ts.get_table_client(Table.GW_ENCRYPTION_KEYS).upsert_entity(
+        {
+            "PartitionKey": Table.GW_ENCRYPTION_KEYS,
             "RowKey": user_id,
             "key_hex": TEST_KEY_HEX,
         }

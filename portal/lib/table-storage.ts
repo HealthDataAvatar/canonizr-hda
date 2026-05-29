@@ -8,21 +8,26 @@
 import { TableClient } from "@azure/data-tables";
 import type { Adapter, AdapterUser, AdapterAccount, AdapterSession } from "next-auth/adapters";
 import { randomUUID, randomBytes } from "crypto";
+import { TableName } from "./table-names";
 
 export function AzureTableStorageAdapter(
   connectionString: string
 ): Adapter {
   const opts = connectionString.includes("http://") ? { allowInsecureConnection: true } : {};
-  const users = TableClient.fromConnectionString(connectionString, "Users", opts);
-  const accounts = TableClient.fromConnectionString(connectionString, "Accounts", opts);
-  const sessions = TableClient.fromConnectionString(connectionString, "Sessions", opts);
-  const verificationTokens = TableClient.fromConnectionString(connectionString, "VerificationTokens", opts);
+  const users = TableClient.fromConnectionString(connectionString, TableName.USERS, opts);
+  const accounts = TableClient.fromConnectionString(connectionString, TableName.ACCOUNTS, opts);
+  const sessions = TableClient.fromConnectionString(connectionString, TableName.SESSIONS, opts);
+  const verificationTokens = TableClient.fromConnectionString(connectionString, TableName.VERIFICATION_TOKENS, opts);
+
+  // Gateway tables — written to on user/key creation so the conversion API can resolve users
+  const gwEncryptionKeys = TableClient.fromConnectionString(connectionString, TableName.GW_ENCRYPTION_KEYS, opts);
 
   const initPromise = Promise.all([
     users.createTable().catch(() => {}),
     accounts.createTable().catch(() => {}),
     sessions.createTable().catch(() => {}),
     verificationTokens.createTable().catch(() => {}),
+    gwEncryptionKeys.createTable().catch(() => {}),
   ]);
 
   function toUser(entity: Record<string, unknown>): AdapterUser {
@@ -59,6 +64,12 @@ export function AzureTableStorageAdapter(
         partitionKey: "email",
         rowKey: user.email,
         userId: id,
+      });
+      // Gateway: encryption key lookup
+      await gwEncryptionKeys.upsertEntity({
+        partitionKey: TableName.GW_ENCRYPTION_KEYS,
+        rowKey: id,
+        key_hex: encryptionKey,
       });
       return { ...toUser(entity), id };
     },
@@ -121,6 +132,8 @@ export function AzureTableStorageAdapter(
         if (entity.email) {
           await users.deleteEntity("email", entity.email as string).catch(() => {});
         }
+        // Gateway: remove encryption key (crypto-shreds all retained blobs)
+        await gwEncryptionKeys.deleteEntity(TableName.GW_ENCRYPTION_KEYS, userId).catch(() => {});
       } catch {
         // User may already be deleted
       }
@@ -234,7 +247,7 @@ export function AzureTableStorageAdapter(
 /** Read user-specific fields from Table Storage (encryption key, Stripe ID, admin overrides). */
 export async function getUserRecord(connectionString: string, userId: string) {
   const opts = connectionString.includes("http://") ? { allowInsecureConnection: true } : {};
-  const client = TableClient.fromConnectionString(connectionString, "Users", opts);
+  const client = TableClient.fromConnectionString(connectionString, TableName.USERS, opts);
   const entity = await client.getEntity("user", userId);
   return {
     id: entity.rowKey as string,
@@ -255,7 +268,7 @@ export async function updateUserRecord(
   fields: Record<string, unknown>
 ) {
   const opts = connectionString.includes("http://") ? { allowInsecureConnection: true } : {};
-  const client = TableClient.fromConnectionString(connectionString, "Users", opts);
+  const client = TableClient.fromConnectionString(connectionString, TableName.USERS, opts);
   await client.updateEntity(
     { partitionKey: "user", rowKey: userId, ...fields },
     "Merge"

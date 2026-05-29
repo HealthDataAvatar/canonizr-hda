@@ -4,13 +4,23 @@ import { getServices } from "@/lib/services";
 import { getUserRecord } from "@/lib/table-storage";
 
 export async function GET() {
+  let userId: string;
   try {
-    const { userId } = await requireUser();
+    ({ userId } = await requireUser());
+  } catch {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  try {
     const { keys: keyStore } = getServices();
     const keys = await keyStore.list(userId);
     return NextResponse.json({ keys });
-  } catch {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  } catch (err) {
+    console.error("GET /api/keys error:", err);
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Internal error" },
+      { status: 500 }
+    );
   }
 }
 
@@ -25,8 +35,14 @@ export async function POST(request: Request) {
     );
   }
 
+  let userId: string;
   try {
-    const { userId } = await requireUser();
+    ({ userId } = await requireUser());
+  } catch {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  try {
     const { keys: keyStore } = getServices();
 
     const connectionString = process.env.TABLE_STORAGE_CONNECTION_STRING!;
@@ -42,7 +58,11 @@ export async function POST(request: Request) {
 
     const result = await keyStore.create(userId, name);
     return NextResponse.json(result, { status: 201 });
-  } catch {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  } catch (err) {
+    console.error("POST /api/keys error:", err);
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Internal error" },
+      { status: 500 }
+    );
   }
 }

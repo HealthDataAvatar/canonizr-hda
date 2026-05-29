@@ -31,11 +31,11 @@ export default async function KeysPage() {
           <TableHeader>
             <TableRow>
               <TableHead>Name</TableHead>
+              <TableHead></TableHead>
               <TableHead>Key</TableHead>
               <TableHead>Created</TableHead>
               <TableHead>Last used</TableHead>
               <TableHead>Usage / Quota</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -43,6 +43,9 @@ export default async function KeysPage() {
               <TableRow key={key.id}>
                 <TableCell className="font-medium font-mono text-[0.875rem]">
                   {key.displayName}
+                </TableCell>
+                <TableCell>
+                  <KeyActions keyId={key.id} />
                 </TableCell>
                 <TableCell className="font-mono text-[0.8125rem] text-muted-foreground">
                   •••• {key.keyHint}
@@ -55,9 +58,6 @@ export default async function KeysPage() {
                 </TableCell>
                 <TableCell>
                   <UsageBar usageKB={key.usageKB} quotaKB={key.quotaKB} />
-                </TableCell>
-                <TableCell className="text-right">
-                  <KeyActions keyId={key.id} />
                 </TableCell>
               </TableRow>
             ))}

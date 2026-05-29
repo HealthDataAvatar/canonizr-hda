@@ -50,7 +50,7 @@ class TableUserResolver:
         if cached:
             return cached
 
-        val = self._table_lookup(Table.USERS, "subscription", sub_id, "user_id")
+        val = self._table_lookup(Table.GW_SUBSCRIPTIONS, "subscription", sub_id, "user_id")
         if val:
             await self._r.set(ck, val, ex=CACHE_TTL)
         return val
@@ -61,7 +61,7 @@ class TableUserResolver:
         if cached:
             return cached
 
-        val = self._table_lookup(Table.ENCRYPTION_KEYS, Table.ENCRYPTION_KEYS, user_id, "key_hex")
+        val = self._table_lookup(Table.GW_ENCRYPTION_KEYS, Table.GW_ENCRYPTION_KEYS, user_id, "key_hex")
         if val:
             await self._r.set(ck, val, ex=CACHE_TTL)
         return val
@@ -72,7 +72,7 @@ class TableUserResolver:
         if cached:
             return cached
 
-        val = self._table_lookup(Table.USERS, "subscription", sub_id, "key_name")
+        val = self._table_lookup(Table.GW_SUBSCRIPTIONS, "subscription", sub_id, "key_name")
         if val:
             await self._r.set(ck, val, ex=CACHE_TTL)
         return val or ""

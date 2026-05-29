@@ -6,8 +6,9 @@
 
 import { TableClient } from "@azure/data-tables";
 import type { BillingStore, Invoice, Usage } from "./services";
+import { TableName } from "./table-names";
 
-const TABLE = "Billing";
+const TABLE = TableName.BILLING;
 
 export class TableBillingStore implements BillingStore {
   private client: TableClient;

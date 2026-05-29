@@ -1,8 +1,9 @@
 import { TableClient } from "@azure/data-tables";
 import { toBillableKB } from "./format";
 import type { RequestRow, BlobState } from "@/components/request-table";
+import { TableName } from "./table-names";
 
-const TABLE_NAME = "jobs";
+const TABLE_NAME = TableName.GW_JOBS;
 
 let _tableReady: Promise<void> | null = null;
 

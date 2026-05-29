@@ -32,8 +32,8 @@ class TableJobStore:
 
     def __init__(self, *, endpoint: str = "", connection_string: str = ""):
         service = _make_table_service(endpoint=endpoint, connection_string=connection_string)
-        service.create_table_if_not_exists(Table.JOBS)
-        self._table = service.get_table_client(Table.JOBS)
+        service.create_table_if_not_exists(Table.GW_JOBS)
+        self._table = service.get_table_client(Table.GW_JOBS)
 
     def create(self, meta: JobMeta) -> None:
         self._table.upsert_entity(_to_entity(meta))

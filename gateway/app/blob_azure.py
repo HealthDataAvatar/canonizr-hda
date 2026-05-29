@@ -25,8 +25,19 @@ class AzureBlobStore:
         else:
             raise ValueError("Either account_url or connection_string is required")
         self._container = container
+        self._container_ensured = False
+
+    async def _ensure_container(self) -> None:
+        if self._container_ensured:
+            return
+        try:
+            await self._client.create_container(self._container)
+        except Exception:
+            pass  # already exists
+        self._container_ensured = True
 
     async def put(self, key: str, data: bytes) -> None:
+        await self._ensure_container()
         blob = self._client.get_blob_client(self._container, key)
         await blob.upload_blob(data, overwrite=True)
 

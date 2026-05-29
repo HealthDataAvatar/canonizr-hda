@@ -11,7 +11,7 @@ import { authenticate, createFetcher, PORTAL_URL } from "./helpers";
 let fetchPortal: ReturnType<typeof createFetcher>;
 
 beforeAll(async () => {
-  const cookie = await authenticate();
+  const { cookie } = await authenticate();
   fetchPortal = createFetcher(cookie);
 }, 30_000);
 
