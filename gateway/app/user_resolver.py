@@ -93,5 +93,6 @@ class TableUserResolver:
             table = service.get_table_client(table_name)
             entity = table.get_entity(partition, row)
             return entity.get(field)
-        except Exception:
+        except Exception as e:
+            logger.warning("Table lookup failed: %s/%s/%s — %s", table_name, partition, row, e)
             return None

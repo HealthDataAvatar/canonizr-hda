@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeAll } from "vitest";
-import { AZURITE_CONN, ensureTable, seedJob } from "./helpers";
+import { AZURITE_CONN, initTables, seedJob } from "./helpers";
 
 // Import adapter without mocking
 vi.stubEnv("TABLE_STORAGE_CONNECTION_STRING", AZURITE_CONN);
@@ -89,7 +89,7 @@ describe("getJobsForUser", () => {
   const userId = `jobs-test-${Date.now()}`;
 
   beforeAll(async () => {
-    await ensureTable("jobs");
+    await initTables();
   });
 
   it("returns empty for user with no jobs", async () => {

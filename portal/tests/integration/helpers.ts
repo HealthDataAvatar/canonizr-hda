@@ -1,4 +1,5 @@
 import { TableClient } from "@azure/data-tables";
+import { ensureAllTables } from "@/lib/ensure-tables";
 import { TableName } from "@/lib/table-names";
 
 export const PORTAL_URL = process.env.PORTAL_URL ?? "http://localhost:3000";
@@ -13,14 +14,13 @@ export const TABLE_OPTS = { allowInsecureConnection: true };
 // Azurite table helpers
 // ---------------------------------------------------------------------------
 
-export function table(name: string) {
-  return TableClient.fromConnectionString(AZURITE_CONN, name, TABLE_OPTS);
+/** Ensure all tables exist. Call once before tests. */
+export async function initTables() {
+  await ensureAllTables(AZURITE_CONN);
 }
 
-export async function ensureTable(name: string) {
-  const client = table(name);
-  await client.createTable().catch(() => {});
-  return client;
+export function table(name: string) {
+  return TableClient.fromConnectionString(AZURITE_CONN, name, TABLE_OPTS);
 }
 
 // ---------------------------------------------------------------------------
@@ -43,7 +43,8 @@ export function createTestUser(): TestUser {
 }
 
 export async function seedTestUser(user: TestUser) {
-  const users = await ensureTable(TableName.USERS);
+  await initTables();
+  const users = table(TableName.USERS);
   await users.upsertEntity({
     partitionKey: "user",
     rowKey: user.id,
@@ -62,7 +63,7 @@ export async function seedTestUser(user: TestUser) {
   });
 
   // Gateway tables
-  const gwKeys = await ensureTable(TableName.GW_ENCRYPTION_KEYS);
+  const gwKeys = table(TableName.GW_ENCRYPTION_KEYS);
   await gwKeys.upsertEntity({
     partitionKey: TableName.GW_ENCRYPTION_KEYS,
     rowKey: user.id,
@@ -137,7 +138,8 @@ export async function seedJob(
   userId: string,
   overrides: Record<string, unknown> = {},
 ) {
-  const client = await ensureTable(TableName.GW_JOBS);
+  await initTables();
+  const client = table(TableName.GW_JOBS);
   const jobId = `job-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
   await client.upsertEntity({
     partitionKey: userId,

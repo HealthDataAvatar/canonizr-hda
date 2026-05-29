@@ -22,13 +22,9 @@ export function AzureTableStorageAdapter(
   // Gateway tables — written to on user/key creation so the conversion API can resolve users
   const gwEncryptionKeys = TableClient.fromConnectionString(connectionString, TableName.GW_ENCRYPTION_KEYS, opts);
 
-  const initPromise = Promise.all([
-    users.createTable().catch(() => {}),
-    accounts.createTable().catch(() => {}),
-    sessions.createTable().catch(() => {}),
-    verificationTokens.createTable().catch(() => {}),
-    gwEncryptionKeys.createTable().catch(() => {}),
-  ]);
+  // Tables are ensured at container startup (scripts/ensure-tables.mjs).
+  // In tests, call initTables() from helpers.ts before running.
+  const initPromise = Promise.resolve();
 
   function toUser(entity: Record<string, unknown>): AdapterUser {
     return {
