@@ -47,6 +47,7 @@ class JobMeta:
     completed_at: str = ""
     retention_expires: str = ""
     deleted: bool = False
+    steps: str = ""  # JSON array of step dicts
 
 
 class JobStore(Protocol):

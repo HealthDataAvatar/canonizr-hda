@@ -102,6 +102,7 @@ def _to_entity(meta: JobMeta) -> dict:
         "completed_at": meta.completed_at,
         "retention_expires": meta.retention_expires,
         "deleted": meta.deleted,
+        "steps": meta.steps,
     }
 
 
@@ -122,4 +123,5 @@ def _from_entity(entity: dict) -> JobMeta:
         completed_at=entity.get("completed_at", ""),
         retention_expires=entity.get("retention_expires", ""),
         deleted=bool(entity.get("deleted", False)),
+        steps=entity.get("steps", ""),
     )

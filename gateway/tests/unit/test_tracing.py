@@ -1,6 +1,8 @@
 """Unit tests for the tracing module."""
 
-from app.tracing import Trace
+from datetime import datetime
+
+from app.tracing import Span, Trace
 
 
 def test_trace_creates_root_span():
@@ -52,3 +54,97 @@ def test_empty_attributes_omitted():
     d = t.to_dict()
     child = d["children"][0]
     assert "attributes" not in child
+
+
+# ---------------------------------------------------------------------------
+# Wall-clock timestamps
+# ---------------------------------------------------------------------------
+
+
+def test_child_span_captures_wall_start():
+    parent = Span(name="root", _start=0.0)
+    with parent.span("child") as child:
+        pass
+    assert isinstance(child._wall_start, datetime)
+
+
+def test_trace_root_captures_wall_start():
+    trace = Trace("test")
+    assert isinstance(trace.root._wall_start, datetime)
+
+
+# ---------------------------------------------------------------------------
+# to_steps() flattening
+# ---------------------------------------------------------------------------
+
+
+def test_to_steps_single_service():
+    trace = Trace("worker")
+    with trace.span("docling", input_bytes=100, pages=3):
+        pass
+    trace.finish()
+    steps = trace.to_steps()
+
+    assert len(steps) == 1
+    step = steps[0]
+    assert step["service"] == "docling"
+    assert step["input_bytes"] == 100
+    assert step["pages"] == 3
+    assert step["duration_ms"] >= 0
+    assert step["started_at"]
+
+
+def test_to_steps_multiple_sorted():
+    trace = Trace("worker")
+    with trace.span("gotenberg"):
+        pass
+    with trace.span("docling"):
+        pass
+    trace.finish()
+    steps = trace.to_steps()
+
+    assert len(steps) == 2
+    assert steps[0]["service"] == "gotenberg"
+    assert steps[1]["service"] == "docling"
+    assert steps[0]["started_at"] <= steps[1]["started_at"]
+
+
+def test_to_steps_skips_internal_spans():
+    trace = Trace("worker")
+    with trace.span("docling") as d:
+        with d.span("http_request"):
+            pass
+    trace.finish()
+    steps = trace.to_steps()
+
+    assert len(steps) == 1
+    assert steps[0]["service"] == "docling"
+
+
+def test_to_steps_empty():
+    trace = Trace("worker")
+    trace.finish()
+    assert trace.to_steps() == []
+
+
+def test_to_steps_service_attribute_overrides_name():
+    trace = Trace("worker")
+    with trace.span("captioning", service="openai/gpt-4o", images=2):
+        pass
+    trace.finish()
+    steps = trace.to_steps()
+
+    assert len(steps) == 1
+    assert steps[0]["service"] == "openai/gpt-4o"
+    assert steps[0]["images"] == 2
+
+
+def test_to_steps_passthrough():
+    trace = Trace("worker")
+    with trace.span("passthrough"):
+        pass
+    trace.finish()
+    steps = trace.to_steps()
+
+    assert len(steps) == 1
+    assert steps[0]["service"] == "passthrough"

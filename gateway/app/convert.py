@@ -85,13 +85,21 @@ async def convert(
                 pages = extract_pages(file_bytes)
 
             results = []
-            for i, (p, mt) in enumerate(pages):
-                if parent:
-                    with parent.span(f"page[{i}]") as page_span:
-                        r = await captioning.describe_file(p, mt, deadline, page_span)
-                else:
+            if parent:
+                with parent.span("captioning", service="openai/gpt-4o", page_count=len(pages)) as cap_span:
+                    for i, (p, mt) in enumerate(pages):
+                        with cap_span.span(f"page[{i}]") as page_span:
+                            r = await captioning.describe_file(p, mt, deadline, page_span)
+                        results.append(r)
+                    cap_span.set(
+                        images_captioned=sum(r.images_captioned for r in results),
+                        prompt_tokens=sum(r.captioning_prompt_tokens for r in results),
+                        completion_tokens=sum(r.captioning_completion_tokens for r in results),
+                    )
+            else:
+                for _i, (p, mt) in enumerate(pages):
                     r = await captioning.describe_file(p, mt, deadline)
-                results.append(r)
+                    results.append(r)
 
             markdown = "\n\n---\n\n".join(r.markdown for r in results)
             return ConvertResult(
@@ -102,7 +110,16 @@ async def convert(
                 captioning_prompt_tokens=sum(r.captioning_prompt_tokens for r in results),
                 captioning_completion_tokens=sum(r.captioning_completion_tokens for r in results),
             )
-        result = await captioning.describe_file(file_bytes, mime_type, deadline, parent)
+        if parent:
+            with parent.span("captioning", service="openai/gpt-4o") as cap_span:
+                result = await captioning.describe_file(file_bytes, mime_type, deadline, cap_span)
+                cap_span.set(
+                    images_captioned=result.images_captioned,
+                    prompt_tokens=result.captioning_prompt_tokens,
+                    completion_tokens=result.captioning_completion_tokens,
+                )
+        else:
+            result = await captioning.describe_file(file_bytes, mime_type, deadline)
         result.detected_type = mime_type
         return result
 

@@ -56,6 +56,7 @@ async def process_job(job: Job, user: UserContext, svc: Services) -> ProcessResu
     try:
         result = await convert(file_bytes, job.mime_type, job.filename, deadline, trace)
         trace.finish()
+        steps = trace.to_steps()
         result.detected_type = job.mime_type
         result.input_bytes = file_size
         result.input_hash = doc_hash_val
@@ -73,6 +74,7 @@ async def process_job(job: Job, user: UserContext, svc: Services) -> ProcessResu
             meta.completed_at = now.isoformat()
             meta.retention_expires = (now + timedelta(seconds=DEFAULT_RETENTION_SECONDS)).isoformat()
             meta.actions = ",".join(result.actions)
+            meta.steps = json.dumps(steps) if steps else ""
             svc.jobs.update(meta)
 
         return ProcessResult(JobResult(job_id=job.job_id, status="ok", status_code=200), file_size, doc_hash_val)
