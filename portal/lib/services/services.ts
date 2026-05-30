@@ -49,7 +49,7 @@ export interface Usage {
 export interface BillingStore {
   getUsage(customerId: string): Promise<Usage>;
   getInvoices(customerId: string): Promise<Invoice[]>;
-  createCustomer(email: string, name?: string): Promise<{ customerId: string; subscriptionId: string; isReturning: boolean }>;
+  createCustomer(email: string): Promise<{ customerId: string; subscriptionId: string; isReturning: boolean }>;
   createBillingPortalSession(customerId: string, returnUrl: string): Promise<string>;
 }
 
@@ -70,11 +70,10 @@ export function getServices(): Services {
   if (process.env.USE_LOCAL_SERVICES === "true") {
     // Local/test — Table Storage implementations
     const { TableKeyStore } = require("./keys-table") as typeof import("./keys-table");
-    const { TableBillingStore } = require("./billing-table") as typeof import("../data/billing-table");
-    const conn = process.env.TABLE_STORAGE_CONNECTION_STRING!;
+    const { TableBillingStore } = require("./billing-table") as typeof import("./billing-table");
     _services = {
-      keys: new TableKeyStore(conn),
-      billing: new TableBillingStore(conn),
+      keys: new TableKeyStore(),
+      billing: new TableBillingStore(),
     };
   } else {
     // Production — APIM + Stripe

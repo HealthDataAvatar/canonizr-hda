@@ -1,12 +1,12 @@
 import NextAuth from "next-auth";
-import { AzureTableStorageAdapter } from "../services/table-storage";
+import { AzureTableStorageAdapter } from "@/lib/services/table-storage";
 import { sendVerificationRequest } from "./email";
-import { getServices } from "../services/services";
-
-const connectionString = process.env.TABLE_STORAGE_CONNECTION_STRING!;
+import { getServices } from "@/lib/services/services";
+import { onCreateUser } from "./on-create-user";
+import { updateUser } from "@/lib/data/tables";
 
 const nextAuth = NextAuth({
-  adapter: AzureTableStorageAdapter(connectionString),
+  adapter: AzureTableStorageAdapter(process.env.TABLE_STORAGE_CONNECTION_STRING!),
   session: { strategy: "jwt" },
   pages: { signIn: "/auth" },
   providers: [
@@ -31,21 +31,11 @@ const nextAuth = NextAuth({
   },
   events: {
     async createUser({ user }) {
-      if (!user.email || !user.id) return;
-
-      const { keys, billing } = getServices();
-      const { updateUserRecord } = await import("../services/table-storage");
-
-      const { customerId } = await billing.createCustomer(
-        user.email,
-        user.name ?? undefined,
+      await onCreateUser(
+        user,
+        getServices(),
+        (userId, fields) => updateUser(userId, fields),
       );
-
-      await updateUserRecord(connectionString, user.id, {
-        stripeCustomerId: customerId,
-      });
-
-      await keys.create(user.id, "my-first-key");
     },
   },
 });

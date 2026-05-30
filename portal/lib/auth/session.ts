@@ -1,20 +1,44 @@
+import { redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { auth } from "./auth";
-import { getUserRecord } from "../services/table-storage";
+import { getUser } from "@/lib/data/tables";
 
-/** Get the authenticated user ID or throw a 401-like error. */
-export async function requireUser(): Promise<{ userId: string; email: string }> {
+export class AuthError extends Error {
+  constructor(message = "Unauthorized") {
+    super(message);
+    this.name = "AuthError";
+  }
+}
+
+/**
+ * Get the authenticated user.
+ * `autoRedirect: true` — redirects to /auth (pages).
+ * `autoRedirect: false` — throws AuthError (API routes).
+ */
+export async function requireUser(
+  opts: { autoRedirect: boolean },
+): Promise<{ userId: string; email: string }> {
   const session = await auth();
   if (!session?.user?.id || !session.user.email) {
-    throw new Error("Unauthorized");
+    if (opts.autoRedirect) redirect("/auth");
+    throw new AuthError();
   }
   return { userId: session.user.id, email: session.user.email };
 }
 
-/** Get the authenticated admin user or throw. Non-admins see 404. */
-export async function requireAdmin(): Promise<{ userId: string; email: string }> {
-  const { userId, email } = await requireUser();
-  const conn = process.env.TABLE_STORAGE_CONNECTION_STRING!;
-  const record = await getUserRecord(conn, userId);
-  if (!record.isAdmin) throw new Error("Not found");
+/**
+ * Get the authenticated admin user.
+ * `autoRedirect: true` — calls notFound() (pages).
+ * `autoRedirect: false` — throws AuthError (API routes).
+ */
+export async function requireAdmin(
+  opts: { autoRedirect: boolean },
+): Promise<{ userId: string; email: string }> {
+  const { userId, email } = await requireUser(opts);
+  const record = await getUser(userId);
+  if (!record.isAdmin) {
+    if (opts.autoRedirect) notFound();
+    throw new AuthError("Not found");
+  }
   return { userId, email };
 }

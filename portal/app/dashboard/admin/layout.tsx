@@ -1,4 +1,3 @@
-import { notFound } from "next/navigation";
 import { requireAdmin } from "@/lib/auth/session";
 
 export default async function AdminLayout({
@@ -6,11 +5,6 @@ export default async function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  try {
-    await requireAdmin();
-  } catch {
-    notFound();
-  }
-
+  await requireAdmin({ autoRedirect: true });
   return <>{children}</>;
 }

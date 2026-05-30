@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "storybook": "storybook dev -p 6006",
-    "build-storybook": "storybook build"
+    "build-storybook": "storybook build",
+    "test": "vitest --project unit",
+    "test-cov": "vitest run --project unit --coverage"
   },
   "dependencies": {
     "@azure/arm-apimanagement": "^10.0.0",

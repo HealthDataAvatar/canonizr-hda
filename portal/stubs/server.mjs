@@ -35,15 +35,17 @@ const server = createServer(async (req, res) => {
     return json(res, 200, { status: "ok" });
   }
 
-  // POST / — portal sends { email, url }
+  // POST / — portal sends { email, subject, html }
   if (req.method === "POST" && path === "/") {
     const body = JSON.parse(await readBody(req));
+    const linkMatch = body.html?.match(/href="([^"]+)"/);
+    const magicLink = linkMatch?.[1] ?? "";
     await mailTable.upsertEntity({
       partitionKey: "mail",
       rowKey: body.email,
-      url: body.url,
+      url: magicLink,
     });
-    console.log(`\n✉ Magic link for ${body.email}:\n  ${body.url}\n`);
+    console.log(`\n✉ Magic link for ${body.email}:\n  ${magicLink}\n`);
     return json(res, 200, { ok: true });
   }
 

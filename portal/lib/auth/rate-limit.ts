@@ -36,6 +36,13 @@ export class MemoryRateLimitStore implements RateLimitStore {
 // Rate limiter
 // ---------------------------------------------------------------------------
 
+export class RateLimitError extends Error {
+  constructor(message = "Too many requests. Please try again later.") {
+    super(message);
+    this.name = "RateLimitError";
+  }
+}
+
 export interface RateLimitConfig {
   /** Maximum requests allowed within the window. */
   max: number;

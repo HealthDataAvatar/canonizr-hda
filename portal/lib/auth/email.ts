@@ -1,6 +1,9 @@
-import { EmailClient } from "@azure/communication-email";
+/** Orchestrates rate limiting, template construction, and transport. */
+
 import type { EmailProviderSendVerificationRequestParams } from "@auth/core/providers/email";
-import { MemoryRateLimitStore, RateLimiter } from "./rate-limit";
+import { MemoryRateLimitStore, RateLimiter, RateLimitError } from "./rate-limit";
+import { buildVerificationEmail } from "./email-template";
+import { sendEmail } from "./email-transport";
 
 const FIFTEEN_MINUTES = 15 * 60 * 1000;
 const store = new MemoryRateLimitStore();
@@ -20,34 +23,9 @@ export async function sendVerificationRequest({
   ]);
 
   if (!emailAllowed || !ipAllowed) {
-    throw new Error("Too many sign-in requests. Please try again later.");
-  }
-  const mailStub = process.env.MAIL_STUB_ENDPOINT;
-  if (mailStub) {
-    await fetch(mailStub, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, url }),
-    });
-    return;
+    throw new RateLimitError();
   }
 
-  const client = new EmailClient(process.env.COMMS_CONNECTION_STRING!);
-
-  const poller = await client.beginSend({
-    senderAddress: process.env.EMAIL_FROM!,
-    recipients: { to: [{ address: email }] },
-    content: {
-      subject: "Sign in to Canonizr",
-      html: `<p>Click the link below to sign in to your Canonizr account.</p>
-<p><a href="${url}">Sign in to Canonizr</a></p>
-<p>If you didn't request this, you can safely ignore this email.</p>`,
-    },
-  });
-
-  const result = await poller.pollUntilDone();
-
-  if (result.status !== "Succeeded") {
-    throw new Error(`Email send failed: ${result.status} — ${JSON.stringify(result.error)}`);
-  }
+  const content = buildVerificationEmail(url);
+  await sendEmail(email, content);
 }

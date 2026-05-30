@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { sumUsageSince, sumInvoiceAmounts } from "./pure/admin-calc";
+import { sumInvoiceAmounts, sumUsageSince } from "./admin-calc";
 
 describe("sumUsageSince", () => {
   const now = Date.now();

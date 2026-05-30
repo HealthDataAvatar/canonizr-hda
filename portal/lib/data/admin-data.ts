@@ -4,23 +4,15 @@
  * Reads directly from Table Storage. No caching — admin traffic is low.
  */
 
-import { TableClient } from "@azure/data-tables";
-import { requireAdmin } from "../auth/session";
-import { getUserRecord } from "../services/table-storage";
+import { requireAdmin } from "@/lib/auth/session";
+import { getUser } from "@/lib/data/tables";
 import { getJobsForUser } from "./jobs";
-import { getServices } from "../services/services";
+import { getServices } from "@/lib/services/services";
+import { getTableClient } from "./table-client";
 import { TableName } from "./table-names";
 import type { RequestRow } from "@/components/request-table";
 import type { KeyRow } from "@/components/key-table";
-import { sumUsageSince, sumInvoiceAmounts } from "../pure/admin-calc";
-
-function conn() {
-  return process.env.TABLE_STORAGE_CONNECTION_STRING!;
-}
-
-function tableOpts(connectionString: string) {
-  return connectionString.includes("http://") ? { allowInsecureConnection: true } : {};
-}
+import { sumUsageSince, sumInvoiceAmounts } from "@/lib/pure/admin-calc";
 
 // -------------------------------------------------------------------------
 // User list
@@ -39,12 +31,10 @@ export interface AdminUserRow {
 // of users but won't scale. Fetch full keys/jobs tables in bulk and aggregate
 // in memory instead.
 export async function getUserList(): Promise<AdminUserRow[]> {
-  await requireAdmin();
-  const connectionString = conn();
-  const opts = tableOpts(connectionString);
-  const users = TableClient.fromConnectionString(connectionString, TableName.USERS, opts);
-  const keys = TableClient.fromConnectionString(connectionString, TableName.API_KEYS, opts);
-  const jobs = TableClient.fromConnectionString(connectionString, TableName.GW_JOBS, opts);
+  await requireAdmin({ autoRedirect: true });
+  const users = getTableClient(TableName.USERS);
+  const keys = getTableClient(TableName.API_KEYS);
+  const jobs = getTableClient(TableName.GW_JOBS);
 
   const rows: AdminUserRow[] = [];
 
@@ -62,7 +52,7 @@ export async function getUserList(): Promise<AdminUserRow[]> {
 
     let jobCount = 0;
     const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString();
-    for await (const j of jobs.listEntities({
+    for await (const _j of jobs.listEntities({
       queryOptions: {
         filter: `PartitionKey eq '${userId}' and created_at ge '${thirtyDaysAgo}'`,
       },
@@ -91,7 +81,6 @@ export async function getUserList(): Promise<AdminUserRow[]> {
 export interface AdminUserDetail {
   id: string;
   email: string;
-  name: string;
   joined: string;
   blocked: boolean;
   isAdmin: boolean;
@@ -107,18 +96,16 @@ export interface AdminUserDetail {
 }
 
 export async function getUserDetail(userId: string): Promise<AdminUserDetail | null> {
-  await requireAdmin();
-  const connectionString = conn();
+  await requireAdmin({ autoRedirect: true });
 
   let record;
   try {
-    record = await getUserRecord(connectionString, userId);
+    record = await getUser(userId);
   } catch {
     return null;
   }
 
-  const opts = tableOpts(connectionString);
-  const usersTable = TableClient.fromConnectionString(connectionString, TableName.USERS, opts);
+  const usersTable = getTableClient(TableName.USERS);
 
   let entity;
   try {
@@ -130,7 +117,7 @@ export async function getUserDetail(userId: string): Promise<AdminUserDetail | n
   const { keys: keyStore } = getServices();
   const apiKeys = await keyStore.list(userId);
 
-  const recentJobs = await getJobsForUser(connectionString, userId, 50);
+  const recentJobs = await getJobsForUser(userId, 50);
 
   const usageLast7dKB = sumUsageSince(recentJobs, Date.now() - 7 * 86_400_000);
 
@@ -148,7 +135,6 @@ export async function getUserDetail(userId: string): Promise<AdminUserDetail | n
   return {
     id: userId,
     email: record.email,
-    name: (entity.name as string) ?? "",
     joined: (entity.emailVerified as string) ?? "",
     blocked: record.blocked,
     isAdmin: record.isAdmin,

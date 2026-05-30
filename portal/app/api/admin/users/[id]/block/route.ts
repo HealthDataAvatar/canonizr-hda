@@ -1,27 +1,25 @@
 import { NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/auth/session";
-import { updateUserRecord } from "@/lib/services/table-storage";
-import { logAdminAction } from "@/lib/data/audit";
+import { requireAdmin, AuthError } from "@/lib/auth/session";
+import { updateUser, appendAdminAudit } from "@/lib/data/tables";
 
 export async function POST(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  let admin;
   try {
-    admin = await requireAdmin();
-  } catch {
-    return NextResponse.json(null, { status: 404 });
+    const admin = await requireAdmin({ autoRedirect: false });
+    const { id } = await params;
+    await updateUser(id, { blocked: true });
+    await appendAdminAudit({
+      adminId: admin.userId,
+      adminEmail: admin.email,
+      targetUserId: id,
+      action: "block",
+    });
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    if (err instanceof AuthError) return NextResponse.json(null, { status: 404 });
+    console.error("POST /api/admin/users/[id]/block error:", err);
+    return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
-
-  const { id } = await params;
-  const conn = process.env.TABLE_STORAGE_CONNECTION_STRING!;
-  await updateUserRecord(conn, id, { blocked: true });
-  await logAdminAction(conn, {
-    adminId: admin.userId,
-    adminEmail: admin.email,
-    targetUserId: id,
-    action: "block",
-  });
-  return NextResponse.json({ ok: true });
 }

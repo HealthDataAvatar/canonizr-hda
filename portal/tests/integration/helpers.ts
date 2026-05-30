@@ -1,26 +1,23 @@
-import { TableClient } from "@azure/data-tables";
+import { setConnectionString, getTableClient } from "@/lib/data/table-client";
 import { ensureAllTables } from "@/lib/data/ensure-tables";
 import { TableName } from "@/lib/data/table-names";
 
 export const PORTAL_URL = process.env.PORTAL_URL ?? "http://localhost:3000";
 export const APIM_STUB_URL = process.env.APIM_STUB_URL ?? "http://localhost:8080";
-export const AZURITE_CONN =
+
+const AZURITE_CONN =
   process.env.AZURITE_TABLE_CONN ??
   "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;TableEndpoint=http://localhost:10002/devstoreaccount1";
 
-export const TABLE_OPTS = { allowInsecureConnection: true };
+// Point getTableClient at Azurite for all tests
+setConnectionString(AZURITE_CONN);
 
 // ---------------------------------------------------------------------------
 // Azurite table helpers
 // ---------------------------------------------------------------------------
 
-/** Ensure all tables exist. Call once before tests. */
 export async function initTables() {
-  await ensureAllTables(AZURITE_CONN);
-}
-
-export function table(name: string) {
-  return TableClient.fromConnectionString(AZURITE_CONN, name, TABLE_OPTS);
+  await ensureAllTables();
 }
 
 // ---------------------------------------------------------------------------
@@ -44,12 +41,11 @@ export function createTestUser(): TestUser {
 
 export async function seedTestUser(user: TestUser, opts?: { isAdmin?: boolean }) {
   await initTables();
-  const users = table(TableName.USERS);
+  const users = getTableClient(TableName.USERS);
   await users.upsertEntity({
     partitionKey: "user",
     rowKey: user.id,
     email: user.email,
-    name: "Test User",
     encryptionKey: "0".repeat(64),
     stripeCustomerId: user.stripeCustomerId,
     maxKeys: 100,
@@ -64,7 +60,7 @@ export async function seedTestUser(user: TestUser, opts?: { isAdmin?: boolean })
   });
 
   // Gateway tables
-  const gwKeys = table(TableName.GW_ENCRYPTION_KEYS);
+  const gwKeys = getTableClient(TableName.GW_ENCRYPTION_KEYS);
   await gwKeys.upsertEntity({
     partitionKey: TableName.GW_ENCRYPTION_KEYS,
     rowKey: user.id,
@@ -81,7 +77,7 @@ export async function seedInvoice(
   overrides: Record<string, unknown> = {},
 ) {
   await initTables();
-  const client = table(TableName.BILLING);
+  const client = getTableClient(TableName.BILLING);
   const invoiceId = `inv-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
   await client.upsertEntity({
     partitionKey: "invoice",
@@ -165,7 +161,7 @@ export async function seedJob(
   overrides: Record<string, unknown> = {},
 ) {
   await initTables();
-  const client = table(TableName.GW_JOBS);
+  const client = getTableClient(TableName.GW_JOBS);
   const jobId = `job-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
   await client.upsertEntity({
     partitionKey: userId,

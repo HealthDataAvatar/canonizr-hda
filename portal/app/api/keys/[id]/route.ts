@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth/session";
+import { requireUser, AuthError } from "@/lib/auth/session";
 import { getServices } from "@/lib/services/services";
-import { logUserAction } from "@/lib/data/audit";
+import { appendUserAudit } from "@/lib/data/tables";
 
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { userId } = await requireUser();
+    const { userId } = await requireUser({ autoRedirect: false });
     const { id } = await params;
     const { keys: keyStore } = getServices();
 
@@ -19,8 +19,10 @@ export async function GET(
 
     const primaryKey = await keyStore.get(id);
     return NextResponse.json({ primaryKey });
-  } catch {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  } catch (err) {
+    if (err instanceof AuthError) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    console.error("GET /api/keys/[id] error:", err);
+    return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
 }
 
@@ -29,7 +31,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { userId, email } = await requireUser();
+    const { userId, email } = await requireUser({ autoRedirect: false });
     const { id } = await params;
     const { keys: keyStore } = getServices();
 
@@ -39,15 +41,16 @@ export async function DELETE(
     }
 
     await keyStore.delete(id);
-    const conn = process.env.TABLE_STORAGE_CONNECTION_STRING!;
-    await logUserAction(conn, {
+    await appendUserAudit({
       userId,
       userEmail: email,
       action: "key_delete",
       detail: { keyId: id },
     });
     return NextResponse.json({ ok: true });
-  } catch {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  } catch (err) {
+    if (err instanceof AuthError) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    console.error("DELETE /api/keys/[id] error:", err);
+    return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
 }

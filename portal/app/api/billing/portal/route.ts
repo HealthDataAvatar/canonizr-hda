@@ -1,13 +1,12 @@
 import { NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth/session";
-import { getUserRecord } from "@/lib/services/table-storage";
+import { requireUser, AuthError } from "@/lib/auth/session";
+import { getUser } from "@/lib/data/tables";
 import { getServices } from "@/lib/services/services";
 
 export async function POST() {
   try {
-    const { userId } = await requireUser();
-    const connectionString = process.env.TABLE_STORAGE_CONNECTION_STRING!;
-    const userRecord = await getUserRecord(connectionString, userId);
+    const { userId } = await requireUser({ autoRedirect: false });
+    const userRecord = await getUser(userId);
 
     if (!userRecord.stripeCustomerId) {
       return NextResponse.json(
@@ -23,7 +22,9 @@ export async function POST() {
       returnUrl,
     );
     return NextResponse.json({ url });
-  } catch {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  } catch (err) {
+    if (err instanceof AuthError) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    console.error("POST /api/billing/portal error:", err);
+    return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
 }

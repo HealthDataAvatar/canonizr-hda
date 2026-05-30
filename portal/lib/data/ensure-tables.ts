@@ -1,11 +1,11 @@
 /**
  * Ensure all required Azure Table Storage tables exist.
  *
- * Called once at app startup (via auth adapter init) and in test setup.
- * Single source of truth for which tables the system needs.
+ * Called once at app startup and in test setup.
+ * Uses getTableClient — no direct connection string access.
  */
 
-import { TableClient } from "@azure/data-tables";
+import { getTableClient } from "./table-client";
 import { TableName } from "./table-names";
 
 const ALL_TABLES = [
@@ -23,18 +23,19 @@ const ALL_TABLES = [
   TableName.GW_SUBSCRIPTIONS,
   TableName.GW_ENCRYPTION_KEYS,
   TableName.GW_JOBS,
+
+  // Audit
+  TableName.ADMIN_AUDIT_LOG,
+  TableName.USER_AUDIT_LOG,
 ] as const;
 
 let _done = false;
 
-export async function ensureAllTables(connectionString: string): Promise<void> {
+export async function ensureAllTables(): Promise<void> {
   if (_done) return;
-  const opts = connectionString.includes("http://") ? { allowInsecureConnection: true } : {};
   await Promise.all(
     ALL_TABLES.map((name) =>
-      TableClient.fromConnectionString(connectionString, name, opts)
-        .createTable()
-        .catch(() => {})
+      getTableClient(name).createTable().catch(() => {})
     )
   );
   _done = true;

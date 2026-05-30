@@ -39,8 +39,6 @@ export default async function AdminUserDetailPage({
         <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1 text-[0.9375rem]">
           <dt className="text-muted-foreground">User ID</dt>
           <dd className="font-mono text-[0.875rem]">{user.id}</dd>
-          <dt className="text-muted-foreground">Name</dt>
-          <dd>{user.name || "—"}</dd>
           <dt className="text-muted-foreground">Joined</dt>
           <dd>{user.joined || "—"}</dd>
           <dt className="text-muted-foreground">Stripe</dt>

@@ -5,14 +5,13 @@
  * Called directly from server components — no API routes needed for reads.
  */
 
-import { requireUser } from "../auth/session";
-import { getServices, type Invoice } from "../services/services";
-import { getUserRecord } from "../services/table-storage";
+import { requireUser } from "@/lib/auth/session";
+import { getServices, type Invoice } from "@/lib/services/services";
+import { getUser } from "@/lib/data/tables";
 import { getJobsForUser } from "./jobs";
+import { calculateBilling } from "@/lib/pure/billing-calc";
 import type { RequestRow } from "@/components/request-table";
 import type { KeyRow } from "@/components/key-table";
-
-const KB_PER_UNIT = 100;
 
 // -------------------------------------------------------------------------
 // Recent error (used by layout error banner)
@@ -21,9 +20,8 @@ const KB_PER_UNIT = 100;
 import type { RecentError } from "@/components/error-banner";
 
 export async function getRecentError(): Promise<RecentError | null> {
-  const { userId } = await requireUser();
-  const connectionString = process.env.TABLE_STORAGE_CONNECTION_STRING!;
-  const jobs = await getJobsForUser(connectionString, userId, 10);
+  const { userId } = await requireUser({ autoRedirect: true });
+  const jobs = await getJobsForUser(userId, 10);
 
   const fiveMinAgo = Date.now() - 5 * 60 * 1000;
   const error = jobs.find(
@@ -48,7 +46,7 @@ export interface KeysData {
 }
 
 export async function getKeysData(): Promise<KeysData> {
-  const { userId } = await requireUser();
+  const { userId } = await requireUser({ autoRedirect: true });
   const { keys: keyStore } = getServices();
   const keys = await keyStore.list(userId);
   return {
@@ -78,9 +76,8 @@ export interface BillingData {
 }
 
 export async function getBillingData(): Promise<BillingData> {
-  const { userId } = await requireUser();
-  const connectionString = process.env.TABLE_STORAGE_CONNECTION_STRING!;
-  const userRecord = await getUserRecord(connectionString, userId);
+  const { userId } = await requireUser({ autoRedirect: true });
+  const userRecord = await getUser(userId);
   const { billing } = getServices();
 
   const [usage, invoices] = await Promise.all([
@@ -92,20 +89,15 @@ export async function getBillingData(): Promise<BillingData> {
       : Promise.resolve([]),
   ]);
 
-  const totalUnits = usage.totalUnits;
-  const freeUnits = userRecord.freeUnits;
-  const pricePerUnit = userRecord.pricePerUnit;
+  const calc = calculateBilling({
+    totalUnits: usage.totalUnits,
+    freeUnits: userRecord.freeUnits,
+    pricePerUnit: userRecord.pricePerUnit,
+  });
 
   return {
-    processedKB: totalUnits * KB_PER_UNIT,
-    freeRemainingKB:
-      freeUnits !== null
-        ? Math.max(0, freeUnits - totalUnits) * KB_PER_UNIT
-        : null,
-    freeTotalKB: freeUnits !== null ? freeUnits * KB_PER_UNIT : null,
-    estimatedCost:
-      Math.max(0, totalUnits - (freeUnits ?? 0)) * (pricePerUnit ?? 0.003),
-    pricePerUnit: pricePerUnit ?? 0.003,
+    ...calc,
+    pricePerUnit: userRecord.pricePerUnit,
     invoices,
   };
 }
@@ -119,7 +111,6 @@ export interface HistoryData {
 }
 
 export async function getHistoryData(): Promise<HistoryData> {
-  const { userId } = await requireUser();
-  const connectionString = process.env.TABLE_STORAGE_CONNECTION_STRING!;
-  return { requests: await getJobsForUser(connectionString, userId) };
+  const { userId } = await requireUser({ autoRedirect: true });
+  return { requests: await getJobsForUser(userId) };
 }

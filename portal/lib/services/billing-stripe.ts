@@ -3,7 +3,8 @@
  * Production implementation.
  */
 
-import type { BillingStore, Invoice, Usage } from "./services";
+import { BillingStore, Invoice, Usage } from "./services";
+
 
 const PRICE_LOOKUP_KEY = "canonizr_per_100kb";
 const METER_EVENT_NAME = "conversion_bytes";
@@ -60,7 +61,6 @@ export class StripeBillingStore implements BillingStore {
 
   async createCustomer(
     email: string,
-    name?: string,
   ): Promise<{ customerId: string; subscriptionId: string; isReturning: boolean }> {
     const stripe = getStripe();
     const existing = await stripe.customers.list({ email, limit: 1 });
@@ -69,7 +69,7 @@ export class StripeBillingStore implements BillingStore {
       return { customerId: existing.data[0].id, subscriptionId: subs.data[0]?.id ?? "", isReturning: true };
     }
 
-    const customer = await stripe.customers.create({ email, name: name ?? undefined });
+    const customer = await stripe.customers.create({ email });
     const prices = await stripe.prices.list({ lookup_keys: [PRICE_LOOKUP_KEY], limit: 1 });
     const price = prices.data[0];
     if (!price) throw new Error(`Stripe price '${PRICE_LOOKUP_KEY}' not found`);

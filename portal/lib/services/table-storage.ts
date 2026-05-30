@@ -31,8 +31,8 @@ export function AzureTableStorageAdapter(
       id: entity.rowKey as string,
       email: entity.email as string,
       emailVerified: entity.emailVerified ? new Date(entity.emailVerified as string) : null,
-      name: (entity.name as string) ?? null,
-      image: (entity.image as string) ?? null,
+      name: null,
+      image: null,
     };
   }
 
@@ -46,8 +46,6 @@ export function AzureTableStorageAdapter(
         rowKey: id,
         email: user.email,
         emailVerified: user.emailVerified?.toISOString() ?? "",
-        name: user.name ?? "",
-        image: user.image ?? "",
         encryptionKey,
         stripeCustomerId: "",
         maxKeys: 100,
@@ -109,9 +107,7 @@ export function AzureTableStorageAdapter(
       const existing = await users.getEntity("user", user.id!);
       const merged = {
         ...existing,
-        ...(user.name !== undefined && { name: user.name }),
         ...(user.email !== undefined && { email: user.email }),
-        ...(user.image !== undefined && { image: user.image }),
         ...(user.emailVerified !== undefined && {
           emailVerified: user.emailVerified?.toISOString() ?? "",
         }),
@@ -238,37 +234,4 @@ export function AzureTableStorageAdapter(
       }
     },
   };
-}
-
-/** Read user-specific fields from Table Storage (encryption key, Stripe ID, admin overrides). */
-export async function getUserRecord(connectionString: string, userId: string) {
-  const opts = connectionString.includes("http://") ? { allowInsecureConnection: true } : {};
-  const client = TableClient.fromConnectionString(connectionString, TableName.USERS, opts);
-  const entity = await client.getEntity("user", userId);
-  return {
-    id: entity.rowKey as string,
-    email: entity.email as string,
-    encryptionKey: entity.encryptionKey as string,
-    stripeCustomerId: entity.stripeCustomerId as string,
-    maxKeys: (entity.maxKeys as number) ?? 100,
-    freeUnits: entity.freeUnits as number | null,
-    pricePerUnit: (entity.pricePerUnit as number) ?? 0.003,
-    notes: (entity.notes as string) ?? "",
-    isAdmin: (entity.isAdmin as boolean) ?? false,
-    blocked: (entity.blocked as boolean) ?? false,
-  };
-}
-
-/** Update user record fields (e.g. after Stripe customer creation). */
-export async function updateUserRecord(
-  connectionString: string,
-  userId: string,
-  fields: Record<string, unknown>
-) {
-  const opts = connectionString.includes("http://") ? { allowInsecureConnection: true } : {};
-  const client = TableClient.fromConnectionString(connectionString, TableName.USERS, opts);
-  await client.updateEntity(
-    { partitionKey: "user", rowKey: userId, ...fields },
-    "Merge"
-  );
 }

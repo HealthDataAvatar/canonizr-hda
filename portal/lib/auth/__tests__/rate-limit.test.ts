@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { RateLimiter, MemoryRateLimitStore } from "./rate-limit";
+import { RateLimiter, MemoryRateLimitStore } from "@/lib/auth/rate-limit";
 
 describe("RateLimiter", () => {
   it("allows requests within the limit", async () => {

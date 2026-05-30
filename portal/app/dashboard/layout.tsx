@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth/auth";
 import { getRecentError } from "@/lib/data/data";
-import { getUserRecord } from "@/lib/services/table-storage";
+import { getUser } from "@/lib/data/tables";
 import { SignOutButton } from "@/components/sign-out-button";
 import { SidebarNav } from "@/components/sidebar-nav";
 import { MobileNav } from "@/components/mobile-nav";
@@ -21,8 +21,7 @@ export default async function DashboardLayout({
 
   let isAdmin = false;
   try {
-    const conn = process.env.TABLE_STORAGE_CONNECTION_STRING!;
-    const record = await getUserRecord(conn, session.user.id!);
+    const record = await getUser(session.user.id!);
     isAdmin = record.isAdmin;
   } catch {}
 

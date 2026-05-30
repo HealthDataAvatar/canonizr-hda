@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatKB, formatBytes, toBillableKB } from "./pure/format";
+import { formatKB, toBillableKB } from "@/lib/pure/format";
 
 describe("formatKB", () => {
   it("formats values under 1000 as KB", () => {
@@ -21,25 +21,6 @@ describe("formatKB", () => {
 
   it("handles zero", () => {
     expect(formatKB(0)).toBe("0 KB");
-  });
-});
-
-describe("formatBytes", () => {
-  it("formats values under 1000 as B", () => {
-    expect(formatBytes(0)).toBe("0 B");
-    expect(formatBytes(500)).toBe("500 B");
-    expect(formatBytes(999)).toBe("999 B");
-  });
-
-  it("formats 1000-999999 as KB", () => {
-    expect(formatBytes(1000)).toBe("1.0 KB");
-    expect(formatBytes(8291)).toBe("8.3 KB");
-    expect(formatBytes(127283)).toBe("127.3 KB");
-  });
-
-  it("formats 1000000+ as MB", () => {
-    expect(formatBytes(1000000)).toBe("1.0 MB");
-    expect(formatBytes(2516582)).toBe("2.5 MB");
   });
 });
 

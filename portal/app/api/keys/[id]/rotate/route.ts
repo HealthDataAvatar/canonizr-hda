@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth/session";
+import { requireUser, AuthError } from "@/lib/auth/session";
 import { getServices } from "@/lib/services/services";
 
 export async function POST(
@@ -7,7 +7,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { userId } = await requireUser();
+    const { userId } = await requireUser({ autoRedirect: false });
     const { id } = await params;
     const { keys: keyStore } = getServices();
 
@@ -18,7 +18,9 @@ export async function POST(
 
     const newKey = await keyStore.rotate(id);
     return NextResponse.json({ primaryKey: newKey });
-  } catch {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  } catch (err) {
+    if (err instanceof AuthError) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    console.error("POST /api/keys/[id]/rotate error:", err);
+    return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
 }

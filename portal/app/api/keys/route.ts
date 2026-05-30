@@ -1,22 +1,16 @@
 import { NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth/session";
+import { requireUser, AuthError } from "@/lib/auth/session";
 import { getServices } from "@/lib/services/services";
-import { getUserRecord } from "@/lib/services/table-storage";
-import { logUserAction } from "@/lib/data/audit";
+import { getUser, appendUserAudit } from "@/lib/data/tables";
 
 export async function GET() {
-  let userId: string;
   try {
-    ({ userId } = await requireUser());
-  } catch {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  try {
+    const { userId } = await requireUser({ autoRedirect: false });
     const { keys: keyStore } = getServices();
     const keys = await keyStore.list(userId);
     return NextResponse.json({ keys });
   } catch (err) {
+    if (err instanceof AuthError) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     console.error("GET /api/keys error:", err);
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Internal error" },
@@ -36,18 +30,11 @@ export async function POST(request: Request) {
     );
   }
 
-  let userId: string;
   try {
-    ({ userId } = await requireUser());
-  } catch {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  try {
+    const { userId } = await requireUser({ autoRedirect: false });
     const { keys: keyStore } = getServices();
 
-    const connectionString = process.env.TABLE_STORAGE_CONNECTION_STRING!;
-    const userRecord = await getUserRecord(connectionString, userId);
+    const userRecord = await getUser(userId);
     const existing = await keyStore.list(userId);
 
     if (existing.length >= userRecord.maxKeys) {
@@ -58,7 +45,7 @@ export async function POST(request: Request) {
     }
 
     const result = await keyStore.create(userId, name);
-    await logUserAction(connectionString, {
+    await appendUserAudit({
       userId,
       userEmail: userRecord.email,
       action: "key_create",
@@ -66,6 +53,7 @@ export async function POST(request: Request) {
     });
     return NextResponse.json(result, { status: 201 });
   } catch (err) {
+    if (err instanceof AuthError) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     console.error("POST /api/keys error:", err);
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Internal error" },
