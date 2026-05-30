@@ -2,20 +2,17 @@
  * Table Storage integration tests against Azurite.
  */
 
-import { describe, it, expect, vi, beforeAll } from "vitest";
-import { AZURITE_CONN, initTables, seedJob } from "./helpers";
-
-// Import adapter without mocking
-vi.stubEnv("TABLE_STORAGE_CONNECTION_STRING", AZURITE_CONN);
-const { AzureTableStorageAdapter } = await import("../../lib/services/auth-adapter");
-const { getJobsForUser } = await import("../../lib/data/jobs");
+import { describe, it, expect, beforeAll } from "vitest";
+import { initTables, seedJob } from "./helpers";
+import { AzureTableStorageAdapter } from "@/lib/services/auth-adapter";
+import { getJobsForUser } from "@/lib/data/jobs";
 
 // ---------------------------------------------------------------------------
 // Verification tokens
 // ---------------------------------------------------------------------------
 
 describe("verification tokens", () => {
-  const adapter = AzureTableStorageAdapter(AZURITE_CONN);
+  const adapter = AzureTableStorageAdapter(process.env.TABLE_STORAGE_CONNECTION_STRING!);
 
   it("creates and consumes a token", async () => {
     const token = {
@@ -61,7 +58,7 @@ describe("verification tokens", () => {
 // ---------------------------------------------------------------------------
 
 describe("users", () => {
-  const adapter = AzureTableStorageAdapter(AZURITE_CONN);
+  const adapter = AzureTableStorageAdapter(process.env.TABLE_STORAGE_CONNECTION_STRING!);
 
   it("creates and retrieves a user", async () => {
     const user = await adapter.createUser!({
@@ -93,14 +90,14 @@ describe("getJobsForUser", () => {
   });
 
   it("returns empty for user with no jobs", async () => {
-    const rows = await getJobsForUser(AZURITE_CONN, "no-such-user");
+    const rows = await getJobsForUser("no-such-user");
     expect(rows).toEqual([]);
   });
 
   it("returns seeded jobs", async () => {
     await seedJob(userId);
     await seedJob(userId);
-    const rows = await getJobsForUser(AZURITE_CONN, userId);
+    const rows = await getJobsForUser(userId);
     expect(rows.length).toBe(2);
   });
 
@@ -111,7 +108,7 @@ describe("getJobsForUser", () => {
       key_name: "my-key",
       input_hash: "deadbeef",
     });
-    const rows = await getJobsForUser(AZURITE_CONN, userId);
+    const rows = await getJobsForUser(userId);
     const row = rows.find((r) => r.id === jobId)!;
     expect(row.status).toBe(200);
     expect(row.keyName).toBe("my-key");
@@ -122,7 +119,7 @@ describe("getJobsForUser", () => {
   it("maps processing → 202, error → 500", async () => {
     await seedJob(userId, { status: "processing" });
     await seedJob(userId, { status: "error" });
-    const rows = await getJobsForUser(AZURITE_CONN, userId);
+    const rows = await getJobsForUser(userId);
     expect(rows.find((r) => r.status === 202)).toBeTruthy();
     expect(rows.find((r) => r.status === 500)).toBeTruthy();
   });
@@ -132,7 +129,7 @@ describe("getJobsForUser", () => {
     await seedJob(uid);
     await seedJob(uid);
     await seedJob(uid);
-    expect((await getJobsForUser(AZURITE_CONN, uid, 2)).length).toBe(2);
+    expect((await getJobsForUser(uid, 2)).length).toBe(2);
   });
 
   it("sorts by timestamp descending", async () => {
@@ -140,7 +137,7 @@ describe("getJobsForUser", () => {
     await seedJob(uid, { created_at: "2026-01-01T00:00:00Z" });
     await seedJob(uid, { created_at: "2026-06-01T00:00:00Z" });
     await seedJob(uid, { created_at: "2026-03-01T00:00:00Z" });
-    const rows = await getJobsForUser(AZURITE_CONN, uid);
+    const rows = await getJobsForUser(uid);
     const ts = rows.map((r) => r.timestamp);
     expect(ts).toEqual([...ts].sort().reverse());
   });

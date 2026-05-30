@@ -9,8 +9,9 @@ const AZURITE_CONN =
   process.env.AZURITE_TABLE_CONN ??
   "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;TableEndpoint=http://localhost:10002/devstoreaccount1";
 
-// Point getTableClient at Azurite for all tests
+// Point all table access at Azurite for tests
 setConnectionString(AZURITE_CONN);
+process.env.TABLE_STORAGE_CONNECTION_STRING = AZURITE_CONN;
 
 // ---------------------------------------------------------------------------
 // Azurite table helpers
@@ -99,9 +100,9 @@ export async function seedInvoice(
 
 const MAIL_STUB_URL = process.env.MAIL_STUB_URL ?? "http://localhost:4300";
 
-export async function authenticate(user?: TestUser): Promise<{ cookie: string; user: TestUser }> {
+export async function authenticate(user?: TestUser, seedOpts?: { isAdmin?: boolean }): Promise<{ cookie: string; user: TestUser }> {
   const testUser = user ?? createTestUser();
-  await seedTestUser(testUser);
+  await seedTestUser(testUser, seedOpts);
 
   // 1. CSRF token
   const csrfRes = await fetch(`${PORTAL_URL}/api/auth/csrf`);

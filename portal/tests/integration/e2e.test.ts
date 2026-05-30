@@ -11,9 +11,9 @@ import type { TestUser } from "./helpers";
 import {
   authenticate,
   createFetcher,
-  table,
   APIM_STUB_URL,
 } from "./helpers";
+import { getTableClient } from "@/lib/data/table-client";
 import { TableName } from "@/lib/data/table-names";
 
 let fetchPortal: ReturnType<typeof createFetcher>;
@@ -40,14 +40,14 @@ beforeAll(async () => {
 
 describe("gateway table contract", () => {
   it("subscription → user mapping written to gateway users table", async () => {
-    const gwSubs = table(TableName.GW_SUBSCRIPTIONS);
+    const gwSubs = getTableClient(TableName.GW_SUBSCRIPTIONS);
     const entity = await gwSubs.getEntity("subscription", subscriptionId);
     expect(entity.user_id).toBe(testUser.id);
     expect(entity.key_name).toBe("e2e-test");
   });
 
   it("encryption key written to gateway encryptionkeys table", async () => {
-    const gwKeys = table(TableName.GW_ENCRYPTION_KEYS);
+    const gwKeys = getTableClient(TableName.GW_ENCRYPTION_KEYS);
     const entity = await gwKeys.getEntity(TableName.GW_ENCRYPTION_KEYS, testUser.id);
     expect(entity.key_hex).toBeTruthy();
     expect((entity.key_hex as string).length).toBe(64);

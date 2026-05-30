@@ -1,40 +1,24 @@
 /**
  * Next.js instrumentation — runs once on server startup, before any requests.
  *
- * Creates Azure Table Storage tables and seeds local dev admin user.
+ * Ensures Azure Table Storage tables exist and seeds a local dev admin user.
  */
-
-const TABLE_NAMES = [
-  "Users", "Accounts", "Sessions", "VerificationTokens",
-  "ApiKeys", "Billing",
-  "GwSubscriptions", "GwEncryptionKeys", "GwJobs",
-  "AdminAuditLog", "UserAuditLog",
-];
 
 export async function register() {
   if (process.env.NEXT_RUNTIME === "edge") return;
+  if (!process.env.TABLE_STORAGE_CONNECTION_STRING) return;
 
-  const connStr = process.env.TABLE_STORAGE_CONNECTION_STRING;
-  if (!connStr) return;
+  const { ensureAllTables } = await import("@/lib/data/ensure-tables");
+  await ensureAllTables();
+  console.log("Tables ensured.");
 
-  const { TableClient } = await import("@azure/data-tables");
+  // In local dev (Azurite), seed an admin user for portal-dev
+  if (process.env.TABLE_STORAGE_CONNECTION_STRING.includes("http://")) {
+    const { getTableClient } = await import("@/lib/data/table-client");
+    const { TableName } = await import("@/lib/data/table-names");
 
-  const opts = connStr.includes("http://")
-    ? { allowInsecureConnection: true }
-    : {};
-
-  await Promise.all(
-    TABLE_NAMES.map((name) =>
-      TableClient.fromConnectionString(connStr, name, opts)
-        .createTable()
-        .catch(() => {})
-    )
-  );
-  console.log(`Tables ensured: ${TABLE_NAMES.join(", ")}`);
-
-  if (connStr.includes("http://")) {
-    const users = TableClient.fromConnectionString(connStr, "Users", opts);
-    const gwKeys = TableClient.fromConnectionString(connStr, "GwEncryptionKeys", opts);
+    const users = getTableClient(TableName.USERS);
+    const gwKeys = getTableClient(TableName.GW_ENCRYPTION_KEYS);
 
     const adminEmail = "a@a";
     const adminId = "admin-local";
@@ -45,8 +29,6 @@ export async function register() {
       rowKey: adminId,
       email: adminEmail,
       emailVerified: new Date().toISOString(),
-      name: "Local Admin",
-      image: "",
       encryptionKey,
       stripeCustomerId: "",
       maxKeys: 100,
@@ -64,7 +46,7 @@ export async function register() {
     });
 
     await gwKeys.upsertEntity({
-      partitionKey: "GwEncryptionKeys",
+      partitionKey: TableName.GW_ENCRYPTION_KEYS,
       rowKey: adminId,
       key_hex: encryptionKey,
     });

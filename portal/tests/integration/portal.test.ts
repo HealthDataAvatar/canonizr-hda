@@ -6,7 +6,10 @@
  */
 
 import { describe, it, expect, beforeAll } from "vitest";
-import { authenticate, createFetcher, createTestUser, seedTestUser, seedJob, seedInvoice, PORTAL_URL } from "./helpers";
+import { authenticate, createFetcher, createTestUser, seedTestUser, seedJob, seedInvoice, initTables, PORTAL_URL } from "./helpers";
+import { getUser } from "@/lib/data/tables";
+import { getTableClient } from "@/lib/data/table-client";
+import { TableName } from "@/lib/data/table-names";
 
 let fetchPortal: ReturnType<typeof createFetcher>;
 
@@ -14,6 +17,30 @@ beforeAll(async () => {
   const { cookie } = await authenticate();
   fetchPortal = createFetcher(cookie);
 }, 30_000);
+
+describe("table cleanliness", () => {
+  const CANARY_ID = "canary-stale-data-check";
+
+  it("no stale data from a previous run", async () => {
+    await initTables();
+    const client = getTableClient(TableName.USERS);
+    let found = false;
+    try {
+      await client.getEntity("user", CANARY_ID);
+      found = true;
+    } catch {}
+    expect(found).toBe(false);
+  });
+
+  it("plant canary for next run", async () => {
+    const client = getTableClient(TableName.USERS);
+    await client.upsertEntity({
+      partitionKey: "user",
+      rowKey: CANARY_ID,
+      email: "canary@test",
+    });
+  });
+});
 
 describe("health", () => {
   it("returns ok", async () => {
@@ -116,12 +143,12 @@ describe("API: keys (authenticated)", () => {
 describe("admin (authenticated as admin)", () => {
   let fetchAdmin: ReturnType<typeof createFetcher>;
   let targetUser: ReturnType<typeof createTestUser>;
+  let adminUser: ReturnType<typeof createTestUser>;
 
   beforeAll(async () => {
     // Create admin user and authenticate
-    const adminUser = createTestUser();
-    await seedTestUser(adminUser, { isAdmin: true });
-    const { cookie } = await authenticate(adminUser);
+    adminUser = createTestUser();
+    const { cookie } = await authenticate(adminUser, { isAdmin: true });
     fetchAdmin = createFetcher(cookie);
 
     // Create a target user with jobs and invoices
@@ -149,6 +176,11 @@ describe("admin (authenticated as admin)", () => {
     await seedInvoice(targetUser.stripeCustomerId, { amount: 2.50 });
     await seedInvoice(targetUser.stripeCustomerId, { amount: 1.00 });
   }, 30_000);
+
+  it("admin user was seeded correctly", async () => {
+    const record = await getUser(adminUser.id);
+    expect(record.isAdmin).toBe(true);
+  });
 
   it("non-admin cannot access admin pages", async () => {
     const res = await fetchPortal("/dashboard/admin/users");
