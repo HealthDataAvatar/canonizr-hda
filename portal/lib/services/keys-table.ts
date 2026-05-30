@@ -6,7 +6,7 @@
 import { randomUUID } from "crypto";
 import { getTableClient } from "@/lib/data/table-client";
 import { TableName } from "@/lib/data/table-names";
-import type { ApiKey, KeyStore } from "./services";
+import type { ApiKey, KeyStore } from ".";
 
 export class TableKeyStore implements KeyStore {
   async list(userId: string): Promise<ApiKey[]> {

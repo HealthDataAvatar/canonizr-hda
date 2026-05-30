@@ -9,7 +9,7 @@
 
 import { getTableClient } from "@/lib/data/table-client";
 import { TableName } from "@/lib/data/table-names";
-import { ApiKey, KeyStore } from "@/lib/services/services";
+import { ApiKey, KeyStore } from "@/lib/services";
 
 function getClient() {
   const { ApiManagementClient } = require("@azure/arm-apimanagement") as typeof import("@azure/arm-apimanagement");

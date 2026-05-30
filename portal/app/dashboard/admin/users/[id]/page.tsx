@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { getUserDetail } from "@/lib/data/admin-data";
+import { getUserDetail } from "@/lib/data/admin-page-data";
 import { AdminUserForm } from "@/components/admin-user-form";
 import { RequestTable } from "@/components/request-table";
 import { formatKB } from "@/lib/pure/format";

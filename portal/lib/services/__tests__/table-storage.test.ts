@@ -27,7 +27,7 @@ vi.mock("@azure/data-tables", () => ({
   },
 }));
 
-const { AzureTableStorageAdapter } = await import("./auth-adapter");
+const { AzureTableStorageAdapter } = await import("@/lib/services/auth-adapter");
 
 describe("verification tokens", () => {
   let adapter: ReturnType<typeof AzureTableStorageAdapter>;

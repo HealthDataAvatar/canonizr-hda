@@ -11,7 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { AdminUserRow } from "@/lib/data/admin-data";
+import type { AdminUserRow } from "@/lib/data/admin-page-data";
 
 export function AdminUserSearch({ users }: { users: AdminUserRow[] }) {
   const [query, setQuery] = useState("");

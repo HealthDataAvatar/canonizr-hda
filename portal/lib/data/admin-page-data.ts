@@ -7,7 +7,7 @@
 import { requireAdmin } from "@/lib/auth/session";
 import { getUser } from "@/lib/data/tables";
 import { getJobsForUser } from "./jobs";
-import { getServices } from "@/lib/services/services";
+import { getServices } from "@/lib/services";
 import { getTableClient } from "./table-client";
 import { TableName } from "./table-names";
 import type { RequestRow } from "@/components/request-table";

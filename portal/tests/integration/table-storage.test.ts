@@ -7,7 +7,7 @@ import { AZURITE_CONN, initTables, seedJob } from "./helpers";
 
 // Import adapter without mocking
 vi.stubEnv("TABLE_STORAGE_CONNECTION_STRING", AZURITE_CONN);
-const { AzureTableStorageAdapter } = await import("../../lib/services/table-storage");
+const { AzureTableStorageAdapter } = await import("../../lib/services/auth-adapter");
 const { getJobsForUser } = await import("../../lib/data/jobs");
 
 // ---------------------------------------------------------------------------

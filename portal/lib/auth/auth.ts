@@ -1,7 +1,7 @@
 import NextAuth from "next-auth";
-import { AzureTableStorageAdapter } from "@/lib/services/table-storage";
+import { AzureTableStorageAdapter } from "@/lib/services/auth-adapter";
 import { sendVerificationRequest } from "./email";
-import { getServices } from "@/lib/services/services";
+import { getServices } from "@/lib/services";
 import { onCreateUser } from "./on-create-user";
 import { updateUser } from "@/lib/data/tables";
 

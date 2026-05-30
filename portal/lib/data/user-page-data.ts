@@ -6,7 +6,7 @@
  */
 
 import { requireUser } from "@/lib/auth/session";
-import { getServices, type Invoice } from "@/lib/services/services";
+import { getServices, type Invoice } from "@/lib/services";
 import { getUser } from "@/lib/data/tables";
 import { getJobsForUser } from "./jobs";
 import { calculateBilling } from "@/lib/pure/billing-calc";

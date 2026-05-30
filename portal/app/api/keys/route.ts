@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireUser, AuthError } from "@/lib/auth/session";
-import { getServices } from "@/lib/services/services";
+import { getServices } from "@/lib/services";
 import { getUser, appendUserAudit } from "@/lib/data/tables";
 
 export async function GET() {

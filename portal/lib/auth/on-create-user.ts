@@ -1,4 +1,4 @@
-import type { KeyStore, BillingStore } from "@/lib/services/services";
+import type { KeyStore, BillingStore } from "@/lib/services";
 
 /**
  * Called when a new user first signs in. Idempotent — safe to re-run

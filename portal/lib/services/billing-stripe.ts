@@ -3,7 +3,7 @@
  * Production implementation.
  */
 
-import { BillingStore, Invoice, Usage } from "./services";
+import { BillingStore, Invoice, Usage } from ".";
 
 
 const PRICE_LOOKUP_KEY = "canonizr_per_100kb";

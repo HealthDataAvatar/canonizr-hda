@@ -1,4 +1,4 @@
-import { getBillingData } from "@/lib/data/data";
+import { getBillingData } from "@/lib/data/user-page-data";
 import { StatCards } from "@/components/stat-cards";
 import { InvoiceTable } from "@/components/invoice-table";
 import { ManageBillingButton } from "@/components/manage-billing-button";

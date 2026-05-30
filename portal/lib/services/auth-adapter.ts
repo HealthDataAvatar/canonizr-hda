@@ -3,42 +3,43 @@
  *
  * Tables: Users, Accounts, Sessions, VerificationTokens
  * Partition keys use entity type for simplicity on a single-user-scale app.
+ *
+ * This is the one place that constructs TableClient directly from a connection
+ * string — it runs at module init before getTableClient is available.
+ * All other table access goes through getTableClient / table helpers.
  */
 
 import { TableClient } from "@azure/data-tables";
 import type { Adapter, AdapterUser, AdapterAccount, AdapterSession } from "next-auth/adapters";
 import { randomUUID, randomBytes } from "crypto";
-import { TableName } from "../data/table-names";
+import { TableName } from "@/lib/data/table-names";
 
-export function AzureTableStorageAdapter(
-  connectionString: string
-): Adapter {
+function makeClients(connectionString: string) {
   const opts = connectionString.includes("http://") ? { allowInsecureConnection: true } : {};
-  const users = TableClient.fromConnectionString(connectionString, TableName.USERS, opts);
-  const accounts = TableClient.fromConnectionString(connectionString, TableName.ACCOUNTS, opts);
-  const sessions = TableClient.fromConnectionString(connectionString, TableName.SESSIONS, opts);
-  const verificationTokens = TableClient.fromConnectionString(connectionString, TableName.VERIFICATION_TOKENS, opts);
+  return {
+    users: TableClient.fromConnectionString(connectionString, TableName.USERS, opts),
+    accounts: TableClient.fromConnectionString(connectionString, TableName.ACCOUNTS, opts),
+    sessions: TableClient.fromConnectionString(connectionString, TableName.SESSIONS, opts),
+    verificationTokens: TableClient.fromConnectionString(connectionString, TableName.VERIFICATION_TOKENS, opts),
+    gwEncryptionKeys: TableClient.fromConnectionString(connectionString, TableName.GW_ENCRYPTION_KEYS, opts),
+  };
+}
 
-  // Gateway tables — written to on user/key creation so the conversion API can resolve users
-  const gwEncryptionKeys = TableClient.fromConnectionString(connectionString, TableName.GW_ENCRYPTION_KEYS, opts);
+function toUser(entity: Record<string, unknown>): AdapterUser {
+  return {
+    id: entity.rowKey as string,
+    email: entity.email as string,
+    emailVerified: entity.emailVerified ? new Date(entity.emailVerified as string) : null,
+    name: null,
+    image: null,
+  };
+}
 
-  // Tables are ensured at container startup (scripts/ensure-tables.mjs).
-  // In tests, call initTables() from helpers.ts before running.
-  const initPromise = Promise.resolve();
-
-  function toUser(entity: Record<string, unknown>): AdapterUser {
-    return {
-      id: entity.rowKey as string,
-      email: entity.email as string,
-      emailVerified: entity.emailVerified ? new Date(entity.emailVerified as string) : null,
-      name: null,
-      image: null,
-    };
-  }
+export function AzureTableStorageAdapter(connectionString: string): Adapter {
+  const { users, accounts, sessions, verificationTokens, gwEncryptionKeys } = makeClients(connectionString);
 
   return {
     async createUser(user) {
-      await initPromise;
       const id = randomUUID();
       const encryptionKey = randomBytes(32).toString("hex");
       const entity = {
@@ -59,7 +60,6 @@ export function AzureTableStorageAdapter(
         rowKey: user.email,
         userId: id,
       });
-      // Gateway: encryption key lookup
       await gwEncryptionKeys.upsertEntity({
         partitionKey: TableName.GW_ENCRYPTION_KEYS,
         rowKey: id,
@@ -69,7 +69,6 @@ export function AzureTableStorageAdapter(
     },
 
     async getUser(id) {
-      await initPromise;
       try {
         const entity = await users.getEntity("user", id);
         return toUser(entity);
@@ -79,7 +78,6 @@ export function AzureTableStorageAdapter(
     },
 
     async getUserByEmail(email) {
-      await initPromise;
       try {
         const lookup = await users.getEntity("email", email);
         const userId = lookup.userId as string;
@@ -91,7 +89,6 @@ export function AzureTableStorageAdapter(
     },
 
     async getUserByAccount({ providerAccountId, provider }) {
-      await initPromise;
       try {
         const account = await accounts.getEntity(provider, providerAccountId);
         const userId = account.userId as string;
@@ -103,7 +100,6 @@ export function AzureTableStorageAdapter(
     },
 
     async updateUser(user) {
-      await initPromise;
       const existing = await users.getEntity("user", user.id!);
       const merged = {
         ...existing,
@@ -117,14 +113,12 @@ export function AzureTableStorageAdapter(
     },
 
     async deleteUser(userId) {
-      await initPromise;
       try {
         const entity = await users.getEntity("user", userId);
         await users.deleteEntity("user", userId);
         if (entity.email) {
           await users.deleteEntity("email", entity.email as string).catch(() => {});
         }
-        // Gateway: remove encryption key (crypto-shreds all retained blobs)
         await gwEncryptionKeys.deleteEntity(TableName.GW_ENCRYPTION_KEYS, userId).catch(() => {});
       } catch {
         // User may already be deleted
@@ -132,7 +126,6 @@ export function AzureTableStorageAdapter(
     },
 
     async linkAccount(account) {
-      await initPromise;
       await accounts.upsertEntity({
         partitionKey: account.provider,
         rowKey: account.providerAccountId,
@@ -149,12 +142,10 @@ export function AzureTableStorageAdapter(
     },
 
     async unlinkAccount({ providerAccountId, provider }) {
-      await initPromise;
       await accounts.deleteEntity(provider, providerAccountId).catch(() => {});
     },
 
     async createSession(session) {
-      await initPromise;
       await sessions.upsertEntity({
         partitionKey: "session",
         rowKey: session.sessionToken,
@@ -165,7 +156,6 @@ export function AzureTableStorageAdapter(
     },
 
     async getSessionAndUser(sessionToken) {
-      await initPromise;
       try {
         const session = await sessions.getEntity("session", sessionToken);
         const user = await users.getEntity("user", session.userId as string);
@@ -183,7 +173,6 @@ export function AzureTableStorageAdapter(
     },
 
     async updateSession(session) {
-      await initPromise;
       try {
         const existing = await sessions.getEntity("session", session.sessionToken!);
         const merged = {
@@ -203,12 +192,10 @@ export function AzureTableStorageAdapter(
     },
 
     async deleteSession(sessionToken) {
-      await initPromise;
       await sessions.deleteEntity("session", sessionToken).catch(() => {});
     },
 
     async createVerificationToken(token) {
-      await initPromise;
       await verificationTokens.upsertEntity({
         partitionKey: "token",
         rowKey: token.identifier,
@@ -219,7 +206,6 @@ export function AzureTableStorageAdapter(
     },
 
     async useVerificationToken({ identifier, token }) {
-      await initPromise;
       try {
         const entity = await verificationTokens.getEntity("token", identifier);
         if (entity.token !== token) return null;

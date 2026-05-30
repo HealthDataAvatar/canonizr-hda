@@ -1,4 +1,4 @@
-import { getKeysData } from "@/lib/data/data";
+import { getKeysData } from "@/lib/data/user-page-data";
 import { CreateKeyForm } from "@/components/create-key-form";
 import { KeyTable } from "@/components/key-table";
 import { CodeBlock } from "@/components/ui/code-block";

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUser, AuthError } from "@/lib/auth/session";
 import { getUser } from "@/lib/data/tables";
-import { getServices } from "@/lib/services/services";
+import { getServices } from "@/lib/services";
 
 export async function POST() {
   try {

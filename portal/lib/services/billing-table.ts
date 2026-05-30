@@ -5,7 +5,7 @@
 
 import { getTableClient } from "@/lib/data/table-client";
 import { TableName } from "@/lib/data/table-names";
-import type { BillingStore, Invoice, Usage } from "./services";
+import type { BillingStore, Invoice, Usage } from ".";
 
 export class TableBillingStore implements BillingStore {
   async getUsage(customerId: string): Promise<Usage> {
