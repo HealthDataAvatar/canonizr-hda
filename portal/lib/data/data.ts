@@ -5,9 +5,9 @@
  * Called directly from server components — no API routes needed for reads.
  */
 
-import { requireUser } from "./session";
-import { getServices, type Invoice } from "./services";
-import { getUserRecord } from "./table-storage";
+import { requireUser } from "../auth/session";
+import { getServices, type Invoice } from "../services/services";
+import { getUserRecord } from "../services/table-storage";
 import { getJobsForUser } from "./jobs";
 import type { RequestRow } from "@/components/request-table";
 import type { KeyRow } from "@/components/key-table";

@@ -2,8 +2,8 @@ import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { CreateKeyInput } from "./create-key-input";
 import { CreatedKeyCard } from "./created-key-card";
-import { validateKeyName } from "@/lib/key-name-validation";
-import { generateKeyName } from "@/lib/key-names";
+import { validateKeyName } from "@/lib/pure/key-name-validation";
+import { generateKeyName } from "@/lib/pure/key-names";
 
 // ---------------------------------------------------------------------------
 // Interactive wrapper for CreateKeyInput

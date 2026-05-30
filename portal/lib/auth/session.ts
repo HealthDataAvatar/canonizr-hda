@@ -1,5 +1,5 @@
 import { auth } from "./auth";
-import { getUserRecord } from "./table-storage";
+import { getUserRecord } from "../services/table-storage";
 
 /** Get the authenticated user ID or throw a 401-like error. */
 export async function requireUser(): Promise<{ userId: string; email: string }> {

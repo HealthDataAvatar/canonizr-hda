@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { requireAdmin } from "@/lib/session";
+import { requireAdmin } from "@/lib/auth/session";
 
 export default async function AdminLayout({
   children,

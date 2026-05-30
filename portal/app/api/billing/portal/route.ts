@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { requireUser } from "@/lib/session";
-import { getUserRecord } from "@/lib/table-storage";
-import { getServices } from "@/lib/services";
+import { requireUser } from "@/lib/auth/session";
+import { getUserRecord } from "@/lib/services/table-storage";
+import { getServices } from "@/lib/services/services";
 
 export async function POST() {
   try {

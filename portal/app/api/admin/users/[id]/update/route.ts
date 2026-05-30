@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/session";
-import { updateUserRecord } from "@/lib/table-storage";
-import { logAdminAction } from "@/lib/audit";
+import { requireAdmin } from "@/lib/auth/session";
+import { updateUserRecord } from "@/lib/services/table-storage";
+import { logAdminAction } from "@/lib/data/audit";
 
 export async function POST(
   request: Request,

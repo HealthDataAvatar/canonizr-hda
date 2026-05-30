@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { generateKeyName } from "./key-names";
+import { generateKeyName } from "./pure/key-names";
 
 describe("generateKeyName", () => {
   it("starts with 'agent-'", () => {

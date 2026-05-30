@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { timeAgo } from "./time";
+import { timeAgo } from "./pure/time";
 
 describe("timeAgo", () => {
   function ago(ms: number): string {

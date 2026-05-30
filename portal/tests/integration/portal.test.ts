@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, beforeAll } from "vitest";
-import { authenticate, createFetcher, PORTAL_URL } from "./helpers";
+import { authenticate, createFetcher, createTestUser, seedTestUser, seedJob, seedInvoice, PORTAL_URL } from "./helpers";
 
 let fetchPortal: ReturnType<typeof createFetcher>;
 
@@ -106,5 +106,86 @@ describe("API: keys (authenticated)", () => {
     expect(res.status).toBe(201);
     const body = await res.json();
     expect(body.primaryKey).toBeTruthy();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Admin
+// ---------------------------------------------------------------------------
+
+describe("admin (authenticated as admin)", () => {
+  let fetchAdmin: ReturnType<typeof createFetcher>;
+  let targetUser: ReturnType<typeof createTestUser>;
+
+  beforeAll(async () => {
+    // Create admin user and authenticate
+    const adminUser = createTestUser();
+    await seedTestUser(adminUser, { isAdmin: true });
+    const { cookie } = await authenticate(adminUser);
+    fetchAdmin = createFetcher(cookie);
+
+    // Create a target user with jobs and invoices
+    targetUser = createTestUser();
+    await seedTestUser(targetUser);
+
+    const now = Date.now();
+    const DAY = 86_400_000;
+
+    // Jobs: 2 within 7 days, 1 outside
+    await seedJob(targetUser.id, {
+      input_bytes: 100_000,
+      created_at: new Date(now - 1 * DAY).toISOString(),
+    });
+    await seedJob(targetUser.id, {
+      input_bytes: 200_000,
+      created_at: new Date(now - 3 * DAY).toISOString(),
+    });
+    await seedJob(targetUser.id, {
+      input_bytes: 500_000,
+      created_at: new Date(now - 10 * DAY).toISOString(),
+    });
+
+    // Invoices
+    await seedInvoice(targetUser.stripeCustomerId, { amount: 2.50 });
+    await seedInvoice(targetUser.stripeCustomerId, { amount: 1.00 });
+  }, 30_000);
+
+  it("non-admin cannot access admin pages", async () => {
+    const res = await fetchPortal("/dashboard/admin/users");
+    // Should get 404 (not 403 — we hide the admin from non-admins)
+    expect(res.status).toBe(404);
+  });
+
+  it("admin user list page renders", async () => {
+    const res = await fetchAdmin("/dashboard/admin/users");
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain(targetUser.email);
+  });
+
+  it("admin user detail page renders with usage and invoice totals", async () => {
+    const res = await fetchAdmin(`/dashboard/admin/users/${targetUser.id}`);
+    expect(res.status).toBe(200);
+    const html = await res.text();
+
+    // User identity
+    expect(html).toContain(targetUser.email);
+    expect(html).toContain(targetUser.id);
+
+    // Usage (7 days): 100KB + 200KB rounded up = should contain formatted KB values
+    expect(html).toContain("Usage (7 days)");
+
+    // Total invoiced: $2.50 + $1.00 = $3.50
+    expect(html).toContain("Total invoiced");
+    expect(html).toContain("3.50");
+  });
+
+  it("admin can view target user keys section", async () => {
+    const res = await fetchAdmin(`/dashboard/admin/users/${targetUser.id}`);
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    // The user was seeded but has no keys created via the portal, so keys section may be empty
+    // Just verify the page doesn't crash
+    expect(html).toContain(targetUser.email);
   });
 });

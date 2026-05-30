@@ -256,6 +256,8 @@ Coverage: `make test-unit` reports line coverage via pytest-cov.
 
 **TODO**: Add diff coverage to CI (e.g. `diff-cover` against main branch) so PRs must cover new/changed lines. Not implemented yet — add when CI pipeline is formalized.
 
+**TODO**: Stripe webhook endpoint to sync invoice/payment updates to Table Storage (billing table). Currently production queries Stripe directly via `StripeBillingStore`; local/test uses `TableBillingStore` against Azurite. A webhook would keep our local record authoritative and eliminate per-request Stripe API calls from the portal.
+
 Pre-commit hook: `make install-hooks` (ruff format + ruff check). Hook self-validates against repo copy.
 
 ### Staging environment

@@ -7,7 +7,7 @@ import python from "highlight.js/lib/languages/python";
 import javascript from "highlight.js/lib/languages/javascript";
 import json from "highlight.js/lib/languages/json";
 import { cva, type VariantProps } from "class-variance-authority";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/style/utils";
 import { CopyButton } from "./copy-button";
 
 hljs.registerLanguage("bash", bash);

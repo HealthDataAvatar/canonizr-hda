@@ -5,13 +5,14 @@
  */
 
 import { TableClient } from "@azure/data-tables";
-import { requireAdmin } from "./session";
-import { getUserRecord } from "./table-storage";
+import { requireAdmin } from "../auth/session";
+import { getUserRecord } from "../services/table-storage";
 import { getJobsForUser } from "./jobs";
-import { getServices } from "./services";
+import { getServices } from "../services/services";
 import { TableName } from "./table-names";
 import type { RequestRow } from "@/components/request-table";
 import type { KeyRow } from "@/components/key-table";
+import { sumUsageSince, sumInvoiceAmounts } from "../pure/admin-calc";
 
 function conn() {
   return process.env.TABLE_STORAGE_CONNECTION_STRING!;
@@ -34,6 +35,9 @@ export interface AdminUserRow {
   joined: string;
 }
 
+// TODO: This does N+1 queries (per user for keys + jobs). Fine for a handful
+// of users but won't scale. Fetch full keys/jobs tables in bulk and aggregate
+// in memory instead.
 export async function getUserList(): Promise<AdminUserRow[]> {
   await requireAdmin();
   const connectionString = conn();
@@ -98,6 +102,8 @@ export interface AdminUserDetail {
   stripeCustomerId: string;
   keys: KeyRow[];
   recentJobs: RequestRow[];
+  usageLast7dKB: number;
+  totalInvoiced: number;
 }
 
 export async function getUserDetail(userId: string): Promise<AdminUserDetail | null> {
@@ -126,6 +132,19 @@ export async function getUserDetail(userId: string): Promise<AdminUserDetail | n
 
   const recentJobs = await getJobsForUser(connectionString, userId, 50);
 
+  const usageLast7dKB = sumUsageSince(recentJobs, Date.now() - 7 * 86_400_000);
+
+  let totalInvoiced = 0;
+  if (record.stripeCustomerId) {
+    try {
+      const { billing } = getServices();
+      const invoices = await billing.getInvoices(record.stripeCustomerId);
+      totalInvoiced = sumInvoiceAmounts(invoices);
+    } catch {
+      // Billing unavailable — leave as 0
+    }
+  }
+
   return {
     id: userId,
     email: record.email,
@@ -148,5 +167,7 @@ export async function getUserDetail(userId: string): Promise<AdminUserDetail | n
       quotaKB: k.quotaKB,
     })),
     recentJobs,
+    usageLast7dKB,
+    totalInvoiced,
   };
 }

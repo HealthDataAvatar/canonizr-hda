@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import type { AdminUserDetail } from "@/lib/admin-data";
+import type { AdminUserDetail } from "@/lib/data/admin-data";
 
 export function AdminUserForm({ user }: { user: AdminUserDetail }) {
   const router = useRouter();

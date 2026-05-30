@@ -1,5 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatKB } from "@/lib/format";
+import { formatKB } from "@/lib/pure/format";
 
 export interface StatCardsProps {
   processedKB: number;

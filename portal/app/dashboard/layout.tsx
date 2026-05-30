@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
-import { getRecentError } from "@/lib/data";
-import { getUserRecord } from "@/lib/table-storage";
+import { auth } from "@/lib/auth/auth";
+import { getRecentError } from "@/lib/data/data";
+import { getUserRecord } from "@/lib/services/table-storage";
 import { SignOutButton } from "@/components/sign-out-button";
 import { SidebarNav } from "@/components/sidebar-nav";
 import { MobileNav } from "@/components/mobile-nav";

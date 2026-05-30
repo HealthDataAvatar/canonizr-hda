@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { generateKeyName } from "@/lib/key-names";
-import { validateKeyName } from "@/lib/key-name-validation";
+import { generateKeyName } from "@/lib/pure/key-names";
+import { validateKeyName } from "@/lib/pure/key-name-validation";
 import { CreateKeyInput } from "@/components/create-key-input";
 import { CreatedKeyCard } from "@/components/created-key-card";
 

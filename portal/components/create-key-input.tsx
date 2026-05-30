@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { IconHint } from "@/components/ui/icon-hint";
-import { KEY_NAME_MAX_LENGTH } from "@/lib/key-name-validation";
+import { KEY_NAME_MAX_LENGTH } from "@/lib/pure/key-name-validation";
 import { Dices, TriangleAlert } from "lucide-react";
 
 export interface CreateKeyInputProps {

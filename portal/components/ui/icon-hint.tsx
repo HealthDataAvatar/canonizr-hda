@@ -1,5 +1,5 @@
 import { cva, type VariantProps } from "class-variance-authority";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/style/utils";
 import type { LucideIcon } from "lucide-react";
 
 const iconHintVariants = cva("inline-flex items-center justify-center", {

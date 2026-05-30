@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { requireUser } from "@/lib/session";
-import { getServices } from "@/lib/services";
-import { logUserAction } from "@/lib/audit";
+import { requireUser } from "@/lib/auth/session";
+import { getServices } from "@/lib/services/services";
+import { logUserAction } from "@/lib/data/audit";
 
 export async function GET(
   _request: Request,

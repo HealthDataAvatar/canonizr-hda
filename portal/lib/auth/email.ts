@@ -1,6 +1,6 @@
 import { EmailClient } from "@azure/communication-email";
 import type { EmailProviderSendVerificationRequestParams } from "@auth/core/providers/email";
-import { RateLimiter, MemoryRateLimitStore } from "./rate-limit";
+import { MemoryRateLimitStore, RateLimiter } from "./rate-limit";
 
 const FIFTEEN_MINUTES = 15 * 60 * 1000;
 const store = new MemoryRateLimitStore();

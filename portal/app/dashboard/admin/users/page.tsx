@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getUserList } from "@/lib/admin-data";
+import { getUserList } from "@/lib/data/admin-data";
 import { AdminUserSearch } from "@/components/admin-user-search";
 import {
   Table,

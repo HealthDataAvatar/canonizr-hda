@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatKB, formatBytes, toBillableKB } from "./format";
+import { formatKB, formatBytes, toBillableKB } from "./pure/format";
 
 describe("formatKB", () => {
   it("formats values under 1000 as KB", () => {

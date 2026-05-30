@@ -8,7 +8,7 @@
 import { TableClient } from "@azure/data-tables";
 import type { Adapter, AdapterUser, AdapterAccount, AdapterSession } from "next-auth/adapters";
 import { randomUUID, randomBytes } from "crypto";
-import { TableName } from "./table-names";
+import { TableName } from "../data/table-names";
 
 export function AzureTableStorageAdapter(
   connectionString: string
@@ -55,8 +55,8 @@ export function AzureTableStorageAdapter(
         pricePerUnit: 0.003,
         notes: "",
       };
-      await users.createEntity(entity);
-      await users.createEntity({
+      await users.upsertEntity(entity);
+      await users.upsertEntity({
         partitionKey: "email",
         rowKey: user.email,
         userId: id,
@@ -137,7 +137,7 @@ export function AzureTableStorageAdapter(
 
     async linkAccount(account) {
       await initPromise;
-      await accounts.createEntity({
+      await accounts.upsertEntity({
         partitionKey: account.provider,
         rowKey: account.providerAccountId,
         userId: account.userId,
@@ -159,7 +159,7 @@ export function AzureTableStorageAdapter(
 
     async createSession(session) {
       await initPromise;
-      await sessions.createEntity({
+      await sessions.upsertEntity({
         partitionKey: "session",
         rowKey: session.sessionToken,
         userId: session.userId,

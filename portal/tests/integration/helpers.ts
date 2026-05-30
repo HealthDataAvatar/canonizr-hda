@@ -1,6 +1,6 @@
 import { TableClient } from "@azure/data-tables";
-import { ensureAllTables } from "@/lib/ensure-tables";
-import { TableName } from "@/lib/table-names";
+import { ensureAllTables } from "@/lib/data/ensure-tables";
+import { TableName } from "@/lib/data/table-names";
 
 export const PORTAL_URL = process.env.PORTAL_URL ?? "http://localhost:3000";
 export const APIM_STUB_URL = process.env.APIM_STUB_URL ?? "http://localhost:8080";
@@ -42,7 +42,7 @@ export function createTestUser(): TestUser {
   };
 }
 
-export async function seedTestUser(user: TestUser) {
+export async function seedTestUser(user: TestUser, opts?: { isAdmin?: boolean }) {
   await initTables();
   const users = table(TableName.USERS);
   await users.upsertEntity({
@@ -55,6 +55,7 @@ export async function seedTestUser(user: TestUser) {
     maxKeys: 100,
     freeUnits: 500,
     pricePerUnit: 0.003,
+    isAdmin: opts?.isAdmin ?? false,
   });
   await users.upsertEntity({
     partitionKey: "email",
@@ -69,6 +70,31 @@ export async function seedTestUser(user: TestUser) {
     rowKey: user.id,
     key_hex: "0".repeat(64),
   });
+}
+
+// ---------------------------------------------------------------------------
+// Invoice seeding
+// ---------------------------------------------------------------------------
+
+export async function seedInvoice(
+  customerId: string,
+  overrides: Record<string, unknown> = {},
+) {
+  await initTables();
+  const client = table(TableName.BILLING);
+  const invoiceId = `inv-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+  await client.upsertEntity({
+    partitionKey: "invoice",
+    rowKey: invoiceId,
+    customerId,
+    date: new Date().toISOString(),
+    processedKB: 10000,
+    amount: 1.50,
+    status: "paid",
+    url: null,
+    ...overrides,
+  });
+  return invoiceId;
 }
 
 // ---------------------------------------------------------------------------

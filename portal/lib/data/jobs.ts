@@ -1,5 +1,5 @@
 import { TableClient } from "@azure/data-tables";
-import { toBillableKB } from "./format";
+import { toBillableKB } from "../pure/format";
 import type { RequestRow, BlobState } from "@/components/request-table";
 import { TableName } from "./table-names";
 

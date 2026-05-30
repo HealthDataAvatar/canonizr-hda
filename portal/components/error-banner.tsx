@@ -1,6 +1,6 @@
 import { TriangleAlert, ArrowRight } from "lucide-react";
 import Link from "next/link";
-import { timeAgo } from "@/lib/time";
+import { timeAgo } from "@/lib/pure/time";
 
 export interface RecentError {
   id: string;

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getHistoryData } from "@/lib/data";
+import { getHistoryData } from "@/lib/data/data";
 import { RequestTable } from "@/components/request-table";
 
 export default async function HistoryPage() {

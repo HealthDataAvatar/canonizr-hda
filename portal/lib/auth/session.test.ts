@@ -4,8 +4,8 @@ vi.mock("./auth", () => ({
   auth: vi.fn(),
 }));
 
-import { requireUser } from "./session";
-import { auth } from "./auth";
+import { requireUser } from "./auth/session";
+import { auth } from "./auth/auth";
 
 const mockAuth = vi.mocked(auth);
 

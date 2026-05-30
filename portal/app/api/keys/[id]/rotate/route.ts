@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { requireUser } from "@/lib/session";
-import { getServices } from "@/lib/services";
+import { requireUser } from "@/lib/auth/session";
+import { getServices } from "@/lib/services/services";
 
 export async function POST(
   _request: Request,

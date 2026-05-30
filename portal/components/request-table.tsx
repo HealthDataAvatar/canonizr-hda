@@ -11,8 +11,8 @@ import {
   type SortingState,
 } from "@tanstack/react-table";
 import { Download, TimerOff, Trash2, Loader, Check, TriangleAlert, ChevronUp, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
-import { timeAgo } from "@/lib/time";
-import { formatKB } from "@/lib/format";
+import { timeAgo } from "@/lib/pure/time";
+import { formatKB } from "@/lib/pure/format";
 import { IconHint } from "@/components/ui/icon-hint";
 import { Button } from "@/components/ui/button";
 import { CopyButton } from "@/components/ui/copy-button";

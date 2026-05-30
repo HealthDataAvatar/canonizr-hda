@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { timeAgo } from "@/lib/time";
+import { timeAgo } from "@/lib/pure/time";
 import {
   Table,
   TableBody,
@@ -11,7 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { AdminUserRow } from "@/lib/admin-data";
+import type { AdminUserRow } from "@/lib/data/admin-data";
 
 export function AdminUserSearch({ users }: { users: AdminUserRow[] }) {
   const [query, setQuery] = useState("");

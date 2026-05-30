@@ -5,7 +5,7 @@
  */
 
 import { TableClient } from "@azure/data-tables";
-import type { BillingStore, Invoice, Usage } from "./services";
+import type { BillingStore, Invoice, Usage } from "../services/services";
 import { TableName } from "./table-names";
 
 const TABLE = TableName.BILLING;

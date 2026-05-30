@@ -1,8 +1,9 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { getUserDetail } from "@/lib/admin-data";
+import { getUserDetail } from "@/lib/data/admin-data";
 import { AdminUserForm } from "@/components/admin-user-form";
 import { RequestTable } from "@/components/request-table";
+import { formatKB } from "@/lib/pure/format";
 import {
   Table,
   TableBody,
@@ -55,6 +56,22 @@ export default async function AdminUserDetailPage({
             )}
           </dd>
         </dl>
+      </section>
+
+      {/* Usage + billing summary */}
+      <section className="grid grid-cols-2 gap-4">
+        <div className="rounded-lg border border-border px-4 py-3">
+          <p className="text-[0.75rem] text-muted-foreground">Usage (7 days)</p>
+          <p className="text-[1.25rem] font-semibold font-mono">
+            {formatKB(user.usageLast7dKB)}
+          </p>
+        </div>
+        <div className="rounded-lg border border-border px-4 py-3">
+          <p className="text-[0.75rem] text-muted-foreground">Total invoiced</p>
+          <p className="text-[1.25rem] font-semibold font-mono">
+            ${user.totalInvoiced.toFixed(2)}
+          </p>
+        </div>
       </section>
 
       {/* Editable plan + actions */}

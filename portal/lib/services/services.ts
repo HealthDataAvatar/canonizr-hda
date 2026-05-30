@@ -70,7 +70,7 @@ export function getServices(): Services {
   if (process.env.USE_LOCAL_SERVICES === "true") {
     // Local/test — Table Storage implementations
     const { TableKeyStore } = require("./keys-table") as typeof import("./keys-table");
-    const { TableBillingStore } = require("./billing-table") as typeof import("./billing-table");
+    const { TableBillingStore } = require("./billing-table") as typeof import("../data/billing-table");
     const conn = process.env.TABLE_STORAGE_CONNECTION_STRING!;
     _services = {
       keys: new TableKeyStore(conn),

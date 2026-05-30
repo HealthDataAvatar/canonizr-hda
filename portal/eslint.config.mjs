@@ -16,7 +16,17 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
   ]),
-  ...storybook.configs["flat/recommended"]
+  ...storybook.configs["flat/recommended"],
+  {
+    rules: {
+      "no-restricted-imports": ["warn", {
+        patterns: [{
+          group: ["./*", "../*"],
+          message: "Use @/ absolute imports instead of relative paths.",
+        }],
+      }],
+    },
+  },
 ]);
 
 export default eslintConfig;

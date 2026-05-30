@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { ExternalLink, Check, Circle, ChevronLeft, ChevronRight } from "lucide-react";
-import { formatKB } from "@/lib/format";
+import { formatKB } from "@/lib/pure/format";
 import { IconHint } from "@/components/ui/icon-hint";
 import { Button } from "@/components/ui/button";
 import {

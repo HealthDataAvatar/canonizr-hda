@@ -1,5 +1,5 @@
 import { TriangleAlert } from "lucide-react";
-import { formatKB } from "@/lib/format";
+import { formatKB } from "@/lib/pure/format";
 
 export function UsageBar({
   usageKB,

@@ -1,7 +1,7 @@
 import NextAuth from "next-auth";
-import { AzureTableStorageAdapter } from "./table-storage";
+import { AzureTableStorageAdapter } from "../services/table-storage";
 import { sendVerificationRequest } from "./email";
-import { getServices } from "./services";
+import { getServices } from "../services/services";
 
 const connectionString = process.env.TABLE_STORAGE_CONNECTION_STRING!;
 
@@ -34,7 +34,7 @@ const nextAuth = NextAuth({
       if (!user.email || !user.id) return;
 
       const { keys, billing } = getServices();
-      const { updateUserRecord } = await import("./table-storage");
+      const { updateUserRecord } = await import("../services/table-storage");
 
       const { customerId } = await billing.createCustomer(
         user.email,

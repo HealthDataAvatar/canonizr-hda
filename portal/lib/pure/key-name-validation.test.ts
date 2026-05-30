@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { validateKeyName, KEY_NAME_MAX_LENGTH } from "./key-name-validation";
+import { validateKeyName, KEY_NAME_MAX_LENGTH } from "./pure/key-name-validation";
 
 describe("validateKeyName", () => {
   it("accepts valid names", () => {
