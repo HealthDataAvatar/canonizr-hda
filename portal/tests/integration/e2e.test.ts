@@ -74,3 +74,43 @@ describe("gateway accepts portal-issued key", () => {
     expect(body.billable_units).toBe(1);
   });
 });
+
+describe("per-key quota enforcement", () => {
+  it("set tight quota → blocked, raise quota → allowed", async () => {
+    // 1. Set quota to 1 byte — too small for any file
+    const setTight = await fetchPortal(`/api/keys/${subscriptionId}/quota`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ quotaKB: 0.001 }), // ~1 byte
+    });
+    expect(setTight.status).toBe(200);
+
+    // 2. Submit a file — should be rejected (429)
+    const formData1 = new FormData();
+    formData1.append("file", new Blob(["quota test"], { type: "text/plain" }), "quota.txt");
+    const blocked = await fetch(`${APIM_STUB_URL}/v1/jobs`, {
+      method: "POST",
+      headers: { "Ocp-Apim-Subscription-Key": apiKey },
+      body: formData1,
+    });
+    expect(blocked.status).toBe(429);
+
+    // 3. Raise quota to 10 MB — plenty of room
+    const setHigh = await fetchPortal(`/api/keys/${subscriptionId}/quota`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ quotaKB: 10_000 }),
+    });
+    expect(setHigh.status).toBe(200);
+
+    // 4. Submit again — should be accepted (202)
+    const formData2 = new FormData();
+    formData2.append("file", new Blob(["quota test ok"], { type: "text/plain" }), "quota-ok.txt");
+    const allowed = await fetch(`${APIM_STUB_URL}/v1/jobs`, {
+      method: "POST",
+      headers: { "Ocp-Apim-Subscription-Key": apiKey },
+      body: formData2,
+    });
+    expect(allowed.status).toBe(202);
+  });
+});

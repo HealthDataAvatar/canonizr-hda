@@ -9,6 +9,7 @@
 
 import { getTableClient } from "@/lib/data/table-client";
 import { TableName } from "@/lib/data/table-names";
+import { getRedis } from "@/lib/redis";
 import { ApiKey, KeyStore } from "@/lib/services";
 
 function getClient() {
@@ -31,10 +32,17 @@ const PRODUCT_ID = "paid";
 export class ApimKeyStore implements KeyStore {
   async list(userId: string): Promise<ApiKey[]> {
     const apim = getClient();
+    const gwSubs = getGatewayUsersTable();
     const results: ApiKey[] = [];
     for await (const sub of apim.subscription.list(RG(), SVC())) {
       if (sub.displayName?.startsWith(`user:${userId}:`)) {
         const secrets = await apim.subscription.listSecrets(RG(), SVC(), sub.name!);
+        let quotaKB: number | null = null;
+        try {
+          const entity = await gwSubs.getEntity("subscription", sub.name!);
+          const raw = entity.quota_bytes;
+          if (raw != null && Number(raw) > 0) quotaKB = Math.round(Number(raw) / 1024);
+        } catch {}
         results.push({
           id: sub.name!,
           displayName: sub.displayName.replace(`user:${userId}:`, ""),
@@ -42,7 +50,7 @@ export class ApimKeyStore implements KeyStore {
           createdDate: sub.createdDate?.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) ?? "",
           lastUsed: "—",
           usageKB: 0,
-          quotaKB: null,
+          quotaKB,
         });
       }
     }
@@ -91,5 +99,29 @@ export class ApimKeyStore implements KeyStore {
     // Clean up gateway mapping
     const gwUsers = getGatewayUsersTable();
     await gwUsers.deleteEntity("subscription", subscriptionId).catch(() => {});
+  }
+
+  async setQuota(subscriptionId: string, quotaKB: number | null): Promise<void> {
+    const gwSubs = getGatewayUsersTable();
+    const entity = await gwSubs.getEntity("subscription", subscriptionId);
+    // Table Storage ignores null on upsert, so use -1 sentinel for "no quota"
+    const quotaBytes = quotaKB !== null ? Math.round(quotaKB * 1024) : -1;
+    await gwSubs.upsertEntity({
+      partitionKey: "subscription",
+      rowKey: subscriptionId,
+      user_id: entity.user_id,
+      key_name: entity.key_name,
+      quota_bytes: quotaBytes,
+    });
+
+    const redis = getRedis();
+    if (redis) {
+      const redisKey = `sub:${subscriptionId}:quota:bytes`;
+      if (quotaKB !== null) {
+        await redis.set(redisKey, String(quotaBytes));
+      } else {
+        await redis.del(redisKey);
+      }
+    }
   }
 }

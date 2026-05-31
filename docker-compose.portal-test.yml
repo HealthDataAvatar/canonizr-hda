@@ -33,10 +33,13 @@ services:
       TABLE_STORAGE_CONNECTION_STRING: "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;TableEndpoint=http://azurite:10002/devstoreaccount1"
       EMAIL_FROM: "noreply@test.local"
       MAIL_STUB_ENDPOINT: "http://mail-stub:4300"
+      REDIS_URL: redis://redis:6379
     networks:
       - portal-test
     depends_on:
       azurite:
+        condition: service_healthy
+      redis:
         condition: service_healthy
       mail-stub:
         condition: service_healthy
@@ -124,12 +127,15 @@ services:
       MAIL_STUB_URL: http://mail-stub:4300
       APIM_STUB_URL: http://apim-stub:8080
       AZURITE_TABLE_CONN: "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;TableEndpoint=http://azurite:10002/devstoreaccount1"
+      REDIS_URL: redis://redis:6379
     networks:
       - portal-test
     depends_on:
       portal:
         condition: service_healthy
       azurite:
+        condition: service_healthy
+      redis:
         condition: service_healthy
       mail-stub:
         condition: service_healthy

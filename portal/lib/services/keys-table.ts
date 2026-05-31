@@ -6,17 +6,25 @@
 import { randomUUID } from "crypto";
 import { getTableClient } from "@/lib/data/table-client";
 import { TableName } from "@/lib/data/table-names";
+import { getRedis } from "@/lib/redis";
 import type { ApiKey, KeyStore } from ".";
 
 export class TableKeyStore implements KeyStore {
   async list(userId: string): Promise<ApiKey[]> {
     const client = getTableClient(TableName.API_KEYS);
+    const gwSubs = getTableClient(TableName.GW_SUBSCRIPTIONS);
     const entities = client.listEntities({
       queryOptions: { filter: `PartitionKey eq '${userId}'` },
     });
     const keys: ApiKey[] = [];
     for await (const e of entities) {
-      keys.push(toApiKey(e));
+      let quotaKB: number | null = null;
+      try {
+        const sub = await gwSubs.getEntity("subscription", e.rowKey as string);
+        const raw = sub.quota_bytes;
+        if (raw != null && Number(raw) > 0) quotaKB = Math.round(Number(raw) / 1024);
+      } catch {}
+      keys.push(toApiKey(e, quotaKB));
     }
     return keys;
   }
@@ -85,9 +93,33 @@ export class TableKeyStore implements KeyStore {
       return;
     }
   }
+
+  async setQuota(subscriptionId: string, quotaKB: number | null): Promise<void> {
+    const gwSubs = getTableClient(TableName.GW_SUBSCRIPTIONS);
+    const entity = await gwSubs.getEntity("subscription", subscriptionId);
+    // Table Storage ignores null on upsert, so use -1 sentinel for "no quota"
+    const quotaBytes = quotaKB !== null ? Math.round(quotaKB * 1024) : -1;
+    await gwSubs.upsertEntity({
+      partitionKey: "subscription",
+      rowKey: subscriptionId,
+      user_id: entity.user_id,
+      key_name: entity.key_name,
+      quota_bytes: quotaBytes,
+    });
+
+    const redis = getRedis();
+    if (redis) {
+      const redisKey = `sub:${subscriptionId}:quota:bytes`;
+      if (quotaKB !== null) {
+        await redis.set(redisKey, String(quotaBytes));
+      } else {
+        await redis.del(redisKey);
+      }
+    }
+  }
 }
 
-function toApiKey(e: Record<string, unknown>): ApiKey {
+function toApiKey(e: Record<string, unknown>, quotaKB: number | null): ApiKey {
   const created = e.createdDate as string;
   return {
     id: e.rowKey as string,
@@ -96,6 +128,6 @@ function toApiKey(e: Record<string, unknown>): ApiKey {
     createdDate: created ? new Date(created).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "",
     lastUsed: "—",
     usageKB: 0,
-    quotaKB: null,
+    quotaKB,
   };
 }

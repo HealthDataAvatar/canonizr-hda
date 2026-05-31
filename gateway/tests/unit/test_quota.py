@@ -1,9 +1,11 @@
 """Unit tests for QuotaService — uses shared FakeRedis."""
 
+from unittest.mock import patch
+
 import pytest
 
 from app.keys import quota_limit, quota_rejected, quota_usage
-from app.quota import QuotaService
+from app.quota import SENTINEL_NONE, QuotaService
 from tests.fakes import FakeRedis
 
 
@@ -144,3 +146,48 @@ class TestRefund:
         await svc.record("sub1", 50_000)
         await svc.refund("sub1", 20_000)
         assert fake_redis._data[quota_usage(sub_id="sub1")] == "30000"
+
+
+class TestCacheMissFallback:
+    @pytest.mark.asyncio
+    async def test_table_has_quota_loads_and_caches(self, fake_redis):
+        svc = QuotaService(fake_redis, rejected_ttl=3600, max_rejected=3)
+        with patch.object(svc, "_lookup_quota_from_table", return_value=500_000):
+            result = await svc.check("sub1", 100_000)
+        assert result is None
+        # Should be cached in Redis now
+        assert fake_redis._data[quota_limit(sub_id="sub1")] == "500000"
+
+    @pytest.mark.asyncio
+    async def test_table_has_no_quota_caches_sentinel(self, fake_redis):
+        svc = QuotaService(fake_redis, rejected_ttl=3600, max_rejected=3)
+        with patch.object(svc, "_lookup_quota_from_table", return_value=None):
+            result = await svc.check("sub1", 100_000)
+        assert result is None
+        assert fake_redis._data[quota_limit(sub_id="sub1")] == SENTINEL_NONE
+
+    @pytest.mark.asyncio
+    async def test_cached_value_skips_table(self, fake_redis):
+        svc = QuotaService(fake_redis, rejected_ttl=3600, max_rejected=3)
+        fake_redis.seed(quota_limit(sub_id="sub1"), 500_000)
+        with patch.object(svc, "_lookup_quota_from_table") as mock_lookup:
+            result = await svc.check("sub1", 100_000)
+        mock_lookup.assert_not_called()
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_sentinel_none_allows_without_table(self, fake_redis):
+        svc = QuotaService(fake_redis, rejected_ttl=3600, max_rejected=3)
+        fake_redis.seed(quota_limit(sub_id="sub1"), SENTINEL_NONE)
+        with patch.object(svc, "_lookup_quota_from_table") as mock_lookup:
+            result = await svc.check("sub1", 100_000)
+        mock_lookup.assert_not_called()
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_table_quota_enforced_on_cache_miss(self, fake_redis):
+        svc = QuotaService(fake_redis, rejected_ttl=3600, max_rejected=3)
+        with patch.object(svc, "_lookup_quota_from_table", return_value=100):
+            result = await svc.check("sub1", 200)
+        assert result is not None
+        assert "File too large" in result

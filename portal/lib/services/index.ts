@@ -25,6 +25,7 @@ export interface KeyStore {
   get(subscriptionId: string): Promise<string>;
   rotate(subscriptionId: string): Promise<string>;
   delete(subscriptionId: string): Promise<void>;
+  setQuota(subscriptionId: string, quotaKB: number | null): Promise<void>;
 }
 
 // ---------------------------------------------------------------------------

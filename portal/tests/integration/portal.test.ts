@@ -124,6 +124,8 @@ describe("pages (authenticated)", () => {
 });
 
 describe("API: keys (authenticated)", () => {
+  let keyId: string;
+
   it("POST /api/keys creates a key", async () => {
     const res = await fetchPortal("/api/keys", {
       method: "POST",
@@ -133,6 +135,52 @@ describe("API: keys (authenticated)", () => {
     expect(res.status).toBe(201);
     const body = await res.json();
     expect(body.primaryKey).toBeTruthy();
+    keyId = body.id;
+  });
+
+  it("POST /api/keys/[id]/quota sets quota", async () => {
+    const res = await fetchPortal(`/api/keys/${keyId}/quota`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ quotaKB: 5000 }),
+    });
+    expect(res.status).toBe(200);
+
+    // Verify Table Storage
+    const gwSubs = getTableClient(TableName.GW_SUBSCRIPTIONS);
+    const entity = await gwSubs.getEntity("subscription", keyId);
+    expect(entity.quota_bytes).toBe(5000 * 1024);
+  });
+
+  it("POST /api/keys/[id]/quota with null removes quota", async () => {
+    const res = await fetchPortal(`/api/keys/${keyId}/quota`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ quotaKB: null }),
+    });
+    expect(res.status).toBe(200);
+
+    const gwSubs = getTableClient(TableName.GW_SUBSCRIPTIONS);
+    const entity = await gwSubs.getEntity("subscription", keyId);
+    expect(entity.quota_bytes).toBe(-1); // -1 sentinel = no quota
+  });
+
+  it("POST /api/keys/[id]/quota rejects invalid values", async () => {
+    const res = await fetchPortal(`/api/keys/${keyId}/quota`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ quotaKB: -100 }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("POST /api/keys/[id]/quota returns 404 for non-owned key", async () => {
+    const res = await fetchPortal("/api/keys/fake-key-id/quota", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ quotaKB: 1000 }),
+    });
+    expect(res.status).toBe(404);
   });
 });
 

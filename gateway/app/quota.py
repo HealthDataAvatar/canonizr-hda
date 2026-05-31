@@ -14,6 +14,7 @@ import os
 from typing import Any
 
 import redis.asyncio as redis
+from azure.data.tables import TableServiceClient
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +49,10 @@ async def close():
         _pool = None
 
 
+CACHE_TTL = 3600  # 1 hour
+SENTINEL_NONE = "none"  # cached "no quota set"
+
+
 class QuotaService:
     """Quota enforcement. Wraps Redis so callers don't need to know the backend."""
 
@@ -57,11 +62,16 @@ class QuotaService:
         rejected_ttl: int = 3600,
         max_rejected: int = 50,
         billing_period_ttl: int = 2_678_400,
+        *,
+        endpoint: str = "",
+        connection_string: str = "",
     ):
         self._r = r
         self._rejected_ttl = rejected_ttl
         self._max_rejected = max_rejected
         self._billing_period_ttl = billing_period_ttl
+        self._endpoint = endpoint
+        self._conn_str = connection_string
 
     async def check(self, sub_id: str, content_length: int) -> str | None:
         """Check if a subscription has remaining quota.
@@ -76,6 +86,16 @@ class QuotaService:
 
         quota_val = await self._r.get(quota_limit(sub_id=sub_id))
         if quota_val is None:
+            # Cache miss — fall back to Table Storage
+            table_val = self._lookup_quota_from_table(sub_id)
+            if table_val is not None:
+                quota_val = str(table_val)
+                await self._r.set(quota_limit(sub_id=sub_id), quota_val, ex=CACHE_TTL)
+            else:
+                await self._r.set(quota_limit(sub_id=sub_id), SENTINEL_NONE, ex=CACHE_TTL)
+                return None
+
+        if quota_val == SENTINEL_NONE:
             return None
 
         limit = int(quota_val)
@@ -112,3 +132,29 @@ class QuotaService:
         """Increment a rejection counter with TTL. Two commands for cluster compat."""
         await self._r.incr(key)
         await self._r.expire(key, self._rejected_ttl)
+
+    def _lookup_quota_from_table(self, sub_id: str) -> int | None:
+        """Read quota_bytes from GwSubscriptions in Table Storage."""
+        from .tables import Table
+
+        if not self._endpoint and not self._conn_str:
+            return None
+        try:
+            if self._endpoint:
+                from .azure_auth import get_credential
+
+                credential = get_credential()
+                if credential is None:
+                    return None
+                service = TableServiceClient(self._endpoint, credential=credential)
+            else:
+                service = TableServiceClient.from_connection_string(self._conn_str)
+            table = service.get_table_client(Table.GW_SUBSCRIPTIONS)
+            entity = table.get_entity("subscription", sub_id)
+            val = entity.get("quota_bytes")
+            if val is None or int(val) < 0:
+                return None  # -1 sentinel or missing = no quota
+            return int(val)
+        except Exception as e:
+            logger.warning("Quota table lookup failed for %s: %s", sub_id, e)
+            return None

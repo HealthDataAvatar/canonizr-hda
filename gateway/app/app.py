@@ -188,7 +188,7 @@ async def startup():
         jobs=TableJobStore(endpoint=table_url, connection_string=table_conn),
         users=TableUserResolver(r, endpoint=table_url, connection_string=table_conn),
         queue=queue,
-        quota=QuotaService(r),
+        quota=QuotaService(r, endpoint=table_url, connection_string=table_conn),
     )
     await queue.ensure_group()
 

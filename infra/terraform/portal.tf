@@ -155,6 +155,11 @@ resource "azurerm_container_app" "portal" {
     identity            = azurerm_user_assigned_identity.portal.id
   }
 
+  secret {
+    name  = "redis-connection-string"
+    value = "rediss://:${azurerm_managed_redis.this.default_database[0].primary_access_key}@${azurerm_managed_redis.this.hostname}:10000"
+  }
+
   template {
     min_replicas = 1
     max_replicas = 3
@@ -222,6 +227,11 @@ resource "azurerm_container_app" "portal" {
       env {
         name        = "EMAIL_FROM"
         secret_name = "email-from"
+      }
+
+      env {
+        name        = "REDIS_URL"
+        secret_name = "redis-connection-string"
       }
 
       liveness_probe {

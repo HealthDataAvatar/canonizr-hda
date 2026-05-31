@@ -15,5 +15,7 @@
 
 ##
 - Portal should connect to the tables using managed identity
+- Everything should be using managed identity for redis
 - We have duplicated things like CopyButton
 - request-table is a total mess of code
+- The list of jobs completed should indicate when the artefacts will be deleted

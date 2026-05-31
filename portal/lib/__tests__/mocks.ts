@@ -8,6 +8,7 @@ export function mockServices() {
       get: vi.fn().mockResolvedValue("pk_1"),
       rotate: vi.fn().mockResolvedValue("pk_rotated"),
       delete: vi.fn().mockResolvedValue(undefined),
+      setQuota: vi.fn().mockResolvedValue(undefined),
     },
     billing: {
       getUsage: vi.fn().mockResolvedValue({ totalUnits: 0, periodStart: "", periodEnd: "" }),
