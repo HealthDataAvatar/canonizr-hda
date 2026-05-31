@@ -111,7 +111,7 @@ function DeleteButton({ row, onDelete }: { row: RequestRow; onDelete: (id: strin
 // ---------------------------------------------------------------------------
 
 function JobDetailPanel({ row }: { row: RequestRow }) {
-  let steps: { name: string; duration_ms?: number; error?: string }[] = [];
+  let steps: { service: string; duration_ms?: number; error?: string }[] = [];
   try {
     if (row.steps) steps = JSON.parse(row.steps);
   } catch {}
@@ -141,7 +141,7 @@ function JobDetailPanel({ row }: { row: RequestRow }) {
                     : "bg-muted text-muted-foreground"
                 }`}
               >
-                {s.name}
+                {s.service}
                 {s.duration_ms != null && (
                   <span className="text-[0.6875rem] opacity-60">
                     {s.duration_ms >= 1000 ? `${(s.duration_ms / 1000).toFixed(1)}s` : `${s.duration_ms}ms`}
