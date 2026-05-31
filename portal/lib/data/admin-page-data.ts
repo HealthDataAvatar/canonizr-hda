@@ -23,8 +23,11 @@ export interface AdminUserRow {
   email: string;
   keyCount: number;
   jobCount30d: number;
+  errorCount30d: number;
+  usageKB30d: number;
   blocked: boolean;
   joined: string;
+  stripeCustomerId: string;
 }
 
 // TODO: This does N+1 queries (per user for keys + jobs). Fine for a handful
@@ -51,13 +54,17 @@ export async function getUserList(): Promise<AdminUserRow[]> {
     }
 
     let jobCount = 0;
+    let errorCount = 0;
+    let usageBytes = 0;
     const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString();
-    for await (const _j of jobs.listEntities({
+    for await (const j of jobs.listEntities({
       queryOptions: {
         filter: `PartitionKey eq '${userId}' and created_at ge '${thirtyDaysAgo}'`,
       },
     })) {
       jobCount++;
+      if (j.status === "error") errorCount++;
+      usageBytes += Number(j.input_bytes ?? 0);
     }
 
     const perms = await getCurrentPermissions(userId);
@@ -67,8 +74,11 @@ export async function getUserList(): Promise<AdminUserRow[]> {
       email: (entity.email as string) ?? "",
       keyCount,
       jobCount30d: jobCount,
+      errorCount30d: errorCount,
+      usageKB30d: Math.round(usageBytes / 1024),
       blocked: perms.blocked,
       joined: (entity.emailVerified as string) ?? "",
+      stripeCustomerId: perms.stripeCustomerId,
     });
   }
 

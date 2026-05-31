@@ -13,6 +13,11 @@ export interface JobRecord {
   billableKB: number;
   status: "ok" | "processing" | "error" | "deleted";
   retentionExpires?: string;
+  detail?: string;
+  steps?: string;
+  originalFilename?: string;
+  mimeType?: string;
+  inputBytes: number;
 }
 
 function parseStatus(raw: string): "ok" | "processing" | "error" | "deleted" {
@@ -45,6 +50,11 @@ export async function listJobsForUser(
       billableKB: toBillableKB(Number(entity.input_bytes ?? 0)),
       status: parseStatus(entity.status as string),
       retentionExpires: (entity.retention_expires as string) || undefined,
+      detail: (entity.detail as string) || undefined,
+      steps: (entity.steps as string) || undefined,
+      originalFilename: (entity.original_filename as string) || undefined,
+      mimeType: (entity.mime_type as string) || undefined,
+      inputBytes: Number(entity.input_bytes ?? 0),
     });
     if (rows.length >= limit) break;
   }

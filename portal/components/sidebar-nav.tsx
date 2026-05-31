@@ -37,17 +37,26 @@ export function SidebarNav({ isAdmin = false }: { isAdmin?: boolean }) {
       {isAdmin && (
         <>
           <div className="my-3 border-t border-border" />
-          <Link
-            href="/dashboard/admin/users"
-            aria-current={pathname.startsWith("/dashboard/admin") ? "page" : undefined}
-            className={`text-[0.9375rem] py-1 transition-colors ${
-              pathname.startsWith("/dashboard/admin")
-                ? "text-accent font-semibold"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            Admin
-          </Link>
+          {[
+            { href: "/dashboard/admin", label: "Admin" },
+            { href: "/dashboard/admin/users", label: "Users" },
+          ].map(({ href, label }) => {
+            const active = pathname === href || (label === "Users" && pathname.startsWith("/dashboard/admin/users"));
+            return (
+              <Link
+                key={href}
+                href={href}
+                aria-current={active ? "page" : undefined}
+                className={`text-[0.9375rem] py-1 transition-colors ${
+                  active
+                    ? "text-accent font-semibold"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {label}
+              </Link>
+            );
+          })}
         </>
       )}
     </nav>

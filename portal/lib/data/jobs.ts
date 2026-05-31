@@ -39,5 +39,10 @@ export async function getJobsForUser(
     status: statusToCode(job.status),
     result: blobState(job, "output"),
     input: blobState(job, "input"),
+    detail: job.detail,
+    steps: job.steps,
+    originalFilename: job.originalFilename,
+    mimeType: job.mimeType,
+    inputBytes: job.inputBytes,
   }));
 }

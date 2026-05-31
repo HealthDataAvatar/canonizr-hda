@@ -41,6 +41,11 @@ export interface RequestRow {
   status: number;
   result: BlobState;
   input: BlobState;
+  detail?: string;
+  steps?: string;
+  originalFilename?: string;
+  mimeType?: string;
+  inputBytes?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -98,6 +103,65 @@ function DeleteButton({ row, onDelete }: { row: RequestRow; onDelete: (id: strin
     >
       <Trash2 className="size-4" />
     </button>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Job detail panel (shared between desktop and mobile)
+// ---------------------------------------------------------------------------
+
+function JobDetailPanel({ row }: { row: RequestRow }) {
+  let steps: { name: string; duration_ms?: number; error?: string }[] = [];
+  try {
+    if (row.steps) steps = JSON.parse(row.steps);
+  } catch {}
+
+  const hasDetail = row.detail || steps.length > 0 || row.originalFilename || row.mimeType;
+  if (!hasDetail) return null;
+
+  return (
+    <div className="space-y-2 text-[0.8125rem]">
+      {(row.originalFilename || row.mimeType) && (
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground">
+          {row.originalFilename && <span>File: <span className="font-mono">{row.originalFilename}</span></span>}
+          {row.mimeType && <span>Type: <span className="font-mono">{row.mimeType}</span></span>}
+          {row.inputBytes != null && <span>Size: <span className="font-mono">{formatKB(Math.round(row.inputBytes / 1024))}</span></span>}
+        </div>
+      )}
+      {steps.length > 0 && (
+        <div className="space-y-0.5">
+          <span className="text-muted-foreground">Pipeline:</span>
+          <div className="flex flex-wrap gap-1.5">
+            {steps.map((s, i) => (
+              <span
+                key={i}
+                className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 font-mono text-[0.75rem] ${
+                  s.error
+                    ? "bg-destructive/10 text-destructive"
+                    : "bg-muted text-muted-foreground"
+                }`}
+              >
+                {s.name}
+                {s.duration_ms != null && (
+                  <span className="text-[0.6875rem] opacity-60">
+                    {s.duration_ms >= 1000 ? `${(s.duration_ms / 1000).toFixed(1)}s` : `${s.duration_ms}ms`}
+                  </span>
+                )}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+      {row.detail && (
+        <div className={`rounded-md px-3 py-2 font-mono text-[0.75rem] whitespace-pre-wrap ${
+          row.status >= 400
+            ? "bg-destructive/10 text-destructive"
+            : "bg-muted text-muted-foreground"
+        }`}>
+          {row.detail}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -206,6 +270,9 @@ function DesktopTable({
 }: {
   table: ReturnType<typeof useReactTable<RequestRow>>;
 }) {
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const colCount = table.getHeaderGroups()[0]?.headers.length ?? 1;
+
   return (
     <Table className="table-fixed">
       <caption className="sr-only">Job history</caption>
@@ -232,19 +299,34 @@ function DesktopTable({
         ))}
       </TableHeader>
       <TableBody>
-        {table.getRowModel().rows.map((row) => (
-          <TableRow
-            key={row.original.id}
-            id={row.original.id}
-            className="scroll-mt-24 target:bg-accent-subtle"
-          >
-            {row.getVisibleCells().map((cell) => (
-              <TableCell key={cell.id}>
-                {flexRender(cell.column.columnDef.cell, cell.getContext())}
-              </TableCell>
-            ))}
-          </TableRow>
-        ))}
+        {table.getRowModel().rows.map((row) => {
+          const r = row.original;
+          const hasDetail = r.detail || r.steps || r.originalFilename;
+          const expanded = expandedId === r.id;
+          return (
+            <>
+              <TableRow
+                key={r.id}
+                id={r.id}
+                className={`scroll-mt-24 target:bg-accent-subtle ${hasDetail ? "cursor-pointer" : ""}`}
+                onClick={hasDetail ? () => setExpandedId(expanded ? null : r.id) : undefined}
+              >
+                {row.getVisibleCells().map((cell) => (
+                  <TableCell key={cell.id}>
+                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                  </TableCell>
+                ))}
+              </TableRow>
+              {expanded && (
+                <TableRow key={`${r.id}-detail`}>
+                  <TableCell colSpan={colCount} className="bg-muted/30 px-6 py-4">
+                    <JobDetailPanel row={r} />
+                  </TableCell>
+                </TableRow>
+              )}
+            </>
+          );
+        })}
       </TableBody>
     </Table>
   );
@@ -309,6 +391,8 @@ function MobileCard({
               </>
             )}
           </div>
+
+          <JobDetailPanel row={row} />
 
           <div className="grid grid-cols-[1fr_1fr_auto] items-center border-t border-border pt-3">
             <div className="flex items-center gap-2">

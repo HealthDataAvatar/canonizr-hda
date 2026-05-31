@@ -111,8 +111,8 @@ deploy: test gateway-push portal-push
 # Portal
 # ---------------------------------------------------------------------------
 portal-dev:
-	docker compose -f docker-compose.portal-test.yml up azurite mail-stub -d
-	docker compose -f docker-compose.portal-test.yml logs -f mail-stub &
+	docker compose -f docker-compose.portal-test.yml up azurite redis mail-stub gateway apim-stub -d --wait
+	docker compose -f docker-compose.portal-test.yml logs -f mail-stub gateway &
 	cd portal && npm run dev; \
 	docker compose -f docker-compose.portal-test.yml down
 

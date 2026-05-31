@@ -19,3 +19,7 @@
 - We have duplicated things like CopyButton
 - request-table is a total mess of code
 - The list of jobs completed should indicate when the artefacts will be deleted
+- DNS!
+- Add portal.canonizr.com to the APIM CORS so we can use the playground
+- Page re-renders generate a new random API key each time
+- How do users know they've been blocked?

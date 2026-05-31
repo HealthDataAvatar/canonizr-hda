@@ -20,7 +20,8 @@ export function getRedis(): Redis | null {
   if (!url) return null;
 
   if (!_client) {
-    _client = new Redis(url);
+    _client = new Redis(url, { maxRetriesPerRequest: 1, retryStrategy: (times) => Math.min(times * 500, 5000) });
+    _client.on("error", (err) => console.warn("[redis]", err.message));
   }
 
   return _client;

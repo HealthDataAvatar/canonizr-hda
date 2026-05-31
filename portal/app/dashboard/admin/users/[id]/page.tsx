@@ -3,6 +3,7 @@ import Link from "next/link";
 import { getUserDetail } from "@/lib/data/admin-page-data";
 import { AdminUserForm } from "@/components/admin-user-form";
 import { RequestTable } from "@/components/request-table";
+import { MetricCard } from "@/components/metric-card";
 import { formatKB } from "@/lib/pure/format";
 import {
   Table,
@@ -58,18 +59,8 @@ export default async function AdminUserDetailPage({
 
       {/* Usage + billing summary */}
       <section className="grid grid-cols-2 gap-4">
-        <div className="rounded-lg border border-border px-4 py-3">
-          <p className="text-[0.75rem] text-muted-foreground">Usage (7 days)</p>
-          <p className="text-[1.25rem] font-semibold font-mono">
-            {formatKB(user.usageLast7dKB)}
-          </p>
-        </div>
-        <div className="rounded-lg border border-border px-4 py-3">
-          <p className="text-[0.75rem] text-muted-foreground">Total invoiced</p>
-          <p className="text-[1.25rem] font-semibold font-mono">
-            ${user.totalInvoiced.toFixed(2)}
-          </p>
-        </div>
+        <MetricCard label="Usage (7 days)" value={formatKB(user.usageLast7dKB)} />
+        <MetricCard label="Total invoiced" value={`$${user.totalInvoiced.toFixed(2)}`} />
       </section>
 
       {/* Editable plan + actions */}
@@ -85,20 +76,15 @@ export default async function AdminUserDetailPage({
             <caption className="sr-only">API keys</caption>
             <TableHeader>
               <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Key</TableHead>
-                <TableHead>Created</TableHead>
+                <TableHead>Key ID</TableHead>
                 <TableHead>Usage / Quota</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {user.keys.map((key) => (
                 <TableRow key={key.id}>
-                  <TableCell className="font-medium font-mono text-[0.875rem]">
-                    {key.displayName}
-                  </TableCell>
                   <TableCell className="font-mono text-[0.8125rem] text-muted-foreground">
-                    ···· {key.value}
+                    {key.id}
                   </TableCell>
                   <TableCell>
                     <UsageBar usageKB={key.usageKB} quotaKB={key.quotaKB} />

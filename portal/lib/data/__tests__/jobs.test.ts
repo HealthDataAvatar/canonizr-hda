@@ -16,6 +16,7 @@ function job(overrides: Partial<JobRecord> = {}): JobRecord {
     timestamp: "2026-05-30T10:00:00Z",
     keyName: "my-key",
     billableKB: 100,
+    inputBytes: 100000,
     status: "ok",
     ...overrides,
   };

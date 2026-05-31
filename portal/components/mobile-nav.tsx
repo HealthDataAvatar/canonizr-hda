@@ -59,19 +59,27 @@ export function MobileNav({ email, isAdmin = false }: { email: string; isAdmin?:
                 );
               })}
               {isAdmin && (
-                <li>
-                  <Link
-                    href="/dashboard/admin/users"
-                    className={`block py-2 text-[0.9375rem] ${
-                      pathname.startsWith("/dashboard/admin")
-                        ? "text-accent font-semibold"
-                        : "text-muted-foreground"
-                    }`}
-                    aria-current={pathname.startsWith("/dashboard/admin") ? "page" : undefined}
-                  >
-                    Admin
-                  </Link>
-                </li>
+                <>
+                  {[
+                    { href: "/dashboard/admin", label: "Admin" },
+                    { href: "/dashboard/admin/users", label: "Users" },
+                  ].map(({ href, label }) => {
+                    const active = pathname === href || (label === "Users" && pathname.startsWith("/dashboard/admin/users"));
+                    return (
+                      <li key={href}>
+                        <Link
+                          href={href}
+                          className={`block py-2 text-[0.9375rem] ${
+                            active ? "text-accent font-semibold" : "text-muted-foreground"
+                          }`}
+                          aria-current={active ? "page" : undefined}
+                        >
+                          {label}
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </>
               )}
             </ul>
           </nav>
