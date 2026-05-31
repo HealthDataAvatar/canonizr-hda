@@ -9,7 +9,7 @@ import logging
 from azure.data.tables import TableServiceClient
 
 from .azure_auth import get_credential
-from .protocols import JobMeta
+from .protocols import JobMeta, JobStatus
 from .tables import Table
 
 logger = logging.getLogger(__name__)
@@ -70,7 +70,7 @@ class TableJobStore:
         meta = self.get(user_id, job_id)
         if meta is None:
             return False
-        meta.deleted = True
+        meta.status = JobStatus.DELETED
         self.update(meta)
         return True
 
@@ -79,7 +79,7 @@ class TableJobStore:
         count = 0
         for entity in entities:
             entity["original_filename"] = ""
-            entity["deleted"] = True
+            entity["status"] = JobStatus.DELETED
             self._table.upsert_entity(entity)
             count += 1
         return count
@@ -96,13 +96,12 @@ def _to_entity(meta: JobMeta) -> dict:
         "input_bytes": meta.input_bytes,
         "input_hash": meta.input_hash,
         "status": meta.status,
-        "error_detail": meta.error_detail,
-        "actions": meta.actions,
+        "detail": meta.detail,
         "created_at": meta.created_at,
         "completed_at": meta.completed_at,
         "retention_expires": meta.retention_expires,
-        "deleted": meta.deleted,
         "steps": meta.steps,
+        "price_per_unit": meta.price_per_unit,
     }
 
 
@@ -117,11 +116,10 @@ def _from_entity(entity: dict) -> JobMeta:
         input_bytes=int(entity.get("input_bytes", 0)),
         input_hash=entity.get("input_hash", ""),
         status=entity.get("status", "processing"),
-        error_detail=entity.get("error_detail", ""),
-        actions=entity.get("actions", ""),
+        detail=entity.get("detail", entity.get("error_detail", "")),
         created_at=entity.get("created_at", ""),
         completed_at=entity.get("completed_at", ""),
         retention_expires=entity.get("retention_expires", ""),
-        deleted=bool(entity.get("deleted", False)),
         steps=entity.get("steps", ""),
+        price_per_unit=float(entity.get("price_per_unit", 0.0)),
     )

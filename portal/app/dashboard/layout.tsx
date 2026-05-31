@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth/auth";
 import { getRecentError } from "@/lib/data/user-page-data";
-import { getUser } from "@/lib/data/tables";
+import { getCurrentPermissions } from "@/lib/data/tables";
 import { SignOutButton } from "@/components/sign-out-button";
 import { SidebarNav } from "@/components/sidebar-nav";
 import { MobileNav } from "@/components/mobile-nav";
@@ -21,8 +21,8 @@ export default async function DashboardLayout({
 
   let isAdmin = false;
   try {
-    const record = await getUser(session.user.id!);
-    isAdmin = record.isAdmin;
+    const perms = await getCurrentPermissions(session.user.id!);
+    isAdmin = perms.isAdmin;
   } catch {}
 
 

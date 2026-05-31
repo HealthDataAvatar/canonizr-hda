@@ -42,17 +42,17 @@ export function createTestUser(): TestUser {
 
 export async function seedTestUser(user: TestUser, opts?: { isAdmin?: boolean }) {
   await initTables();
+  const { appendConfig } = await import("@/lib/data/tables/user-config");
+  const { appendPermissions } = await import("@/lib/data/tables/user-permissions");
+
+  // Auth identity
   const users = getTableClient(TableName.USERS);
   await users.upsertEntity({
     partitionKey: "user",
     rowKey: user.id,
     email: user.email,
-    encryptionKey: "0".repeat(64),
-    stripeCustomerId: user.stripeCustomerId,
-    maxKeys: 100,
-    freeUnits: 500,
-    pricePerUnit: 0.003,
-    isAdmin: opts?.isAdmin ?? false,
+    emailVerified: new Date().toISOString(),
+    createdAt: new Date().toISOString(),
   });
   await users.upsertEntity({
     partitionKey: "email",
@@ -60,10 +60,27 @@ export async function seedTestUser(user: TestUser, opts?: { isAdmin?: boolean })
     userId: user.id,
   });
 
-  // Gateway tables
+  // Config
+  await appendConfig(user.id, {
+    freeUnits: 500,
+    maxKeys: 100,
+    pricePerUnit: 0.003,
+    spendCapKB: null,
+    changedBy: "system",
+  });
+
+  // Permissions
+  await appendPermissions(user.id, {
+    isAdmin: opts?.isAdmin ?? false,
+    blocked: false,
+    stripeCustomerId: user.stripeCustomerId,
+    changedBy: "system",
+  });
+
+  // Gateway encryption key
   const gwKeys = getTableClient(TableName.GW_ENCRYPTION_KEYS);
   await gwKeys.upsertEntity({
-    partitionKey: TableName.GW_ENCRYPTION_KEYS,
+    partitionKey: "key",
     rowKey: user.id,
     key_hex: "0".repeat(64),
   });

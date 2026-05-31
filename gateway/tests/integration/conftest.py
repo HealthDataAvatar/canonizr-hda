@@ -5,6 +5,7 @@ import os
 import time
 import uuid
 from collections import namedtuple
+from datetime import UTC, datetime
 
 import pytest
 import requests
@@ -22,6 +23,7 @@ from reportlab.pdfgen import canvas
 GW_SUBSCRIPTIONS = "GwSubscriptions"
 GW_ENCRYPTION_KEYS = "GwEncryptionKeys"
 GW_JOBS = "GwJobs"
+USER_PERMISSIONS = "UserPermissions"
 
 
 def pytest_collection_modifyitems(config, items):
@@ -60,6 +62,7 @@ def seed_azurite():
     ts.create_table_if_not_exists(GW_SUBSCRIPTIONS)
     ts.create_table_if_not_exists(GW_ENCRYPTION_KEYS)
     ts.create_table_if_not_exists(GW_JOBS)
+    ts.create_table_if_not_exists(USER_PERMISSIONS)
 
     # Create blob container (gateway/worker need it to exist)
     blob_conn = AZURITE_TABLE_CONN.replace("TableEndpoint", "BlobEndpoint").replace(":10002/", ":10000/")
@@ -96,9 +99,23 @@ def test_sub():
     # Seed encryption key
     ts.get_table_client(GW_ENCRYPTION_KEYS).upsert_entity(
         {
-            "PartitionKey": GW_ENCRYPTION_KEYS,
+            "PartitionKey": "key",
             "RowKey": user_id,
             "key_hex": TEST_KEY_HEX,
+        }
+    )
+
+    # Seed permissions (not blocked)
+    inverted_ts = str(9_999_999_999_999 - int(time.time() * 1000)).zfill(13)
+    ts.get_table_client(USER_PERMISSIONS).upsert_entity(
+        {
+            "PartitionKey": user_id,
+            "RowKey": f"{inverted_ts}_{suffix}",
+            "timestamp": datetime.now(UTC).isoformat(),
+            "isAdmin": False,
+            "blocked": False,
+            "stripeCustomerId": "",
+            "changedBy": "system",
         }
     )
 

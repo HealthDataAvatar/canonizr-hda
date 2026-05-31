@@ -15,6 +15,10 @@ const ALL_TABLES = [
   TableName.SESSIONS,
   TableName.VERIFICATION_TOKENS,
 
+  // User data (append-only)
+  TableName.USER_CONFIG,
+  TableName.USER_PERMISSIONS,
+
   // Portal services
   TableName.API_KEYS,
   TableName.BILLING,
@@ -23,10 +27,6 @@ const ALL_TABLES = [
   TableName.GW_SUBSCRIPTIONS,
   TableName.GW_ENCRYPTION_KEYS,
   TableName.GW_JOBS,
-
-  // Audit
-  TableName.ADMIN_AUDIT_LOG,
-  TableName.USER_AUDIT_LOG,
 ] as const;
 
 let _done = false;

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUser, AuthError } from "@/lib/auth/session";
 import { getServices } from "@/lib/services";
-import { getUser, appendUserAudit } from "@/lib/data/tables";
+import { getCurrentConfig } from "@/lib/data/tables";
 
 export async function GET() {
   try {
@@ -34,23 +34,17 @@ export async function POST(request: Request) {
     const { userId } = await requireUser({ autoRedirect: false });
     const { keys: keyStore } = getServices();
 
-    const userRecord = await getUser(userId);
+    const config = await getCurrentConfig(userId);
     const existing = await keyStore.list(userId);
 
-    if (existing.length >= userRecord.maxKeys) {
+    if (existing.length >= config.maxKeys) {
       return NextResponse.json(
-        { error: `Maximum ${userRecord.maxKeys} keys allowed` },
+        { error: `Maximum ${config.maxKeys} keys allowed` },
         { status: 403 }
       );
     }
 
     const result = await keyStore.create(userId, name);
-    await appendUserAudit({
-      userId,
-      userEmail: userRecord.email,
-      action: "key_create",
-      detail: { keyId: result.id, name },
-    });
     return NextResponse.json(result, { status: 201 });
   } catch (err) {
     if (err instanceof AuthError) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

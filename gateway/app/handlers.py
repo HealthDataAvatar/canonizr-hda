@@ -15,7 +15,7 @@ from .context import Services
 from .crypto import decrypt, encrypt
 from .estimates import estimate_seconds
 from .hash import document_hash
-from .protocols import Job, JobMeta
+from .protocols import Job, JobMeta, JobStatus
 from .sanitize import is_known_mime_type, sanitize_filename
 
 logger = logging.getLogger(__name__)
@@ -33,7 +33,6 @@ class AcceptResult:
     job_id: str
     estimated_seconds: int
     input_bytes: int = 0
-    deduplicated: bool = False
 
     @property
     def billable_units(self) -> int:
@@ -81,24 +80,15 @@ async def accept_job(
     if not is_known_mime_type(mime_type):
         raise Rejected(400, f"Unsupported file type: {mime_type}")
 
-    # Deduplication
     doc_hash = document_hash(file_bytes)
-    existing = await svc.queue.check_dedupe(sub_id, doc_hash)
-    if existing:
-        return AcceptResult(
-            job_id=existing,
-            estimated_seconds=estimate_seconds(mime_type, len(file_bytes)),
-            input_bytes=len(file_bytes),
-            deduplicated=True,
-        )
 
-    # Quota check + immediate deduction
+    # Quota check + immediate reservation
     rejection = await svc.quota.check(sub_id, len(file_bytes))
     if rejection:
         raise Rejected(429, rejection)
     await svc.quota.record(sub_id, len(file_bytes))
 
-    # Create job
+    # Create job (ID prefixed with YYYY-MM for month-scoped queries)
     job = Job.create(
         sub_id=sub_id,
         mime_type=mime_type,
@@ -124,14 +114,14 @@ async def accept_job(
         mime_type=mime_type,
         input_bytes=len(file_bytes),
         input_hash=doc_hash,
-        status="processing",
+        status=JobStatus.PROCESSING,
         created_at=now,
+        price_per_unit=user.price_per_unit,
     )
     svc.jobs.create(meta)
 
     # Enqueue
     await svc.queue.enqueue(job)
-    await svc.queue.set_dedupe(sub_id, doc_hash, job.job_id)
 
     return AcceptResult(
         job_id=job.job_id,
@@ -157,7 +147,7 @@ async def poll_result(job_id: str, svc: Services) -> PollResult:
     else:
         meta_user_id = meta.user_id
 
-        if meta.deleted:
+        if meta.status == JobStatus.DELETED:
             return PollResult(
                 status="expired",
                 status_code=410,
@@ -180,7 +170,7 @@ async def poll_result(job_id: str, svc: Services) -> PollResult:
         return PollResult(
             status="error",
             status_code=500,
-            body={"job_id": job_id, "status": "error", "detail": result.error_detail},
+            body={"job_id": job_id, "status": "error", "detail": result.detail},
         )
 
     # Success — decrypt and return output
@@ -247,7 +237,7 @@ async def delete_result(job_id: str, sub_id: str, svc: Services) -> bool:
     if meta.user_id != user.user_id:
         raise Rejected(403, "Job does not belong to this user")
 
-    if meta.deleted:
+    if meta.status == JobStatus.DELETED:
         return False
 
     blob_prefix = f"{meta.user_id}/{job_id}"

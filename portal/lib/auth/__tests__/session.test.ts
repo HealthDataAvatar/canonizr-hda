@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { auth } from "@/lib/auth/auth";
-import { getUser } from "@/lib/data/tables";
+import { getCurrentPermissions } from "@/lib/data/tables";
 import { requireUser, requireAdmin, AuthError } from "@/lib/auth/session";
 
 vi.mock("@/lib/auth/auth", () => ({
@@ -8,7 +8,7 @@ vi.mock("@/lib/auth/auth", () => ({
 }));
 
 vi.mock("@/lib/data/tables", () => ({
-  getUser: vi.fn(),
+  getCurrentPermissions: vi.fn(),
 }));
 
 function mockSession(overrides: Record<string, unknown> = {}) {
@@ -45,7 +45,7 @@ describe("requireUser({ autoRedirect: false })", () => {
 describe("requireAdmin({ autoRedirect: false })", () => {
   it("returns userId and email for admin user", async () => {
     mockSession();
-    vi.mocked(getUser as any).mockResolvedValue({ isAdmin: true });
+    vi.mocked(getCurrentPermissions as any).mockResolvedValue({ isAdmin: true });
 
     const result = await requireAdmin({ autoRedirect: false });
     expect(result).toEqual({ userId: "user-123", email: "test@example.com" });
@@ -53,7 +53,7 @@ describe("requireAdmin({ autoRedirect: false })", () => {
 
   it("throws AuthError for non-admin user", async () => {
     mockSession();
-    vi.mocked(getUser as any).mockResolvedValue({ isAdmin: false });
+    vi.mocked(getCurrentPermissions as any).mockResolvedValue({ isAdmin: false });
 
     await expect(requireAdmin({ autoRedirect: false })).rejects.toThrow(AuthError);
   });

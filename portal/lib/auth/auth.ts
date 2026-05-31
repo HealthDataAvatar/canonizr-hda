@@ -3,7 +3,8 @@ import { AzureTableStorageAdapter } from "@/lib/services/auth-adapter";
 import { sendVerificationRequest } from "./email";
 import { getServices } from "@/lib/services";
 import { onCreateUser } from "./on-create-user";
-import { updateUser } from "@/lib/data/tables";
+import { appendConfig } from "@/lib/data/tables/user-config";
+import { appendPermissions } from "@/lib/data/tables/user-permissions";
 
 const nextAuth = NextAuth({
   adapter: AzureTableStorageAdapter(process.env.TABLE_STORAGE_CONNECTION_STRING!),
@@ -34,7 +35,23 @@ const nextAuth = NextAuth({
       await onCreateUser(
         user,
         getServices(),
-        (userId, fields) => updateUser(userId, fields),
+        async (userId, changedBy) => {
+          await appendConfig(userId, {
+            freeUnits: 500,
+            maxKeys: 100,
+            pricePerUnit: 0.003,
+            spendCapKB: null,
+            changedBy,
+          });
+        },
+        async (userId, stripeCustomerId, changedBy) => {
+          await appendPermissions(userId, {
+            isAdmin: false,
+            blocked: false,
+            stripeCustomerId,
+            changedBy,
+          });
+        },
       );
     },
   },

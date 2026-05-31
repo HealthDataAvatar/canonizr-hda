@@ -55,10 +55,10 @@ class TableUserResolver:
         if cached is not None:
             return cached == "1"
 
-        val = self._table_lookup("Users", "user", user_id, "blocked")
-        blocked = val is True or val == "true"
-        await self._r.set(ck, "1" if blocked else "0", ex=BLOCKED_CACHE_TTL)
-        return blocked
+        blocked = self._get_latest_permission(user_id, "blocked")
+        is_blocked = blocked is True or blocked == "true"
+        await self._r.set(ck, "1" if is_blocked else "0", ex=BLOCKED_CACHE_TTL)
+        return is_blocked
 
     async def _get_user_id(self, sub_id: str) -> str | None:
         ck = user_id_cache(sub_id=sub_id)
@@ -77,7 +77,7 @@ class TableUserResolver:
         if cached:
             return cached
 
-        val = self._table_lookup(Table.GW_ENCRYPTION_KEYS, Table.GW_ENCRYPTION_KEYS, user_id, "key_hex")
+        val = self._table_lookup(Table.GW_ENCRYPTION_KEYS, "key", user_id, "key_hex")
         if val:
             await self._r.set(ck, val, ex=CACHE_TTL)
         return val
@@ -92,6 +92,32 @@ class TableUserResolver:
         if val:
             await self._r.set(ck, val, ex=CACHE_TTL)
         return val or ""
+
+    def _get_latest_permission(self, user_id: str, field: str):
+        """Read a field from the latest UserPermissions row (append-only, newest first)."""
+        try:
+            service = self._get_table_service()
+            if not service:
+                return None
+            table = service.get_table_client(Table.USER_PERMISSIONS)
+            for entity in table.query_entities(f"PartitionKey eq '{user_id}'"):
+                return entity.get(field)
+            return None
+        except Exception as e:
+            logger.warning("UserPermissions lookup failed for %s: %s", user_id, e)
+            return None
+
+    def _get_table_service(self) -> TableServiceClient | None:
+        if self._endpoint:
+            from .azure_auth import get_credential
+
+            credential = get_credential()
+            if credential is None:
+                return None
+            return TableServiceClient(self._endpoint, credential=credential)
+        elif self._conn_str:
+            return TableServiceClient.from_connection_string(self._conn_str)
+        return None
 
     def _table_lookup(self, table_name: str, partition: str, row: str, field: str) -> str | None:
         if not self._endpoint and not self._conn_str:

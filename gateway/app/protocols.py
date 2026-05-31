@@ -9,6 +9,8 @@ from __future__ import annotations
 import json
 import uuid
 from dataclasses import asdict, dataclass
+from datetime import UTC, datetime
+from enum import StrEnum
 from typing import Protocol
 
 # ---------------------------------------------------------------------------
@@ -28,6 +30,13 @@ class BlobStore(Protocol):
 # ---------------------------------------------------------------------------
 
 
+class JobStatus(StrEnum):
+    PROCESSING = "processing"
+    OK = "ok"
+    ERROR = "error"
+    DELETED = "deleted"
+
+
 @dataclass
 class JobMeta:
     """Job metadata stored in the job store."""
@@ -40,14 +49,13 @@ class JobMeta:
     mime_type: str = ""
     input_bytes: int = 0
     input_hash: str = ""
-    status: str = "processing"  # processing | ok | error
-    error_detail: str = ""
-    actions: str = ""
+    status: JobStatus = JobStatus.PROCESSING
+    detail: str = ""
     created_at: str = ""
     completed_at: str = ""
     retention_expires: str = ""
-    deleted: bool = False
     steps: str = ""  # JSON array of step dicts
+    price_per_unit: float = 0.0
 
 
 class JobStore(Protocol):
@@ -72,6 +80,7 @@ class UserContext:
     user_id: str
     encryption_key: bytes  # 32-byte AES-256 key
     key_name: str = ""
+    price_per_unit: float = 0.003
 
 
 class UserResolver(Protocol):
@@ -98,7 +107,8 @@ class Job:
 
     @staticmethod
     def create(**kwargs) -> Job:
-        return Job(job_id=uuid.uuid4().hex, stream_id="", **kwargs)
+        month = datetime.now(UTC).strftime("%Y-%m")
+        return Job(job_id=f"{month}_{uuid.uuid4().hex}", stream_id="", **kwargs)
 
     def to_fields(self) -> dict[str, str]:
         """Serialize to a flat string dict (for Redis XADD or similar)."""
@@ -133,7 +143,7 @@ class JobResult:
 
     job_id: str
     status: str  # "ok" or "error"
-    error_detail: str = ""
+    detail: str = ""
     status_code: int = 200
 
     def serialize(self) -> str:

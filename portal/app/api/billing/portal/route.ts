@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { requireUser, AuthError } from "@/lib/auth/session";
-import { getUser } from "@/lib/data/tables";
+import { getCurrentPermissions } from "@/lib/data/tables";
 import { getServices } from "@/lib/services";
 
 export async function POST() {
   try {
     const { userId } = await requireUser({ autoRedirect: false });
-    const userRecord = await getUser(userId);
+    const userRecord = await getCurrentPermissions(userId);
 
     if (!userRecord.stripeCustomerId) {
       return NextResponse.json(

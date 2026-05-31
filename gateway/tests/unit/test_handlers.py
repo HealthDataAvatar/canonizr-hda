@@ -9,7 +9,7 @@ from app.context import Services
 from app.crypto import encrypt
 from app.handlers import AcceptResult, Rejected, accept_job, delete_result, poll_result
 from app.keys import quota_limit, quota_usage
-from app.protocols import JobResult, UserContext
+from app.protocols import JobResult, JobStatus, UserContext
 from app.quota import QuotaService
 from tests.fakes import FakeBlobStore, FakeJobStore, FakeQueue, FakeRedis, FakeUserResolver
 
@@ -43,7 +43,6 @@ class TestAcceptJob:
         assert isinstance(result, AcceptResult)
         assert result.job_id
         assert result.estimated_seconds > 0
-        assert not result.deduplicated
 
     @pytest.mark.asyncio
     async def test_writes_blob_and_metadata(self):
@@ -53,7 +52,7 @@ class TestAcceptJob:
         assert await svc.blobs.get(blob_key) is not None
         meta = svc.jobs.get(user.user_id, result.job_id)
         assert meta is not None
-        assert meta.status == "processing"
+        assert meta.status == JobStatus.PROCESSING
         assert meta.original_filename == "test.txt"
 
     @pytest.mark.asyncio
@@ -65,18 +64,11 @@ class TestAcceptJob:
         assert job is not None
 
     @pytest.mark.asyncio
-    async def test_dedup_returns_same_job_id(self):
+    async def test_same_file_gets_new_job(self):
+        """No dedup — same file always creates a new job."""
         svc, _, _ = _make_svc()
         r1 = await accept_job(b"hello", "test.txt", "text/plain", "sub_1", svc)
         r2 = await accept_job(b"hello", "test.txt", "text/plain", "sub_1", svc)
-        assert r2.job_id == r1.job_id
-        assert r2.deduplicated
-
-    @pytest.mark.asyncio
-    async def test_different_files_get_different_jobs(self):
-        svc, _, _ = _make_svc()
-        r1 = await accept_job(b"hello", "a.txt", "text/plain", "sub_1", svc)
-        r2 = await accept_job(b"world", "b.txt", "text/plain", "sub_1", svc)
         assert r1.job_id != r2.job_id
 
     @pytest.mark.asyncio
@@ -148,7 +140,7 @@ class TestPollResult:
 
         meta = svc.jobs.get(user.user_id, result.job_id)
         assert meta is not None
-        meta.status = "ok"
+        meta.status = JobStatus.OK
         meta.completed_at = datetime.now(UTC).isoformat()
         meta.retention_expires = (datetime.now(UTC) + timedelta(hours=24)).isoformat()
         svc.jobs.update(meta)
@@ -167,7 +159,7 @@ class TestPollResult:
         result = await accept_job(b"hello", "test.txt", "text/plain", "sub_1", svc)
         meta = svc.jobs.get(user.user_id, result.job_id)
         assert meta is not None
-        meta.deleted = True
+        meta.status = JobStatus.DELETED
         svc.jobs.update(meta)
 
         await svc.queue.store_result(result.job_id, JobResult(job_id=result.job_id, status="ok", status_code=200))
@@ -180,7 +172,7 @@ class TestPollResult:
         svc, _, _ = _make_svc()
         result = await accept_job(b"hello", "test.txt", "text/plain", "sub_1", svc)
         await svc.queue.store_result(
-            result.job_id, JobResult(job_id=result.job_id, status="error", error_detail="boom", status_code=500)
+            result.job_id, JobResult(job_id=result.job_id, status="error", detail="boom", status_code=500)
         )
 
         poll = await poll_result(result.job_id, svc)
@@ -204,7 +196,7 @@ class TestDeleteResult:
 
         meta = svc.jobs.get(user.user_id, result.job_id)
         assert meta is not None
-        assert meta.deleted
+        assert meta.status == JobStatus.DELETED
 
     @pytest.mark.asyncio
     async def test_unknown_job_returns_false(self):

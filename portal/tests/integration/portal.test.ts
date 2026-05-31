@@ -7,7 +7,7 @@
 
 import { describe, it, expect, beforeAll } from "vitest";
 import { authenticate, createFetcher, createTestUser, seedTestUser, seedJob, seedInvoice, initTables, PORTAL_URL } from "./helpers";
-import { getUser } from "@/lib/data/tables";
+import { getCurrentPermissions } from "@/lib/data/tables";
 import { getTableClient } from "@/lib/data/table-client";
 import { TableName } from "@/lib/data/table-names";
 
@@ -178,8 +178,8 @@ describe("admin (authenticated as admin)", () => {
   }, 30_000);
 
   it("admin user was seeded correctly", async () => {
-    const record = await getUser(adminUser.id);
-    expect(record.isAdmin).toBe(true);
+    const perms = await getCurrentPermissions(adminUser.id);
+    expect(perms.isAdmin).toBe(true);
   });
 
   it("non-admin cannot access admin pages", async () => {

@@ -30,9 +30,9 @@ class TestJobResultSerialization:
         assert restored.status == "ok"
 
     def test_round_trip_error(self):
-        result = JobResult(job_id="abc", status="error", error_detail="broke", status_code=502)
+        result = JobResult(job_id="abc", status="error", detail="broke", status_code=502)
         restored = JobResult.deserialize(result.serialize())
-        assert restored.error_detail == "broke"
+        assert restored.detail == "broke"
         assert restored.status_code == 502
 
 

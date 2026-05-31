@@ -48,7 +48,7 @@ describe("gateway table contract", () => {
 
   it("encryption key written to gateway encryptionkeys table", async () => {
     const gwKeys = getTableClient(TableName.GW_ENCRYPTION_KEYS);
-    const entity = await gwKeys.getEntity(TableName.GW_ENCRYPTION_KEYS, testUser.id);
+    const entity = await gwKeys.getEntity("key", testUser.id);
     expect(entity.key_hex).toBeTruthy();
     expect((entity.key_hex as string).length).toBe(64);
   });

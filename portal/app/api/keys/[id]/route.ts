@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireUser, AuthError } from "@/lib/auth/session";
 import { getServices } from "@/lib/services";
-import { appendUserAudit } from "@/lib/data/tables";
 
 export async function GET(
   _request: Request,
@@ -31,7 +30,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { userId, email } = await requireUser({ autoRedirect: false });
+    const { userId } = await requireUser({ autoRedirect: false });
     const { id } = await params;
     const { keys: keyStore } = getServices();
 
@@ -41,12 +40,6 @@ export async function DELETE(
     }
 
     await keyStore.delete(id);
-    await appendUserAudit({
-      userId,
-      userEmail: email,
-      action: "key_delete",
-      detail: { keyId: id },
-    });
     return NextResponse.json({ ok: true });
   } catch (err) {
     if (err instanceof AuthError) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

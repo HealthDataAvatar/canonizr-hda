@@ -3,18 +3,24 @@ import { onCreateUser } from "@/lib/auth/on-create-user";
 import { mockServices } from "@/lib/__tests__/mocks";
 
 describe("onCreateUser", () => {
-  it("creates customer, updates record, and provisions key", async () => {
+  const appendConfig = vi.fn().mockResolvedValue(undefined);
+  const appendPerms = vi.fn().mockResolvedValue(undefined);
+
+  it("creates customer, appends config + permissions, and provisions key", async () => {
     const svc = mockServices();
-    const updateRecord = vi.fn().mockResolvedValue(undefined);
+    appendConfig.mockClear();
+    appendPerms.mockClear();
 
     const result = await onCreateUser(
       { id: "user-1", email: "test@example.com" },
       svc,
-      updateRecord,
+      appendConfig,
+      appendPerms,
     );
 
     expect(svc.billing.createCustomer).toHaveBeenCalledWith("test@example.com");
-    expect(updateRecord).toHaveBeenCalledWith("user-1", { stripeCustomerId: "cus_1" });
+    expect(appendConfig).toHaveBeenCalledWith("user-1", "system");
+    expect(appendPerms).toHaveBeenCalledWith("user-1", "cus_1", "system");
     expect(svc.keys.list).toHaveBeenCalledWith("user-1");
     expect(svc.keys.create).toHaveBeenCalledWith("user-1", "my-first-key");
     expect(result).toEqual({ customerId: "cus_1", keyId: "key-1" });
@@ -23,19 +29,19 @@ describe("onCreateUser", () => {
   it("skips key creation if user already has keys (idempotent)", async () => {
     const svc = mockServices();
     svc.keys.list.mockResolvedValue([{ id: "existing-key", displayName: "my-first-key" }]);
-    const updateRecord = vi.fn().mockResolvedValue(undefined);
 
     const result = await onCreateUser(
       { id: "user-1", email: "test@example.com" },
       svc,
-      updateRecord,
+      vi.fn().mockResolvedValue(undefined),
+      vi.fn().mockResolvedValue(undefined),
     );
 
     expect(svc.keys.create).not.toHaveBeenCalled();
     expect(result).toEqual({ customerId: "cus_1", keyId: null });
   });
 
-  it("runs in order: billing → update → list → key", async () => {
+  it("runs in order: billing → config → permissions → list → key", async () => {
     const order: string[] = [];
     const svc = mockServices();
     svc.billing.createCustomer.mockImplementation(async () => {
@@ -50,38 +56,39 @@ describe("onCreateUser", () => {
       order.push("key");
       return { id: "k", primaryKey: "pk" };
     });
-    const updateRecord = vi.fn().mockImplementation(async () => {
-      order.push("update");
-    });
+    const config = vi.fn().mockImplementation(async () => { order.push("config"); });
+    const perms = vi.fn().mockImplementation(async () => { order.push("perms"); });
 
-    await onCreateUser({ id: "u", email: "a@b.com" }, svc, updateRecord);
-    expect(order).toEqual(["billing", "update", "list", "key"]);
+    await onCreateUser({ id: "u", email: "a@b.com" }, svc, config, perms);
+    expect(order).toEqual(["billing", "config", "perms", "list", "key"]);
   });
 
   it("returns null if user has no id", async () => {
     const svc = mockServices();
-    const result = await onCreateUser({ email: "a@b.com" }, svc, vi.fn());
+    const result = await onCreateUser({ email: "a@b.com" }, svc, vi.fn(), vi.fn());
     expect(result).toBeNull();
     expect(svc.billing.createCustomer).not.toHaveBeenCalled();
   });
 
   it("returns null if user has no email", async () => {
     const svc = mockServices();
-    const result = await onCreateUser({ id: "u" }, svc, vi.fn());
+    const result = await onCreateUser({ id: "u" }, svc, vi.fn(), vi.fn());
     expect(result).toBeNull();
     expect(svc.billing.createCustomer).not.toHaveBeenCalled();
   });
 
-  it("propagates billing errors without creating key", async () => {
+  it("propagates billing errors without appending config", async () => {
     const svc = mockServices();
     svc.billing.createCustomer.mockRejectedValue(new Error("Stripe down"));
-    const updateRecord = vi.fn();
+    const config = vi.fn();
+    const perms = vi.fn();
 
     await expect(
-      onCreateUser({ id: "u", email: "a@b.com" }, svc, updateRecord),
+      onCreateUser({ id: "u", email: "a@b.com" }, svc, config, perms),
     ).rejects.toThrow("Stripe down");
 
-    expect(updateRecord).not.toHaveBeenCalled();
+    expect(config).not.toHaveBeenCalled();
+    expect(perms).not.toHaveBeenCalled();
     expect(svc.keys.create).not.toHaveBeenCalled();
   });
 });

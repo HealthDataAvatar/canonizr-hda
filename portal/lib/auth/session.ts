@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { notFound } from "next/navigation";
 import { auth } from "./auth";
-import { getUser } from "@/lib/data/tables";
+import { getCurrentPermissions } from "@/lib/data/tables";
 
 export class AuthError extends Error {
   constructor(message = "Unauthorized") {
@@ -35,8 +35,8 @@ export async function requireAdmin(
   opts: { autoRedirect: boolean },
 ): Promise<{ userId: string; email: string }> {
   const { userId, email } = await requireUser(opts);
-  const record = await getUser(userId);
-  if (!record.isAdmin) {
+  const perms = await getCurrentPermissions(userId);
+  if (!perms.isAdmin) {
     if (opts.autoRedirect) notFound();
     throw new AuthError("Not found");
   }

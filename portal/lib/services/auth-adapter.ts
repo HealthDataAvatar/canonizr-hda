@@ -47,12 +47,7 @@ export function AzureTableStorageAdapter(connectionString: string): Adapter {
         rowKey: id,
         email: user.email,
         emailVerified: user.emailVerified?.toISOString() ?? "",
-        encryptionKey,
-        stripeCustomerId: "",
-        maxKeys: 100,
-        freeUnits: 500,
-        pricePerUnit: 0.003,
-        notes: "",
+        createdAt: new Date().toISOString(),
       };
       await users.upsertEntity(entity);
       await users.upsertEntity({
@@ -61,7 +56,7 @@ export function AzureTableStorageAdapter(connectionString: string): Adapter {
         userId: id,
       });
       await gwEncryptionKeys.upsertEntity({
-        partitionKey: TableName.GW_ENCRYPTION_KEYS,
+        partitionKey: "key",
         rowKey: id,
         key_hex: encryptionKey,
       });
@@ -119,7 +114,7 @@ export function AzureTableStorageAdapter(connectionString: string): Adapter {
         if (entity.email) {
           await users.deleteEntity("email", entity.email as string).catch(() => {});
         }
-        await gwEncryptionKeys.deleteEntity(TableName.GW_ENCRYPTION_KEYS, userId).catch(() => {});
+        await gwEncryptionKeys.deleteEntity("key", userId).catch(() => {});
       } catch {
         // User may already be deleted
       }

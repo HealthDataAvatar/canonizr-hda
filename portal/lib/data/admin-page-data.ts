@@ -5,7 +5,7 @@
  */
 
 import { requireAdmin } from "@/lib/auth/session";
-import { getUser } from "@/lib/data/tables";
+import { getUser, getCurrentConfig, getCurrentPermissions } from "@/lib/data/tables";
 import { getJobsForUser } from "./jobs";
 import { getServices } from "@/lib/services";
 import { getTableClient } from "./table-client";
@@ -60,12 +60,14 @@ export async function getUserList(): Promise<AdminUserRow[]> {
       jobCount++;
     }
 
+    const perms = await getCurrentPermissions(userId);
+
     rows.push({
       id: userId,
       email: (entity.email as string) ?? "",
       keyCount,
       jobCount30d: jobCount,
-      blocked: (entity.blocked as boolean) ?? false,
+      blocked: perms.blocked,
       joined: (entity.emailVerified as string) ?? "",
     });
   }
@@ -87,7 +89,7 @@ export interface AdminUserDetail {
   freeUnits: number | null;
   maxKeys: number;
   pricePerUnit: number;
-  notes: string;
+  spendCapKB: number | null;
   stripeCustomerId: string;
   keys: KeyRow[];
   recentJobs: RequestRow[];
@@ -98,21 +100,25 @@ export interface AdminUserDetail {
 export async function getUserDetail(userId: string): Promise<AdminUserDetail | null> {
   await requireAdmin({ autoRedirect: true });
 
-  let record;
+  let user;
   try {
-    record = await getUser(userId);
+    user = await getUser(userId);
   } catch {
     return null;
   }
 
   const usersTable = getTableClient(TableName.USERS);
-
   let entity;
   try {
     entity = await usersTable.getEntity("user", userId);
   } catch {
     return null;
   }
+
+  const [config, perms] = await Promise.all([
+    getCurrentConfig(userId),
+    getCurrentPermissions(userId),
+  ]);
 
   const { keys: keyStore } = getServices();
   const apiKeys = await keyStore.list(userId);
@@ -122,10 +128,10 @@ export async function getUserDetail(userId: string): Promise<AdminUserDetail | n
   const usageLast7dKB = sumUsageSince(recentJobs, Date.now() - 7 * 86_400_000);
 
   let totalInvoiced = 0;
-  if (record.stripeCustomerId) {
+  if (perms.stripeCustomerId) {
     try {
       const { billing } = getServices();
-      const invoices = await billing.getInvoices(record.stripeCustomerId);
+      const invoices = await billing.getInvoices(perms.stripeCustomerId);
       totalInvoiced = sumInvoiceAmounts(invoices);
     } catch {
       // Billing unavailable — leave as 0
@@ -134,15 +140,15 @@ export async function getUserDetail(userId: string): Promise<AdminUserDetail | n
 
   return {
     id: userId,
-    email: record.email,
+    email: user.email,
     joined: (entity.emailVerified as string) ?? "",
-    blocked: record.blocked,
-    isAdmin: record.isAdmin,
-    freeUnits: record.freeUnits,
-    maxKeys: record.maxKeys,
-    pricePerUnit: record.pricePerUnit,
-    notes: record.notes,
-    stripeCustomerId: record.stripeCustomerId,
+    blocked: perms.blocked,
+    isAdmin: perms.isAdmin,
+    freeUnits: config.freeUnits,
+    maxKeys: config.maxKeys,
+    pricePerUnit: config.pricePerUnit,
+    spendCapKB: config.spendCapKB,
+    stripeCustomerId: perms.stripeCustomerId,
     keys: apiKeys.map((k) => ({
       id: k.id,
       displayName: k.displayName,

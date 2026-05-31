@@ -11,3 +11,5 @@ class Table(StrEnum):
     GW_SUBSCRIPTIONS = "GwSubscriptions"
     GW_ENCRYPTION_KEYS = "GwEncryptionKeys"
     GW_JOBS = "GwJobs"
+    USER_CONFIG = "UserConfig"
+    USER_PERMISSIONS = "UserPermissions"

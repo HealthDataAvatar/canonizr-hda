@@ -6,7 +6,7 @@ Type checker verifies they satisfy the protocols.
 
 from __future__ import annotations
 
-from app.protocols import Job, JobMeta, JobResult, UserContext
+from app.protocols import Job, JobMeta, JobResult, JobStatus, UserContext
 
 
 class FakeRedis:
@@ -112,7 +112,7 @@ class FakeJobStore:
         meta = self.get(user_id, job_id)
         if meta is None:
             return False
-        meta.deleted = True
+        meta.status = JobStatus.DELETED
         return True
 
     def strip_pii(self, user_id: str) -> int:
@@ -120,7 +120,7 @@ class FakeJobStore:
         for (uid, _), meta in self._jobs.items():
             if uid == user_id:
                 meta.original_filename = ""
-                meta.deleted = True
+                meta.status = JobStatus.DELETED
                 count += 1
         return count
 

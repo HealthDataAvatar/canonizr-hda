@@ -12,7 +12,7 @@ export function AdminUserForm({ user }: { user: AdminUserDetail }) {
   const [freeUnits, setFreeUnits] = useState(String(user.freeUnits ?? ""));
   const [maxKeys, setMaxKeys] = useState(String(user.maxKeys));
   const [pricePerUnit, setPricePerUnit] = useState(String(user.pricePerUnit));
-  const [notes, setNotes] = useState(user.notes);
+  const [spendCapKB, setSpendCapKB] = useState(String(user.spendCapKB ?? ""));
 
   async function handleSave() {
     setSaving(true);
@@ -24,7 +24,7 @@ export function AdminUserForm({ user }: { user: AdminUserDetail }) {
           freeUnits: freeUnits === "" ? null : Number(freeUnits),
           maxKeys: Number(maxKeys),
           pricePerUnit: Number(pricePerUnit),
-          notes,
+          spendCapKB: spendCapKB === "" ? null : Number(spendCapKB),
         }),
       });
       router.refresh();
@@ -48,7 +48,7 @@ export function AdminUserForm({ user }: { user: AdminUserDetail }) {
     <section className="space-y-6">
       <h2 className="text-[1.125rem] font-semibold">Plan</h2>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <label className="space-y-1">
           <span className="text-[0.875rem] text-muted-foreground">
             Free units
@@ -85,17 +85,20 @@ export function AdminUserForm({ user }: { user: AdminUserDetail }) {
             className="w-full rounded-md border border-border bg-background px-3 py-2 font-mono text-[0.875rem] focus:outline-none focus:ring-2 focus:ring-ring"
           />
         </label>
-      </div>
 
-      <label className="block space-y-1">
-        <span className="text-[0.875rem] text-muted-foreground">Notes</span>
-        <textarea
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          rows={3}
-          className="w-full rounded-md border border-border bg-background px-3 py-2 text-[0.9375rem] focus:outline-none focus:ring-2 focus:ring-ring"
-        />
-      </label>
+        <label className="space-y-1">
+          <span className="text-[0.875rem] text-muted-foreground">
+            Spend cap (KB)
+          </span>
+          <input
+            type="number"
+            value={spendCapKB}
+            onChange={(e) => setSpendCapKB(e.target.value)}
+            placeholder="No cap"
+            className="w-full rounded-md border border-border bg-background px-3 py-2 font-mono text-[0.875rem] focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+        </label>
+      </div>
 
       <div className="flex gap-3">
         <Button onClick={handleSave} disabled={saving}>

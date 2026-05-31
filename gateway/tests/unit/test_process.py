@@ -77,7 +77,7 @@ class TestProcessJob:
         proc = await process_job(job, user, svc)
         assert proc.job_result.status == "error"
         assert proc.job_result.status_code == 500
-        assert "not found" in proc.job_result.error_detail.lower()
+        assert "not found" in proc.job_result.detail.lower()
 
     @pytest.mark.asyncio
     async def test_unsupported_format(self):

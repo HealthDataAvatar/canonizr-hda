@@ -7,7 +7,7 @@
 
 import { requireUser } from "@/lib/auth/session";
 import { getServices, type Invoice } from "@/lib/services";
-import { getUser } from "@/lib/data/tables";
+import { getCurrentConfig, getCurrentPermissions } from "@/lib/data/tables";
 import { getJobsForUser } from "./jobs";
 import { calculateBilling } from "@/lib/pure/billing-calc";
 import type { RequestRow } from "@/components/request-table";
@@ -77,27 +77,30 @@ export interface BillingData {
 
 export async function getBillingData(): Promise<BillingData> {
   const { userId } = await requireUser({ autoRedirect: true });
-  const userRecord = await getUser(userId);
+  const [config, perms] = await Promise.all([
+    getCurrentConfig(userId),
+    getCurrentPermissions(userId),
+  ]);
   const { billing } = getServices();
 
   const [usage, invoices] = await Promise.all([
-    userRecord.stripeCustomerId
-      ? billing.getUsage(userRecord.stripeCustomerId)
+    perms.stripeCustomerId
+      ? billing.getUsage(perms.stripeCustomerId)
       : Promise.resolve({ totalUnits: 0, periodStart: "", periodEnd: "" }),
-    userRecord.stripeCustomerId
-      ? billing.getInvoices(userRecord.stripeCustomerId)
+    perms.stripeCustomerId
+      ? billing.getInvoices(perms.stripeCustomerId)
       : Promise.resolve([]),
   ]);
 
   const calc = calculateBilling({
     totalUnits: usage.totalUnits,
-    freeUnits: userRecord.freeUnits,
-    pricePerUnit: userRecord.pricePerUnit,
+    freeUnits: config.freeUnits,
+    pricePerUnit: config.pricePerUnit,
   });
 
   return {
     ...calc,
-    pricePerUnit: userRecord.pricePerUnit,
+    pricePerUnit: config.pricePerUnit,
     invoices,
   };
 }

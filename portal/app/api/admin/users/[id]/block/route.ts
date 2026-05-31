@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAdmin, AuthError } from "@/lib/auth/session";
-import { updateUser, appendAdminAudit } from "@/lib/data/tables";
+import { getCurrentPermissions, appendPermissions } from "@/lib/data/tables";
 
 export async function POST(
   _request: Request,
@@ -9,12 +9,11 @@ export async function POST(
   try {
     const admin = await requireAdmin({ autoRedirect: false });
     const { id } = await params;
-    await updateUser(id, { blocked: true });
-    await appendAdminAudit({
-      adminId: admin.userId,
-      adminEmail: admin.email,
-      targetUserId: id,
-      action: "block",
+    const current = await getCurrentPermissions(id);
+    await appendPermissions(id, {
+      ...current,
+      blocked: true,
+      changedBy: admin.userId,
     });
     return NextResponse.json({ ok: true });
   } catch (err) {

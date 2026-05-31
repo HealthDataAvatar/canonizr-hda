@@ -16,6 +16,8 @@ export async function register() {
   if (process.env.TABLE_STORAGE_CONNECTION_STRING.includes("http://")) {
     const { getTableClient } = await import("@/lib/data/table-client");
     const { TableName } = await import("@/lib/data/table-names");
+    const { appendConfig } = await import("@/lib/data/tables/user-config");
+    const { appendPermissions } = await import("@/lib/data/tables/user-permissions");
 
     const users = getTableClient(TableName.USERS);
     const gwKeys = getTableClient(TableName.GW_ENCRYPTION_KEYS);
@@ -29,14 +31,7 @@ export async function register() {
       rowKey: adminId,
       email: adminEmail,
       emailVerified: new Date().toISOString(),
-      encryptionKey,
-      stripeCustomerId: "",
-      maxKeys: 100,
-      freeUnits: 500,
-      pricePerUnit: 0.003,
-      notes: "",
-      isAdmin: true,
-      blocked: false,
+      createdAt: new Date().toISOString(),
     });
 
     await users.upsertEntity({
@@ -46,9 +41,24 @@ export async function register() {
     });
 
     await gwKeys.upsertEntity({
-      partitionKey: TableName.GW_ENCRYPTION_KEYS,
+      partitionKey: "key",
       rowKey: adminId,
       key_hex: encryptionKey,
+    });
+
+    await appendConfig(adminId, {
+      freeUnits: 500,
+      maxKeys: 100,
+      pricePerUnit: 0.003,
+      spendCapKB: null,
+      changedBy: "system",
+    });
+
+    await appendPermissions(adminId, {
+      isAdmin: true,
+      blocked: false,
+      stripeCustomerId: "",
+      changedBy: "system",
     });
 
     console.log(`Seeded local admin: ${adminEmail}`);
