@@ -118,7 +118,7 @@ export function Playground({ keys }: { keys: KeyOption[] }) {
             id="key-select"
             value={selectedKeyId}
             onChange={(e) => setSelectedKeyId(e.target.value)}
-            className="rounded-md border border-border bg-background px-3 py-2 text-[0.875rem] font-mono focus:outline-none focus:ring-2 focus:ring-ring"
+            className="rounded-md border border-border bg-background px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-ring"
           >
             {keys.map((k) => (
               <option key={k.id} value={k.id}>{k.displayName}</option>
@@ -153,13 +153,13 @@ export function Playground({ keys }: { keys: KeyOption[] }) {
         {file ? (
           <>
             <FileText className="size-8 text-muted-foreground" />
-            <p className="text-[0.9375rem] font-medium">{file.name}</p>
-            <p className="text-[0.8125rem] text-muted-foreground">{formatKB(Math.ceil(file.size / 1024))}</p>
+            <p className="font-medium">{file.name}</p>
+            <p className="text-sm text-muted-foreground">{formatKB(Math.ceil(file.size / 1024))}</p>
           </>
         ) : (
           <>
             <Upload className="size-8 text-muted-foreground" />
-            <p className="text-[0.9375rem] text-muted-foreground">
+            <p className="text-muted-foreground">
               Drop a file here or click to select
             </p>
           </>
@@ -179,18 +179,18 @@ export function Playground({ keys }: { keys: KeyOption[] }) {
 
       {/* Error */}
       {status === "error" && (
-        <p className="text-[0.875rem] text-destructive">{error}</p>
+        <p className="text-sm text-destructive">{error}</p>
       )}
 
       {/* Result */}
       {status === "done" && (
         <div className="space-y-3">
           {jobInfo && (
-            <p className="text-[0.8125rem] text-muted-foreground">
+            <p className="text-sm text-muted-foreground">
               {formatKB(Math.ceil(jobInfo.inputBytes / 1024))} processed in {(jobInfo.timeMs / 1000).toFixed(1)}s
             </p>
           )}
-          <pre className="max-h-[600px] overflow-auto rounded-lg border border-border bg-card p-4 text-[0.8125rem] whitespace-pre-wrap">
+          <pre className="max-h-[600px] overflow-auto rounded-lg border border-border bg-card p-4 text-sm whitespace-pre-wrap">
             {markdown}
           </pre>
         </div>

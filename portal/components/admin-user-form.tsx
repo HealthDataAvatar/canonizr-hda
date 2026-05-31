@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import type { AdminUserDetail } from "@/lib/data/admin-page-data";
 
 export function AdminUserForm({ user }: { user: AdminUserDetail }) {
@@ -44,43 +45,43 @@ export function AdminUserForm({ user }: { user: AdminUserDetail }) {
 
   return (
     <section className="space-y-6">
-      <h2 className="text-[1.125rem] font-semibold">Plan</h2>
+      <h2>Plan</h2>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <label className="space-y-1">
-          <span className="text-[0.875rem] text-muted-foreground">
+          <span className="text-sm text-muted-foreground">
             Free units
           </span>
-          <input
+          <Input
             type="number"
             value={freeUnits}
             onChange={(e) => setFreeUnits(e.target.value)}
-            className="w-full rounded-md border border-border bg-background px-3 py-2 font-mono text-[0.875rem] focus:outline-none focus:ring-2 focus:ring-ring"
+            className="font-mono"
           />
         </label>
 
         <label className="space-y-1">
-          <span className="text-[0.875rem] text-muted-foreground">
+          <span className="text-sm text-muted-foreground">
             Max keys
           </span>
-          <input
+          <Input
             type="number"
             value={maxKeys}
             onChange={(e) => setMaxKeys(e.target.value)}
-            className="w-full rounded-md border border-border bg-background px-3 py-2 font-mono text-[0.875rem] focus:outline-none focus:ring-2 focus:ring-ring"
+            className="font-mono"
           />
         </label>
 
         <label className="space-y-1">
-          <span className="text-[0.875rem] text-muted-foreground">
+          <span className="text-sm text-muted-foreground">
             Price per unit ($)
           </span>
-          <input
+          <Input
             type="number"
             step="0.001"
             value={pricePerUnit}
             onChange={(e) => setPricePerUnit(e.target.value)}
-            className="w-full rounded-md border border-border bg-background px-3 py-2 font-mono text-[0.875rem] focus:outline-none focus:ring-2 focus:ring-ring"
+            className="font-mono"
           />
         </label>
 

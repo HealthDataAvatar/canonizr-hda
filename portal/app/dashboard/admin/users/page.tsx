@@ -15,7 +15,7 @@ export default async function AdminUsersPage() {
 
   return (
     <div className="space-y-8">
-      <h1 className="text-[1.5rem] font-semibold">Users</h1>
+      <h1>Users</h1>
 
       <AdminUserSearch users={users} />
     </div>

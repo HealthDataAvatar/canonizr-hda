@@ -29,7 +29,7 @@ export function UsageBar({
           style={{ width: `${pct}%` }}
         />
       </div>
-      <span className={`font-mono text-[0.8125rem] ${full ? "text-destructive" : "text-muted-foreground"}`}>
+      <span className={`font-mono text-sm ${full ? "text-destructive" : "text-muted-foreground"}`}>
         {formatKB(usageKB)} / {formatKB(quotaKB)}
       </span>
     </div>

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getHistoryData } from "@/lib/data/user-page-data";
+import { EmptyState } from "@/components/ui/empty-state";
 import { RequestTable } from "@/components/request-table";
 
 export default async function HistoryPage() {
@@ -7,10 +8,10 @@ export default async function HistoryPage() {
 
   return (
     <div className="space-y-8">
-      <h1 className="text-[1.5rem] font-semibold">History</h1>
+      <h1>History</h1>
 
       {requests.length === 0 ? (
-        <p className="py-8 text-center text-[0.9375rem] text-muted-foreground">
+        <EmptyState>
           No requests yet.{" "}
           <Link
             href="/dashboard/keys"
@@ -19,7 +20,7 @@ export default async function HistoryPage() {
             Create an API key
           </Link>{" "}
           to start converting documents.
-        </p>
+        </EmptyState>
       ) : (
         <RequestTable requests={requests} />
       )}

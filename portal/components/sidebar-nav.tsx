@@ -23,7 +23,7 @@ export function SidebarNav({ isAdmin = false }: { isAdmin?: boolean }) {
             key={href}
             href={href}
             aria-current={active ? "page" : undefined}
-            className={`text-[0.9375rem] py-1 transition-colors ${
+            className={`py-1 transition-colors ${
               active
                 ? "text-accent font-semibold"
                 : "text-muted-foreground hover:text-foreground"
@@ -47,7 +47,7 @@ export function SidebarNav({ isAdmin = false }: { isAdmin?: boolean }) {
                 key={href}
                 href={href}
                 aria-current={active ? "page" : undefined}
-                className={`text-[0.9375rem] py-1 transition-colors ${
+                className={`py-1 transition-colors ${
                   active
                     ? "text-accent font-semibold"
                     : "text-muted-foreground hover:text-foreground"

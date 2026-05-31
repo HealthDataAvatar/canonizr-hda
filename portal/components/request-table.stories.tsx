@@ -94,7 +94,7 @@ export const Targeted: Story = {
   decorators: [
     (Story) => (
       <>
-        <p className="mb-4 text-[0.8125rem] text-muted-foreground">
+        <p className="mb-4 text-sm text-muted-foreground">
           The error row below simulates the <code>:target</code> state (highlighted via anchor link from the error banner).
         </p>
         <style>{`#req-targeted { background: var(--accent-subtle); }`}</style>

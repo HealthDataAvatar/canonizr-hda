@@ -46,7 +46,7 @@ export function MobileNav({ email, isAdmin = false }: { email: string; isAdmin?:
                   <li key={href}>
                     <Link
                       href={href}
-                      className={`block py-2 text-[0.9375rem] ${
+                      className={`block py-2 ${
                         active
                           ? "text-accent font-semibold"
                           : "text-muted-foreground"
@@ -69,7 +69,7 @@ export function MobileNav({ email, isAdmin = false }: { email: string; isAdmin?:
                       <li key={href}>
                         <Link
                           href={href}
-                          className={`block py-2 text-[0.9375rem] ${
+                          className={`block py-2 ${
                             active ? "text-accent font-semibold" : "text-muted-foreground"
                           }`}
                           aria-current={active ? "page" : undefined}
@@ -84,7 +84,7 @@ export function MobileNav({ email, isAdmin = false }: { email: string; isAdmin?:
             </ul>
           </nav>
           <div className="flex items-center justify-between border-t border-border pt-4">
-            <p className="truncate text-[0.8125rem] text-muted-foreground">
+            <p className="truncate text-sm text-muted-foreground">
               {email}
             </p>
             <SignOutButton />

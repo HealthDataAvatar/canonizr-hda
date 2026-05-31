@@ -12,7 +12,7 @@ import { getTableClient } from "./table-client";
 import { TableName } from "./table-names";
 import type { RequestRow } from "@/components/request-table";
 import type { KeyRow } from "@/components/key-table";
-import { sumUsageSince, sumInvoiceAmounts } from "@/lib/pure/admin-calc";
+import { aggregateJobs, sumInvoiceAmounts, type JobSummaryInput } from "@/lib/pure/admin-calc";
 
 // -------------------------------------------------------------------------
 // User list
@@ -53,29 +53,30 @@ export async function getUserList(): Promise<AdminUserRow[]> {
       keyCount++;
     }
 
-    let jobCount = 0;
-    let errorCount = 0;
-    let usageBytes = 0;
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString();
+    const thirtyDaysAgo = Date.now() - 30 * 86400000;
+    const jobInputs: JobSummaryInput[] = [];
     for await (const j of jobs.listEntities({
       queryOptions: {
-        filter: `PartitionKey eq '${userId}' and created_at ge '${thirtyDaysAgo}'`,
+        filter: `PartitionKey eq '${userId}' and created_at ge '${new Date(thirtyDaysAgo).toISOString()}'`,
       },
     })) {
-      jobCount++;
-      if (j.status === "error") errorCount++;
-      usageBytes += Number(j.input_bytes ?? 0);
+      jobInputs.push({
+        timestamp: (j.created_at as string) ?? "",
+        inputBytes: Number(j.input_bytes ?? 0),
+        status: (j.status as string) ?? "",
+      });
     }
 
+    const stats = aggregateJobs(jobInputs, thirtyDaysAgo);
     const perms = await getCurrentPermissions(userId);
 
     rows.push({
       id: userId,
       email: (entity.email as string) ?? "",
       keyCount,
-      jobCount30d: jobCount,
-      errorCount30d: errorCount,
-      usageKB30d: Math.round(usageBytes / 1024),
+      jobCount30d: stats.count,
+      errorCount30d: stats.errorCount,
+      usageKB30d: stats.billableKB,
       blocked: perms.blocked,
       joined: (entity.emailVerified as string) ?? "",
       stripeCustomerId: perms.stripeCustomerId,
@@ -103,7 +104,7 @@ export interface AdminUserDetail {
   stripeCustomerId: string;
   keys: KeyRow[];
   recentJobs: RequestRow[];
-  usageLast7dKB: number;
+  usageKB30d: number;
   totalInvoiced: number;
 }
 
@@ -135,7 +136,15 @@ export async function getUserDetail(userId: string): Promise<AdminUserDetail | n
 
   const recentJobs = await getJobsForUser(userId, 50);
 
-  const usageLast7dKB = sumUsageSince(recentJobs, Date.now() - 7 * 86_400_000);
+  const thirtyDaysAgo = Date.now() - 30 * 86_400_000;
+  const stats = aggregateJobs(
+    recentJobs.map((j) => ({
+      timestamp: j.timestamp,
+      inputBytes: j.inputBytes ?? 0,
+      status: j.status >= 400 ? "error" : "ok",
+    })),
+    thirtyDaysAgo,
+  );
 
   let totalInvoiced = 0;
   if (perms.stripeCustomerId) {
@@ -169,7 +178,7 @@ export async function getUserDetail(userId: string): Promise<AdminUserDetail | n
       quotaKB: k.quotaKB,
     })),
     recentJobs,
-    usageLast7dKB,
+    usageKB30d: stats.billableKB,
     totalInvoiced,
   };
 }

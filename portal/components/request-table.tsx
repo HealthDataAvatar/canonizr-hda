@@ -71,7 +71,7 @@ function BlobLink({ blob, label }: { blob: BlobState; label: string }) {
     case "expired":
       return <IconHint icon={TimerOff} title={`${label} expired`} tone="faded" />;
     case "none":
-      return <span className="text-[0.75rem] text-muted-foreground">—</span>;
+      return <span className="text-sm text-muted-foreground">—</span>;
   }
 }
 
@@ -120,7 +120,7 @@ function JobDetailPanel({ row }: { row: RequestRow }) {
   if (!hasDetail) return null;
 
   return (
-    <div className="space-y-2 text-[0.8125rem]">
+    <div className="space-y-2 text-sm">
       {(row.originalFilename || row.mimeType) && (
         <div className="flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground">
           {row.originalFilename && <span>File: <span className="font-mono">{row.originalFilename}</span></span>}
@@ -135,7 +135,7 @@ function JobDetailPanel({ row }: { row: RequestRow }) {
             {steps.map((s, i) => (
               <span
                 key={i}
-                className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 font-mono text-[0.75rem] ${
+                className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 font-mono text-sm ${
                   s.error
                     ? "bg-destructive/10 text-destructive"
                     : "bg-muted text-muted-foreground"
@@ -153,7 +153,7 @@ function JobDetailPanel({ row }: { row: RequestRow }) {
         </div>
       )}
       {row.detail && (
-        <div className={`rounded-md px-3 py-2 font-mono text-[0.75rem] whitespace-pre-wrap ${
+        <div className={`rounded-md px-3 py-2 font-mono text-sm whitespace-pre-wrap ${
           row.status >= 400
             ? "bg-destructive/10 text-destructive"
             : "bg-muted text-muted-foreground"
@@ -190,10 +190,10 @@ function buildColumns(onDelete?: (id: string) => void) {
         const ts = getValue();
         return (
           <div className="flex flex-col">
-            <span className="font-mono text-[0.875rem]">
+            <span className="font-mono text-sm">
               {new Date(ts).toLocaleString()}
             </span>
-            <span className="text-[0.75rem] text-muted-foreground">
+            <span className="text-sm text-muted-foreground">
               {timeAgo(ts)}
             </span>
           </div>
@@ -204,7 +204,7 @@ function buildColumns(onDelete?: (id: string) => void) {
       header: "Key",
       enableSorting: true,
       cell: ({ getValue }) => (
-        <span className="font-mono text-[0.8125rem] text-muted-foreground">
+        <span className="font-mono text-sm text-muted-foreground">
           {getValue()}
         </span>
       ),
@@ -219,7 +219,7 @@ function buildColumns(onDelete?: (id: string) => void) {
           ? `Job: ${r.id}\nHash: ${r.fileHash}`
           : `Job: ${r.id}`;
         return (
-          <span className="inline-flex items-center gap-1 font-mono text-[0.75rem] text-muted-foreground" title={title}>
+          <span className="inline-flex items-center gap-1 font-mono text-sm text-muted-foreground" title={title}>
             {r.id.slice(0, 8)}
             <CopyButton value={r.id} />
           </span>
@@ -231,7 +231,7 @@ function buildColumns(onDelete?: (id: string) => void) {
       size: 90,
       enableSorting: true,
       cell: ({ getValue }) => (
-        <span className="font-mono text-[0.875rem]">{formatKB(getValue())}</span>
+        <span className="font-mono text-sm">{formatKB(getValue())}</span>
       ),
     }),
     col.accessor("status", {
@@ -358,14 +358,14 @@ function MobileCard({
       >
         <div className="flex flex-col gap-0.5">
           <div className="flex items-baseline gap-2">
-            <span className="font-mono text-[0.875rem]">
+            <span className="font-mono text-sm">
               {new Date(row.timestamp).toLocaleString()}
             </span>
-            <span className="font-mono text-[0.8125rem]">
+            <span className="font-mono text-sm">
               {formatKB(row.billableKB)}
             </span>
           </div>
-          <span className="font-mono text-[0.75rem] text-muted-foreground">
+          <span className="font-mono text-sm text-muted-foreground">
             {row.keyName} · {timeAgo(row.timestamp)}
           </span>
         </div>
@@ -374,9 +374,9 @@ function MobileCard({
 
       {isExpanded && (
         <div className="border-t border-border px-4 py-3 space-y-3">
-          <div className="grid grid-cols-2 gap-y-2 gap-x-4 text-[0.8125rem]">
+          <div className="grid grid-cols-2 gap-y-2 gap-x-4 text-sm">
             <span className="text-muted-foreground">Job ID</span>
-            <span className="inline-flex items-center gap-1 font-mono text-[0.75rem]">
+            <span className="inline-flex items-center gap-1 font-mono text-sm">
               {row.id.slice(0, 8)}
               <CopyButton value={row.id} />
             </span>
@@ -384,7 +384,7 @@ function MobileCard({
             {row.fileHash && (
               <>
                 <span className="text-muted-foreground">Hash</span>
-                <span className="inline-flex items-center gap-1 font-mono text-[0.75rem]">
+                <span className="inline-flex items-center gap-1 font-mono text-sm">
                   {row.fileHash.slice(0, 8)}
                   <CopyButton value={row.fileHash} />
                 </span>
@@ -396,11 +396,11 @@ function MobileCard({
 
           <div className="grid grid-cols-[1fr_1fr_auto] items-center border-t border-border pt-3">
             <div className="flex items-center gap-2">
-              <span className="text-[0.8125rem] text-muted-foreground">Output</span>
+              <span className="text-sm text-muted-foreground">Output</span>
               <BlobLink blob={row.result} label="output" />
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-[0.8125rem] text-muted-foreground">Original</span>
+              <span className="text-sm text-muted-foreground">Original</span>
               <BlobLink blob={row.input} label="original" />
             </div>
             {isDeletable(row) && onDelete ? (
@@ -437,7 +437,7 @@ function Pagination({ table }: { table: ReturnType<typeof useReactTable<RequestR
   if (table.getPageCount() <= 1) return null;
   return (
     <div className="flex items-center justify-between">
-      <p className="text-[0.8125rem] text-muted-foreground">
+      <p className="text-sm text-muted-foreground">
         Page {table.getState().pagination.pageIndex + 1} of{" "}
         {table.getPageCount()}
       </p>

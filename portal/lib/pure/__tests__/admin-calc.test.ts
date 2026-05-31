@@ -1,46 +1,60 @@
 import { describe, it, expect } from "vitest";
-import { sumInvoiceAmounts, sumUsageSince } from "@/lib/pure/admin-calc";
+import { aggregateJobs, sumInvoiceAmounts } from "@/lib/pure/admin-calc";
 
-describe("sumUsageSince", () => {
+describe("aggregateJobs", () => {
   const now = Date.now();
   const HOUR = 3_600_000;
   const DAY = 24 * HOUR;
 
-  it("sums jobs within the window", () => {
-    const jobs = [
-      { timestamp: new Date(now - 1 * DAY).toISOString(), billableKB: 100 },
-      { timestamp: new Date(now - 3 * DAY).toISOString(), billableKB: 200 },
-      { timestamp: new Date(now - 6 * DAY).toISOString(), billableKB: 300 },
-    ];
-    expect(sumUsageSince(jobs, now - 7 * DAY)).toBe(600);
+  function job(daysAgo: number, inputBytes: number, status = "ok") {
+    return {
+      timestamp: new Date(now - daysAgo * DAY).toISOString(),
+      inputBytes,
+      status,
+    };
+  }
+
+  it("counts and sums billable KB for jobs within window", () => {
+    const jobs = [job(1, 150_000), job(3, 250_000), job(6, 350_000)];
+    const stats = aggregateJobs(jobs, now - 7 * DAY);
+    expect(stats.count).toBe(3);
+    expect(stats.billableKB).toBe(200 + 300 + 400); // toBillableKB rounds up to nearest 100KB
   });
 
   it("excludes jobs outside the window", () => {
-    const jobs = [
-      { timestamp: new Date(now - 1 * DAY).toISOString(), billableKB: 100 },
-      { timestamp: new Date(now - 8 * DAY).toISOString(), billableKB: 500 },
-      { timestamp: new Date(now - 30 * DAY).toISOString(), billableKB: 900 },
-    ];
-    expect(sumUsageSince(jobs, now - 7 * DAY)).toBe(100);
+    const jobs = [job(1, 100_000), job(8, 500_000), job(30, 900_000)];
+    const stats = aggregateJobs(jobs, now - 7 * DAY);
+    expect(stats.count).toBe(1);
+    expect(stats.billableKB).toBe(100);
   });
 
-  it("returns 0 for empty jobs", () => {
-    expect(sumUsageSince([], now - 7 * DAY)).toBe(0);
+  it("counts errors", () => {
+    const jobs = [job(1, 100_000, "ok"), job(2, 100_000, "error"), job(3, 100_000, "error")];
+    const stats = aggregateJobs(jobs, now - 7 * DAY);
+    expect(stats.count).toBe(3);
+    expect(stats.errorCount).toBe(2);
   });
 
-  it("returns 0 when all jobs are older than the window", () => {
-    const jobs = [
-      { timestamp: new Date(now - 10 * DAY).toISOString(), billableKB: 100 },
-    ];
-    expect(sumUsageSince(jobs, now - 7 * DAY)).toBe(0);
+  it("returns zeros for empty jobs", () => {
+    const stats = aggregateJobs([], now - 7 * DAY);
+    expect(stats.count).toBe(0);
+    expect(stats.errorCount).toBe(0);
+    expect(stats.billableKB).toBe(0);
   });
 
-  it("includes jobs exactly at the boundary", () => {
+  it("returns zeros when all jobs are older than window", () => {
+    const jobs = [job(10, 100_000)];
+    const stats = aggregateJobs(jobs, now - 7 * DAY);
+    expect(stats.count).toBe(0);
+    expect(stats.billableKB).toBe(0);
+  });
+
+  it("includes jobs exactly at boundary", () => {
     const boundary = now - 7 * DAY;
-    const jobs = [
-      { timestamp: new Date(boundary).toISOString(), billableKB: 50 },
-    ];
-    expect(sumUsageSince(jobs, boundary)).toBe(50);
+    const jobs = [{ timestamp: new Date(boundary).toISOString(), inputBytes: 50_000, status: "ok" }];
+    const stats = aggregateJobs(jobs, boundary);
+    expect(stats.count).toBe(1);
+    expect(stats.billableKB).toBe(100); // minimum 100KB
   });
 });
 

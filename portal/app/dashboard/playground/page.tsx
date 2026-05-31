@@ -17,9 +17,9 @@ export default async function PlaygroundPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-[1.5rem] font-semibold">Playground</h1>
+      <h1>Playground</h1>
       {keys.length === 0 ? (
-        <p className="text-[0.9375rem] text-muted-foreground">
+        <p className="text-muted-foreground">
           Create an API key first to use the playground.
         </p>
       ) : (

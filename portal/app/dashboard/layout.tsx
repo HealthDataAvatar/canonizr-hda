@@ -30,7 +30,7 @@ export default async function DashboardLayout({
     <div className="flex flex-1">
       <a
         href="#main-content"
-        className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-50 focus:rounded-lg focus:bg-background focus:px-4 focus:py-2 focus:text-[0.875rem] focus:font-medium focus:ring-2 focus:ring-ring"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-50 focus:rounded-lg focus:bg-background focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:ring-2 focus:ring-ring"
       >
         Skip to content
       </a>
@@ -41,7 +41,7 @@ export default async function DashboardLayout({
       >
         <Link
           href="/dashboard"
-          className="text-[1.125rem] font-semibold tracking-tight"
+          className="font-semibold tracking-tight"
         >
           Canonizr
         </Link>
@@ -49,7 +49,7 @@ export default async function DashboardLayout({
         <SidebarNav isAdmin={isAdmin} />
 
         <div className="mt-auto space-y-2">
-          <p className="truncate text-[0.8125rem] text-muted-foreground">
+          <p className="truncate text-sm text-muted-foreground">
             {email}
           </p>
           <SignOutButton />
@@ -62,7 +62,7 @@ export default async function DashboardLayout({
         <header className="relative flex items-center justify-between border-b border-border px-6 py-2 sm:hidden">
           <Link
             href="/dashboard"
-            className="text-[1.125rem] font-semibold tracking-tight"
+            className="font-semibold tracking-tight"
           >
             Canonizr
           </Link>

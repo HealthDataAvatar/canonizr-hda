@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getAdminOverview } from "@/lib/data/admin-overview-data";
 import { MetricCard } from "@/components/metric-card";
+import { Section } from "@/components/ui/section";
 import { formatKB } from "@/lib/pure/format";
 import { timeAgo } from "@/lib/pure/time";
 
@@ -15,19 +16,16 @@ export default async function AdminPage() {
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
-        <h1 className="text-[1.5rem] font-semibold">Admin</h1>
+        <h1>Admin</h1>
         <Link
           href="/dashboard/admin/users"
-          className="text-[0.875rem] text-muted-foreground hover:text-foreground"
+          className="text-sm text-muted-foreground hover:text-foreground"
         >
           All users &rarr;
         </Link>
       </div>
 
-      <section className="space-y-3">
-        <h2 className="text-[0.875rem] font-medium text-muted-foreground uppercase tracking-wide">
-          Queue
-        </h2>
+      <Section title="Queue">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <MetricCard
             label="Queued jobs"
@@ -52,12 +50,9 @@ export default async function AdminPage() {
             detail={overview.jobsErrorToday > 0 ? `${overview.jobsErrorToday} errors (${errorRate})` : undefined}
           />
         </div>
-      </section>
+      </Section>
 
-      <section className="space-y-3">
-        <h2 className="text-[0.875rem] font-medium text-muted-foreground uppercase tracking-wide">
-          Platform
-        </h2>
+      <Section title="Platform">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <MetricCard
             label="Total users"
@@ -68,7 +63,7 @@ export default async function AdminPage() {
             value={errorRate}
           />
         </div>
-      </section>
+      </Section>
     </div>
   );
 }

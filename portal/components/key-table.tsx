@@ -2,6 +2,7 @@
 
 import { KeyActions } from "@/components/key-actions";
 import { QuotaEditor } from "@/components/quota-editor";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   Table,
   TableBody,
@@ -34,10 +35,10 @@ function DesktopKeyTable({ keys }: { keys: KeyRow[] }) {
       <TableBody>
         {keys.map((key) => (
           <TableRow key={key.id}>
-            <TableCell className="text-[0.875rem]">
+            <TableCell className="text-sm">
               <APIKeySpan text={key.displayName} />
             </TableCell>
-            <TableCell className="font-mono text-[0.8125rem] text-muted-foreground flex gap-2">
+            <TableCell className="font-mono text-sm text-muted-foreground flex gap-2">
               •••• {key.value.slice(-4)}
               <KeyActions keyId={key.id} keyValue={key.value} />
             </TableCell>
@@ -60,12 +61,12 @@ function MobileKeyList({ keys }: { keys: KeyRow[] }) {
           className="rounded-lg border border-border px-4 py-3 space-y-2"
         >
           <div className="flex items-center justify-between">
-            <span className="font-medium font-mono text-[0.875rem]">
+            <span className="font-medium font-mono text-sm">
               {key.displayName}
             </span>
             <KeyActions keyId={key.id} keyValue={key.value} />
           </div>
-          <span className="font-mono text-[0.8125rem] text-muted-foreground">
+          <span className="font-mono text-sm text-muted-foreground">
             •••• {key.value}
           </span>
           <QuotaEditor keyId={key.id} usageKB={key.usageKB} quotaKB={key.quotaKB} />
@@ -78,9 +79,9 @@ function MobileKeyList({ keys }: { keys: KeyRow[] }) {
 export function KeyTable({ keys }: { keys: KeyRow[] }) {
   if (keys.length === 0) {
     return (
-      <p className="py-8 text-center text-[0.9375rem] text-muted-foreground">
+      <EmptyState>
         No API keys yet. Name your first key above to get started.
-      </p>
+      </EmptyState>
     );
   }
 

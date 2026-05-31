@@ -252,8 +252,8 @@ describe("admin (authenticated as admin)", () => {
     expect(html).toContain(targetUser.email);
     expect(html).toContain(targetUser.id);
 
-    // Usage (7 days): 100KB + 200KB rounded up = should contain formatted KB values
-    expect(html).toContain("Usage (7 days)");
+    // Usage (30 days): should contain formatted KB values
+    expect(html).toContain("Usage (30 days)");
 
     // Total invoiced: $2.50 + $1.00 = $3.50
     expect(html).toContain("Total invoiced");

@@ -1,21 +1,42 @@
+import Link from "next/link";
 import { getKeysData } from "@/lib/data/user-page-data";
 import { CreateKeyForm } from "@/components/create-key-form";
 import { KeyTable } from "@/components/key-table";
 import { CodeBlock } from "@/components/ui/code-block";
+import { Card, CardContent } from "@/components/ui/card";
 
 export default async function KeysPage() {
   const { keys } = await getKeysData();
 
   return (
     <div className="space-y-8">
-      <h1 className="text-[1.5rem] font-semibold">API Keys</h1>
+      <h1 className="">API Keys</h1>
 
       <CreateKeyForm existingNames={keys.map((k) => k.displayName)} />
 
       <KeyTable keys={keys} />
 
+      {keys.length > 0 && (
+        <Card>
+          <CardContent className="flex items-center justify-between">
+            <div>
+              <p className="font-medium">Try it out</p>
+              <p className="">
+                Upload a document and see the conversion in real time.
+              </p>
+            </div>
+            <Link
+              href="/dashboard/playground"
+              className="shrink-0 rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:bg-accent/90 transition-colors"
+            >
+              Open Playground
+            </Link>
+          </CardContent>
+        </Card>
+      )}
+
       <div>
-        <h2 className="mb-4 text-[1.125rem] font-semibold">Quick start</h2>
+        <h2 className="mb-4">Quick start</h2>
         <CodeBlock
           highlight={["YOUR_API_KEY"]}
           samples={[

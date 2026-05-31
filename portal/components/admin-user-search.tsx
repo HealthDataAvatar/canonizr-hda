@@ -5,6 +5,8 @@ import Link from "next/link";
 import { timeAgo } from "@/lib/pure/time";
 import { formatKB } from "@/lib/pure/format";
 import { ChevronDown, ChevronRight } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   Table,
   TableBody,
@@ -35,11 +37,11 @@ function ExpandedRow({ user }: { user: AdminUserRow }) {
   return (
     <TableRow>
       <TableCell colSpan={7} className="bg-muted/30 px-6 py-4">
-        <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-[0.875rem] max-w-lg">
+        <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm max-w-lg">
           <span className="text-muted-foreground">User ID</span>
-          <span className="font-mono text-[0.8125rem]">{user.id}</span>
+          <span className="font-mono text-sm">{user.id}</span>
           <span className="text-muted-foreground">Stripe</span>
-          <span className="font-mono text-[0.8125rem]">
+          <span className="font-mono text-sm">
             {user.stripeCustomerId || "—"}
           </span>
           <span className="text-muted-foreground">Total invoiced</span>
@@ -54,7 +56,7 @@ function ExpandedRow({ user }: { user: AdminUserRow }) {
         <div className="mt-3">
           <Link
             href={`/dashboard/admin/users/${user.id}`}
-            className="text-[0.8125rem] text-accent hover:underline"
+            className="text-sm text-accent hover:underline"
           >
             Full profile &rarr;
           </Link>
@@ -82,18 +84,18 @@ export function AdminUserSearch({ users }: { users: AdminUserRow[] }) {
 
   return (
     <>
-      <input
+      <Input
         type="text"
         placeholder="Search by email or user ID"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        className="w-full max-w-md rounded-md border border-border bg-background px-3 py-2 text-[0.9375rem] placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+        className="max-w-md"
       />
 
       {filtered.length === 0 ? (
-        <p className="py-8 text-center text-[0.9375rem] text-muted-foreground">
+        <EmptyState>
           {query ? "No users match that search." : "No users yet."}
-        </p>
+        </EmptyState>
       ) : (
         <Table>
           <caption className="sr-only">Users</caption>
@@ -128,16 +130,16 @@ export function AdminUserSearch({ users }: { users: AdminUserRow[] }) {
                     <TableCell>
                       <Link
                         href={`/dashboard/admin/users/${user.id}`}
-                        className="font-mono text-[0.875rem] text-accent hover:underline"
+                        className="font-mono text-sm text-accent hover:underline"
                         onClick={(e) => e.stopPropagation()}
                       >
                         {user.email}
                       </Link>
                     </TableCell>
-                    <TableCell className="text-[0.875rem] text-muted-foreground">
+                    <TableCell className="text-sm text-muted-foreground">
                       {user.keyCount}
                     </TableCell>
-                    <TableCell className="text-[0.875rem] text-muted-foreground">
+                    <TableCell className="text-sm text-muted-foreground">
                       {user.jobCount30d}
                       {user.errorCount30d > 0 && (
                         <span className="ml-1 text-destructive">
@@ -145,17 +147,17 @@ export function AdminUserSearch({ users }: { users: AdminUserRow[] }) {
                         </span>
                       )}
                     </TableCell>
-                    <TableCell className="font-mono text-[0.875rem] text-muted-foreground">
+                    <TableCell className="font-mono text-sm text-muted-foreground">
                       {formatKB(user.usageKB30d)}
                     </TableCell>
-                    <TableCell className="text-[0.875rem]">
+                    <TableCell className="text-sm">
                       {user.blocked ? (
                         <span className="font-medium text-destructive">Blocked</span>
                       ) : (
                         <span className="text-muted-foreground">Active</span>
                       )}
                     </TableCell>
-                    <TableCell className="text-[0.8125rem] text-muted-foreground">
+                    <TableCell className="text-sm text-muted-foreground">
                       {user.joined ? timeAgo(user.joined) : "—"}
                     </TableCell>
                   </TableRow>

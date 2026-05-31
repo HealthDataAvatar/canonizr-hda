@@ -23,10 +23,10 @@ export default function AuthPage() {
     <div className="flex flex-1 items-center justify-center px-6 py-24">
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center space-y-2">
-          <h1 className="text-[1.5rem] font-semibold tracking-tight">
+          <h1 className="tracking-tight">
             Canonizr
           </h1>
-          <p className="text-[0.9375rem] text-muted-foreground">
+          <p className="text-muted-foreground">
             Read any file.{" "}
             <a
               href="https://canonizr.com"

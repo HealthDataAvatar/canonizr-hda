@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ExternalLink, Check, Circle, ChevronLeft, ChevronRight } from "lucide-react";
 import { formatKB } from "@/lib/pure/format";
+import { EmptyState } from "@/components/ui/empty-state";
 import { IconHint } from "@/components/ui/icon-hint";
 import { Button } from "@/components/ui/button";
 import {
@@ -68,13 +69,13 @@ function DesktopInvoiceTable({ invoices }: { invoices: InvoiceRow[] }) {
       <TableBody>
         {invoices.map((inv) => (
           <TableRow key={inv.id}>
-            <TableCell className="text-[0.875rem]">
+            <TableCell className="text-sm">
               {formatMonth(inv.date)}
             </TableCell>
-            <TableCell className="font-mono text-[0.875rem]">
+            <TableCell className="font-mono text-sm">
               {formatKB(inv.processedKB)}
             </TableCell>
-            <TableCell className="font-mono text-[0.875rem]">
+            <TableCell className="font-mono text-sm">
               ${inv.amount.toFixed(2)}
             </TableCell>
             <TableCell>
@@ -98,11 +99,11 @@ function MobileInvoiceList({ invoices }: { invoices: InvoiceRow[] }) {
           key={inv.id}
           className="flex items-center justify-between rounded-lg border border-border px-4 py-3"
         >
-          <span className="text-[0.875rem]">
+          <span className="text-sm">
             {formatMonth(inv.date)}
           </span>
           <div className="flex items-center gap-3">
-            <span className="font-mono text-[0.875rem]">
+            <span className="font-mono text-sm">
               ${inv.amount.toFixed(2)}
             </span>
             <StatusIndicator status={inv.status} />
@@ -119,9 +120,7 @@ export function InvoiceTable({ invoices }: { invoices: InvoiceRow[] }) {
 
   if (invoices.length === 0) {
     return (
-      <p className="py-8 text-center text-[0.9375rem] text-muted-foreground">
-        No invoices yet.
-      </p>
+      <EmptyState>No invoices yet.</EmptyState>
     );
   }
 
@@ -139,7 +138,7 @@ export function InvoiceTable({ invoices }: { invoices: InvoiceRow[] }) {
 
       {pageCount > 1 && (
         <div className="flex items-center justify-between">
-          <p className="text-[0.8125rem] text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             Page {page + 1} of {pageCount}
           </p>
           <div className="flex gap-1">

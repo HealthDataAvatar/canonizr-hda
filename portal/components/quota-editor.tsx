@@ -70,13 +70,13 @@ export function QuotaEditor({ keyId, usageKB, quotaKB }: QuotaEditorProps) {
             if (e.key === "Escape") handleCancel();
           }}
           placeholder="1"
-          className="w-20 font-mono text-[0.8125rem]"
+          className="w-20 font-mono text-sm"
           disabled={saving}
         />
         <select
           value={unit}
           onChange={(e) => setUnit(e.target.value as Unit)}
-          className="rounded-md border border-border bg-background px-1.5 py-1.5 text-[0.8125rem] focus:outline-none focus:ring-2 focus:ring-ring"
+          className="h-8 rounded-lg border border-input bg-transparent px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
           disabled={saving}
         >
           <option value="MB">MB</option>
