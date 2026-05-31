@@ -11,14 +11,14 @@ export interface JobRecord {
   keyName: string;
   fileHash?: string;
   billableKB: number;
-  status: "ok" | "processing" | "error";
-  deleted: boolean;
+  status: "ok" | "processing" | "error" | "deleted";
   retentionExpires?: string;
 }
 
-function parseStatus(raw: string): "ok" | "processing" | "error" {
+function parseStatus(raw: string): "ok" | "processing" | "error" | "deleted" {
   if (raw === "ok") return "ok";
   if (raw === "processing") return "processing";
+  if (raw === "deleted") return "deleted";
   return "error";
 }
 
@@ -44,7 +44,6 @@ export async function listJobsForUser(
       fileHash: (entity.input_hash as string) || undefined,
       billableKB: toBillableKB(Number(entity.input_bytes ?? 0)),
       status: parseStatus(entity.status as string),
-      deleted: (entity.deleted as boolean) ?? false,
       retentionExpires: (entity.retention_expires as string) || undefined,
     });
     if (rows.length >= limit) break;

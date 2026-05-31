@@ -17,7 +17,6 @@ function job(overrides: Partial<JobRecord> = {}): JobRecord {
     keyName: "my-key",
     billableKB: 100,
     status: "ok",
-    deleted: false,
     ...overrides,
   };
 }
@@ -42,14 +41,14 @@ describe("getJobsForUser", () => {
   });
 
   it("deleted job has blob status none", async () => {
-    mockList.mockResolvedValue([job({ deleted: true })]);
+    mockList.mockResolvedValue([job({ status: "deleted" })]);
     const rows = await getJobsForUser("user-1");
     expect(rows[0].result.status).toBe("none");
     expect(rows[0].input.status).toBe("none");
   });
 
   it("processing job has blob status processing", async () => {
-    mockList.mockResolvedValue([job({ status: "processing", deleted: false })]);
+    mockList.mockResolvedValue([job({ status: "processing" })]);
     const rows = await getJobsForUser("user-1");
     expect(rows[0].result.status).toBe("processing");
   });

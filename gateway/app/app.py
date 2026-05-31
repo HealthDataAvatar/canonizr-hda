@@ -14,7 +14,7 @@ from fastapi.responses import JSONResponse, Response
 
 from .blob_azure import AzureBlobStore
 from .context import Services
-from .handlers import Rejected, accept_job, delete_result, poll_result
+from .handlers import Rejected, accept_job, delete_result, download_artifact, poll_result
 from .jobs_table import TableJobStore
 from .queue import RedisQueue
 from .quota import QuotaService, get_redis
@@ -148,6 +148,26 @@ async def delete_job(request: Request, job_id: str):
         raise HTTPException(status_code=404, detail="Job not found")
 
     return Response(status_code=204)
+
+
+@app.get("/v1/jobs/{job_id}/{artifact}")
+async def get_artifact(request: Request, job_id: str, artifact: str):
+    assert _svc is not None
+
+    sub_id = request.headers.get("x-subscription-id", "")
+    if not sub_id:
+        raise HTTPException(status_code=401, detail="Missing subscription ID")
+
+    try:
+        result = await download_artifact(job_id, sub_id, artifact, _svc)
+    except Rejected as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
+
+    return Response(
+        content=result.data,
+        media_type=result.content_type,
+        headers={"Content-Disposition": f'attachment; filename="{result.filename}"'},
+    )
 
 
 @app.on_event("startup")

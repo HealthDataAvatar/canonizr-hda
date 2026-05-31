@@ -8,16 +8,19 @@ function statusToCode(status: JobRecord["status"]): number {
     case "ok": return 200;
     case "processing": return 202;
     case "error": return 500;
+    case "deleted": return 410;
   }
 }
 
-function blobState(job: JobRecord): BlobState {
-  if (job.deleted) return { status: "none" };
+function blobState(job: JobRecord, artifact: "output" | "input"): BlobState {
+  if (job.status === "error" || job.status === "deleted") return { status: "none" };
   if (job.status === "processing") return { status: "processing" };
   if (job.retentionExpires) {
     if (new Date(job.retentionExpires) < new Date()) return { status: "expired" };
   }
-  // TODO: generate SAS URLs for blob download once blob access is wired
+  if (job.status === "ok") {
+    return { status: "available", url: `/api/jobs/${job.id}/${artifact}` };
+  }
   return { status: "none" };
 }
 
@@ -34,7 +37,7 @@ export async function getJobsForUser(
     fileHash: job.fileHash,
     billableKB: job.billableKB,
     status: statusToCode(job.status),
-    result: blobState(job),
-    input: blobState(job),
+    result: blobState(job, "output"),
+    input: blobState(job, "input"),
   }));
 }

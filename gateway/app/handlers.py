@@ -245,3 +245,68 @@ async def delete_result(job_id: str, sub_id: str, svc: Services) -> bool:
     svc.jobs.mark_deleted(meta.user_id, job_id)
 
     return True
+
+
+# ---------------------------------------------------------------------------
+# GET /v1/jobs/{job_id}/output and /v1/jobs/{job_id}/input
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class ArtifactResult:
+    data: bytes
+    filename: str
+    content_type: str
+
+
+async def download_artifact(
+    job_id: str,
+    sub_id: str,
+    artifact: str,
+    svc: Services,
+) -> ArtifactResult:
+    """Download a job artifact (input or output). Returns decrypted bytes.
+
+    Raises Rejected on auth failure, wrong user, expired, or missing blob.
+    """
+    user = await svc.users.resolve(sub_id)
+    if not user:
+        raise Rejected(403, "Unknown subscription")
+
+    meta = svc.jobs.get_by_job_id(job_id)
+    if meta is None:
+        raise Rejected(404, "Job not found")
+
+    if meta.user_id != user.user_id:
+        raise Rejected(403, "Job does not belong to this user")
+
+    if meta.status == JobStatus.DELETED:
+        raise Rejected(410, "Job deleted")
+
+    if meta.retention_expires:
+        if datetime.now(UTC) > datetime.fromisoformat(meta.retention_expires):
+            raise Rejected(410, "Job expired")
+
+    blob_prefix = f"{meta.user_id}/{job_id}"
+
+    if artifact == "output":
+        encrypted = await svc.blobs.get(f"{blob_prefix}/output.bin")
+        if encrypted is None:
+            raise Rejected(404, "Output not available")
+        decrypted = decrypt(encrypted, user.encryption_key)
+        payload = json.loads(decrypted)
+        markdown = payload.get("markdown", "")
+        filename = f"{meta.original_filename}.md"
+        return ArtifactResult(data=markdown.encode(), filename=filename, content_type="text/markdown; charset=utf-8")
+
+    elif artifact == "input":
+        encrypted = await svc.blobs.get(f"{blob_prefix}/input.bin")
+        if encrypted is None:
+            raise Rejected(404, "Input not available")
+        decrypted = decrypt(encrypted, user.encryption_key)
+        return ArtifactResult(
+            data=decrypted, filename=meta.original_filename, content_type=meta.mime_type or "application/octet-stream"
+        )
+
+    else:
+        raise Rejected(400, f"Unknown artifact: {artifact}")
