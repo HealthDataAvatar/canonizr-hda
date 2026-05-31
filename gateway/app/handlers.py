@@ -15,7 +15,7 @@ from .context import Services
 from .crypto import decrypt, encrypt
 from .estimates import estimate_seconds
 from .hash import document_hash
-from .protocols import Job, JobMeta, JobStatus
+from .protocols import Job, JobMeta, JobStatus, UserContext
 from .sanitize import is_known_mime_type, sanitize_filename
 
 logger = logging.getLogger(__name__)
@@ -73,9 +73,12 @@ async def accept_job(
 
     Raises Rejected on auth failure, unknown user, or quota exceeded.
     """
-    user = await svc.users.resolve(sub_id)
-    if not user:
+    resolved = await svc.users.resolve(sub_id)
+    if resolved is None:
         raise Rejected(403, "Unknown subscription — no user mapping found")
+    if isinstance(resolved, str):
+        raise Rejected(403, resolved)
+    user = resolved
 
     if not is_known_mime_type(mime_type):
         raise Rejected(400, f"Unsupported file type: {mime_type}")
@@ -185,7 +188,7 @@ async def poll_result(job_id: str, svc: Services) -> PollResult:
 
     if meta and meta.sub_id:
         user = await svc.users.resolve(meta.sub_id)
-        if user is None:
+        if not isinstance(user, UserContext):
             return PollResult(
                 status="error",
                 status_code=500,
@@ -226,9 +229,12 @@ async def delete_result(job_id: str, sub_id: str, svc: Services) -> bool:
 
     Raises Rejected if the job doesn't belong to the requesting user.
     """
-    user = await svc.users.resolve(sub_id)
-    if not user:
+    resolved = await svc.users.resolve(sub_id)
+    if resolved is None:
         raise Rejected(403, "Unknown subscription")
+    if isinstance(resolved, str):
+        raise Rejected(403, resolved)
+    user = resolved
 
     meta = svc.jobs.get_by_job_id(job_id)
     if meta is None:
@@ -269,9 +275,12 @@ async def download_artifact(
 
     Raises Rejected on auth failure, wrong user, expired, or missing blob.
     """
-    user = await svc.users.resolve(sub_id)
-    if not user:
+    resolved = await svc.users.resolve(sub_id)
+    if resolved is None:
         raise Rejected(403, "Unknown subscription")
+    if isinstance(resolved, str):
+        raise Rejected(403, resolved)
+    user = resolved
 
     meta = svc.jobs.get_by_job_id(job_id)
     if meta is None:

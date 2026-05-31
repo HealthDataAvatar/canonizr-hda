@@ -84,7 +84,7 @@ class UserContext:
 
 
 class UserResolver(Protocol):
-    async def resolve(self, sub_id: str) -> UserContext | None: ...
+    async def resolve(self, sub_id: str) -> UserContext | None | str: ...
 
 
 # ---------------------------------------------------------------------------

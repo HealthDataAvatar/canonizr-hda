@@ -31,19 +31,23 @@ class TableUserResolver:
         self._endpoint = endpoint
         self._conn_str = connection_string
 
-    async def resolve(self, sub_id: str) -> UserContext | None:
+    async def resolve(self, sub_id: str) -> UserContext | None | str:
+        """Resolve a subscription to a user context.
+
+        Returns UserContext on success, None if unknown, or an error string if blocked/misconfigured.
+        """
         uid = await self._get_user_id(sub_id)
         if not uid:
             return None
 
         if await self._is_blocked(uid):
             logger.warning("Blocked user %s attempted request", uid)
-            return None
+            return "Account is blocked"
 
         key_hex = await self._get_user_key(uid)
         if not key_hex:
             logger.error("User %s has no encryption key", uid)
-            return None
+            return "Account configuration error — please contact support"
 
         kname = await self._get_key_name(sub_id)
 

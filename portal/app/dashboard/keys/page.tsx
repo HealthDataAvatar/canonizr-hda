@@ -22,12 +22,12 @@ export default async function KeysPage() {
             {
               language: "bash",
               code: `# Submit a document
-POLL_URL=$(curl -s -X POST https://api.canonizr.com/v1/jobs \\
+POLL_URL=$(curl -s -X POST https://apim-canonizr-prod.azure-api.net/v1/jobs \\
   -H "Ocp-Apim-Subscription-Key: YOUR_API_KEY" \\
   -F "file=@document.pdf" | jq -r .poll_url)
 
 # Fetch the result
-curl -s https://api.canonizr.com$POLL_URL \\
+curl -s https://apim-canonizr-prod.azure-api.net$POLL_URL \\
   -H "Ocp-Apim-Subscription-Key: YOUR_API_KEY" | jq .markdown`,
             },
             {
@@ -35,7 +35,7 @@ curl -s https://api.canonizr.com$POLL_URL \\
               code: `import requests
 
 API_KEY = "YOUR_API_KEY"
-BASE = "https://api.canonizr.com"
+BASE = "https://apim-canonizr-prod.azure-api.net"
 HEADERS = {"Ocp-Apim-Subscription-Key": API_KEY}
 
 # Submit a document
@@ -49,7 +49,7 @@ print(resp.json()["markdown"])`,
             {
               language: "javascript",
               code: `const API_KEY = "YOUR_API_KEY";
-const BASE = "https://api.canonizr.com";
+const BASE = "https://apim-canonizr-prod.azure-api.net";
 
 // Submit a document
 const form = new FormData();

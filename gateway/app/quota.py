@@ -34,10 +34,7 @@ async def get_redis() -> redis.Redis | None:
     if not REDIS_URL:
         return None
     if _pool is None:
-        if ":10000" in REDIS_URL:
-            _pool = redis.RedisCluster.from_url(REDIS_URL, decode_responses=True)  # type: ignore[assignment]
-        else:
-            _pool = redis.from_url(REDIS_URL, decode_responses=True)
+        _pool = redis.from_url(REDIS_URL, decode_responses=True)
     return _pool
 
 

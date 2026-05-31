@@ -118,6 +118,28 @@ resource "azurerm_api_management_api_operation" "get_job" {
   }
 }
 
+resource "azurerm_api_management_api_operation" "get_artifact" {
+  operation_id        = "get-artifact"
+  api_name            = azurerm_api_management_api.canonizr.name
+  api_management_name = azurerm_api_management.this.name
+  resource_group_name = azurerm_resource_group.this.name
+  display_name        = "Get Job Artifact"
+  method              = "GET"
+  url_template        = "/v1/jobs/{jobId}/{artifact}"
+
+  template_parameter {
+    name     = "jobId"
+    required = true
+    type     = "string"
+  }
+
+  template_parameter {
+    name     = "artifact"
+    required = true
+    type     = "string"
+  }
+}
+
 resource "azurerm_api_management_api_operation" "delete_job" {
   operation_id        = "delete-job"
   api_name            = azurerm_api_management_api.canonizr.name
