@@ -200,6 +200,26 @@ resource "azurerm_api_management_api_policy" "canonizr" {
     <policies>
       <inbound>
         <base />
+        <cors allow-credentials="false">
+          <allowed-origins>
+            <origin>https://portal.canonizr.com</origin>
+          </allowed-origins>
+          <allowed-methods>
+            <method>GET</method>
+            <method>POST</method>
+            <method>DELETE</method>
+          </allowed-methods>
+          <allowed-headers>
+            <header>Content-Type</header>
+            <header>Ocp-Apim-Subscription-Key</header>
+          </allowed-headers>
+          <expose-headers>
+            <header>X-Input-Size-Bytes</header>
+            <header>X-Document-Hash</header>
+            <header>X-Processing-Time-Ms</header>
+            <header>X-Billable-Units</header>
+          </expose-headers>
+        </cors>
         <set-header name="X-Subscription-Id" exists-action="override">
           <value>@(context.Subscription.Id)</value>
         </set-header>
