@@ -77,18 +77,17 @@ describe("onCreateUser", () => {
     expect(svc.billing.createCustomer).not.toHaveBeenCalled();
   });
 
-  it("propagates billing errors without appending config", async () => {
+  it("continues with empty customerId when Stripe fails", async () => {
     const svc = mockServices();
     svc.billing.createCustomer.mockRejectedValue(new Error("Stripe down"));
-    const config = vi.fn();
-    const perms = vi.fn();
+    const config = vi.fn().mockResolvedValue(undefined);
+    const perms = vi.fn().mockResolvedValue(undefined);
 
-    await expect(
-      onCreateUser({ id: "u", email: "a@b.com" }, svc, config, perms),
-    ).rejects.toThrow("Stripe down");
+    const result = await onCreateUser({ id: "u", email: "a@b.com" }, svc, config, perms);
 
-    expect(config).not.toHaveBeenCalled();
-    expect(perms).not.toHaveBeenCalled();
-    expect(svc.keys.create).not.toHaveBeenCalled();
+    expect(config).toHaveBeenCalled();
+    expect(perms).toHaveBeenCalledWith("u", "", "system");
+    expect(svc.keys.create).toHaveBeenCalled();
+    expect(result?.customerId).toBe("");
   });
 });

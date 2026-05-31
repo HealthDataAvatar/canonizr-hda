@@ -1,7 +1,7 @@
 "use client";
 
 import { KeyActions } from "@/components/key-actions";
-import { UsageBar } from "@/components/usage-bar";
+import { QuotaEditor } from "@/components/quota-editor";
 import {
   Table,
   TableBody,
@@ -10,13 +10,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { APIKeySpan } from "./ui/api-key-span";
 
 export interface KeyRow {
   id: string;
   displayName: string;
-  keyHint: string;
-  createdDate: string;
-  lastUsed: string;
+  value: string;
   usageKB: number;
   quotaKB: number | null;
 }
@@ -28,33 +27,22 @@ function DesktopKeyTable({ keys }: { keys: KeyRow[] }) {
       <TableHeader>
         <TableRow>
           <TableHead className="w-3/12">Name</TableHead>
-          <TableHead className="w-2/12"></TableHead>
-          <TableHead className="w-2/12">Key</TableHead>
-          <TableHead className="w-2/12">Created</TableHead>
-          <TableHead className="w-2/12">Last used</TableHead>
-          <TableHead className="w-3/12">Usage / Quota</TableHead>
+          <TableHead className="w-3/12">Key</TableHead>
+          <TableHead className="w-4/12">Usage / Quota</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
         {keys.map((key) => (
           <TableRow key={key.id}>
-            <TableCell className="font-medium font-mono text-[0.875rem]">
-              {key.displayName}
+            <TableCell className="text-[0.875rem]">
+              <APIKeySpan text={key.displayName} />
+            </TableCell>
+            <TableCell className="font-mono text-[0.8125rem] text-muted-foreground flex gap-2">
+              •••• {key.value.slice(-4)}
+              <KeyActions keyId={key.id} keyValue={key.value} />
             </TableCell>
             <TableCell>
-              <KeyActions keyId={key.id} />
-            </TableCell>
-            <TableCell className="font-mono text-[0.8125rem] text-muted-foreground">
-              •••• {key.keyHint}
-            </TableCell>
-            <TableCell className="text-[0.8125rem] text-muted-foreground">
-              {key.createdDate}
-            </TableCell>
-            <TableCell className="text-[0.8125rem] text-muted-foreground">
-              {key.lastUsed}
-            </TableCell>
-            <TableCell>
-              <UsageBar usageKB={key.usageKB} quotaKB={key.quotaKB} />
+              <QuotaEditor keyId={key.id} usageKB={key.usageKB} quotaKB={key.quotaKB} />
             </TableCell>
           </TableRow>
         ))}
@@ -75,13 +63,12 @@ function MobileKeyList({ keys }: { keys: KeyRow[] }) {
             <span className="font-medium font-mono text-[0.875rem]">
               {key.displayName}
             </span>
-            <KeyActions keyId={key.id} />
+            <KeyActions keyId={key.id} keyValue={key.value} />
           </div>
-          <div className="flex items-center justify-between text-[0.8125rem] text-muted-foreground">
-            <span className="font-mono">•••• {key.keyHint}</span>
-            <span>{key.createdDate}</span>
-          </div>
-          <UsageBar usageKB={key.usageKB} quotaKB={key.quotaKB} />
+          <span className="font-mono text-[0.8125rem] text-muted-foreground">
+            •••• {key.value}
+          </span>
+          <QuotaEditor keyId={key.id} usageKB={key.usageKB} quotaKB={key.quotaKB} />
         </div>
       ))}
     </div>

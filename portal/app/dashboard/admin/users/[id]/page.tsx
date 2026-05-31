@@ -98,10 +98,7 @@ export default async function AdminUserDetailPage({
                     {key.displayName}
                   </TableCell>
                   <TableCell className="font-mono text-[0.8125rem] text-muted-foreground">
-                    ···· {key.keyHint}
-                  </TableCell>
-                  <TableCell className="text-[0.8125rem] text-muted-foreground">
-                    {key.createdDate}
+                    ···· {key.value}
                   </TableCell>
                   <TableCell>
                     <UsageBar usageKB={key.usageKB} quotaKB={key.quotaKB} />

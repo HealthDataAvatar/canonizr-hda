@@ -5,10 +5,6 @@ import { CreatedKeyCard } from "./created-key-card";
 import { validateKeyName } from "@/lib/pure/key-name-validation";
 import { generateKeyName } from "@/lib/pure/key-names";
 
-// ---------------------------------------------------------------------------
-// Interactive wrapper for CreateKeyInput
-// ---------------------------------------------------------------------------
-
 function InputInteractive({
   existingNames,
   initialName,
@@ -39,9 +35,7 @@ function InputInteractive({
   );
 }
 
-// ---------------------------------------------------------------------------
-// All states
-// ---------------------------------------------------------------------------
+const noop = () => {};
 
 const meta = {
   title: "Components/CreateKeyInput",
@@ -63,25 +57,12 @@ export const AllStates: Story = {
         <p className="text-xs text-muted-foreground mb-2">Default</p>
         <CreateKeyInput
           name="agent-bold-crane"
-          onNameChange={() => {}}
-          onRandomise={() => {}}
+          onNameChange={noop}
+          onRandomise={noop}
           error={null}
           showError={false}
           loading={false}
-          onCreate={() => {}}
-        />
-      </div>
-
-      <div>
-        <p className="text-xs text-muted-foreground mb-2">Empty name</p>
-        <CreateKeyInput
-          name=""
-          onNameChange={() => {}}
-          onRandomise={() => {}}
-          error="Key name is required."
-          showError={true}
-          loading={false}
-          onCreate={() => {}}
+          onCreate={noop}
         />
       </div>
 
@@ -89,12 +70,12 @@ export const AllStates: Story = {
         <p className="text-xs text-muted-foreground mb-2">Duplicate name</p>
         <CreateKeyInput
           name="agent-bold-crane"
-          onNameChange={() => {}}
-          onRandomise={() => {}}
+          onNameChange={noop}
+          onRandomise={noop}
           error="A key with this name already exists."
           showError={true}
           loading={false}
-          onCreate={() => {}}
+          onCreate={noop}
         />
       </div>
 
@@ -102,12 +83,12 @@ export const AllStates: Story = {
         <p className="text-xs text-muted-foreground mb-2">Loading</p>
         <CreateKeyInput
           name="agent-bold-crane"
-          onNameChange={() => {}}
-          onRandomise={() => {}}
+          onNameChange={noop}
+          onRandomise={noop}
           error={null}
           showError={false}
           loading={true}
-          onCreate={() => {}}
+          onCreate={noop}
         />
       </div>
 
@@ -116,7 +97,7 @@ export const AllStates: Story = {
         <CreatedKeyCard
           keyName="agent-bold-crane"
           keyValue="abc123def456ghi789jkl012mno345pq"
-          onDismiss={() => {}}
+          onDismiss={noop}
         />
       </div>
     </div>

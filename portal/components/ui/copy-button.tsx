@@ -2,33 +2,13 @@
 
 import { useState, useCallback } from "react";
 import { Check, Copy } from "lucide-react";
-import { cva, type VariantProps } from "class-variance-authority";
-import { cn } from "@/lib/style/utils";
+import { IconButton } from "./icon-button";
 
-const copyButtonVariants = cva(
-  "relative inline-flex items-center justify-center cursor-pointer rounded-md text-muted-foreground hover:text-foreground transition-colors duration-300 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background outline-none",
-  {
-    variants: {
-      size: {
-        default: "size-8 [&_svg]:size-4",
-        sm: "size-6 [&_svg]:size-3.5",
-        lg: "size-10 [&_svg]:size-5",
-      },
-    },
-    defaultVariants: {
-      size: "default",
-    },
-  }
-);
 
 function CopyButton({
   value,
-  size,
-  className,
-}: { value: string; className?: string } & VariantProps<
-  typeof copyButtonVariants
->) {
-  const [copied, setCopied] = useState(false);
+}: { value: string; className?: string }) {
+  const [copied, setCopied] = useState<boolean>(false);
 
   const handleCopy = useCallback(() => {
     navigator.clipboard.writeText(value);
@@ -37,20 +17,14 @@ function CopyButton({
   }, [value]);
 
   return (
-    <button
-      type="button"
+    <IconButton
       onClick={handleCopy}
-      className={cn(copyButtonVariants({ size }), className)}
-      title={copied ? "Copied" : "Copy to clipboard"}
-      aria-label={copied ? "Copied" : "Copy to clipboard"}
-    >
-      {copied ? (
-        <Check className="text-accent animate-in fade-in duration-200" />
-      ) : (
-        <Copy className="animate-in fade-in duration-300" />
-      )}
-    </button>
+      tone={copied ? "accent" : "muted"}
+      title={copied ? "Copied" : "Copy key"}
+      aria-label={copied ? "Copied" : "Copy key"}
+      icon={copied ? Check : Copy}
+    />
   );
 }
 
-export { CopyButton, copyButtonVariants };
+export { CopyButton };

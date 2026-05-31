@@ -152,7 +152,7 @@ export async function getUserDetail(userId: string): Promise<AdminUserDetail | n
     keys: apiKeys.map((k) => ({
       id: k.id,
       displayName: k.displayName,
-      keyHint: k.keyHint,
+      value: k.key,
       createdDate: k.createdDate,
       lastUsed: k.lastUsed,
       usageKB: k.usageKB,

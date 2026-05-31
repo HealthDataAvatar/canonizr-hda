@@ -53,9 +53,7 @@ export async function getKeysData(): Promise<KeysData> {
     keys: keys.map((k) => ({
       id: k.id,
       displayName: k.displayName,
-      keyHint: k.keyHint,
-      createdDate: k.createdDate,
-      lastUsed: k.lastUsed,
+      value: k.key,
       usageKB: k.usageKB,
       quotaKB: k.quotaKB,
     })),

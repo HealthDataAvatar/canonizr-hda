@@ -38,7 +38,7 @@ export class ApimKeyStore implements KeyStore {
         results.push({
           id: sub.name!,
           displayName: sub.displayName.replace(`user:${userId}:`, ""),
-          keyHint: secrets.primaryKey?.slice(-4) ?? "",
+          key: secrets.primaryKey ?? "",
           createdDate: sub.createdDate?.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) ?? "",
           lastUsed: "—",
           usageKB: 0,

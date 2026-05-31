@@ -11,6 +11,10 @@ vi.mock("@/lib/data/tables", () => ({
   getCurrentPermissions: vi.fn(),
 }));
 
+vi.mock("@/lib/auth/ensure-user-setup", () => ({
+  ensureUserSetup: vi.fn().mockResolvedValue(undefined),
+}));
+
 function mockSession(overrides: Record<string, unknown> = {}) {
   const session = {
     user: { id: "user-123", email: "test@example.com", name: null, image: null, emailVerified: null, ...overrides },

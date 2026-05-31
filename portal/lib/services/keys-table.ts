@@ -92,7 +92,7 @@ function toApiKey(e: Record<string, unknown>): ApiKey {
   return {
     id: e.rowKey as string,
     displayName: e.displayName as string,
-    keyHint: (e.primaryKey as string).slice(-4),
+    key: e.primaryKey as string,
     createdDate: created ? new Date(created).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "",
     lastUsed: "—",
     usageKB: 0,

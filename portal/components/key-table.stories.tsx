@@ -14,24 +14,24 @@ export const AllStates: Story = {
   render: () => (
     <div className="space-y-10">
       <div>
-        <p className="text-xs text-muted-foreground mb-2">Multiple keys</p>
+        <p className="text-xs text-muted-foreground mb-2">Multiple keys with quotas</p>
         <KeyTable keys={[
-          { id: "1", displayName: "agent-bold-crane", keyHint: "a3f2", createdDate: "20 May 2026", lastUsed: "2 hours ago", usageKB: 3200, quotaKB: 10000 },
-          { id: "2", displayName: "agent-quiet-raven", keyHint: "9c1e", createdDate: "25 May 2026", lastUsed: "5 min ago", usageKB: 800, quotaKB: 10000 },
-          { id: "3", displayName: "agent-swift-otter", keyHint: "7b4d", createdDate: "28 May 2026", lastUsed: "Never", usageKB: 0, quotaKB: null },
+          { id: "1", displayName: "agent-bold-crane", value: "a3f2",  usageKB: 3200, quotaKB: 10000 },
+          { id: "2", displayName: "agent-quiet-raven", value: "9c1e", usageKB: 800, quotaKB: 10000 },
+          { id: "3", displayName: "agent-swift-otter", value: "7b4d",  usageKB: 0, quotaKB: null },
         ]} />
       </div>
       <div>
         <p className="text-xs text-muted-foreground mb-2">Near / at quota</p>
         <KeyTable keys={[
-          { id: "1", displayName: "agent-bold-crane", keyHint: "a3f2", createdDate: "20 May 2026", lastUsed: "1 min ago", usageKB: 9500, quotaKB: 10000 },
-          { id: "2", displayName: "agent-quiet-raven", keyHint: "9c1e", createdDate: "25 May 2026", lastUsed: "3 hours ago", usageKB: 10000, quotaKB: 10000 },
+          { id: "1", displayName: "agent-bold-crane", value: "a3f2", usageKB: 9500, quotaKB: 10000 },
+          { id: "2", displayName: "agent-quiet-raven", value: "9c1e", usageKB: 10000, quotaKB: 10000 },
         ]} />
       </div>
       <div>
-        <p className="text-xs text-muted-foreground mb-2">New user (single key)</p>
+        <p className="text-xs text-muted-foreground mb-2">New user (single key, no limit)</p>
         <KeyTable keys={[
-          { id: "1", displayName: "my-first-key", keyHint: "a3f2", createdDate: "29 May 2026", lastUsed: "Never", usageKB: 0, quotaKB: null },
+          { id: "1", displayName: "my-first-key", value: "a3f2",  usageKB: 0, quotaKB: null },
         ]} />
       </div>
       <div>

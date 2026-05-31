@@ -157,7 +157,7 @@ function buildColumns(onDelete?: (id: string) => void) {
         return (
           <span className="inline-flex items-center gap-1 font-mono text-[0.75rem] text-muted-foreground" title={title}>
             {r.id.slice(0, 8)}
-            <CopyButton value={r.id} size="sm" />
+            <CopyButton value={r.id} />
           </span>
         );
       },
@@ -296,7 +296,7 @@ function MobileCard({
             <span className="text-muted-foreground">Job ID</span>
             <span className="inline-flex items-center gap-1 font-mono text-[0.75rem]">
               {row.id.slice(0, 8)}
-              <CopyButton value={row.id} size="sm" />
+              <CopyButton value={row.id} />
             </span>
 
             {row.fileHash && (
@@ -304,7 +304,7 @@ function MobileCard({
                 <span className="text-muted-foreground">Hash</span>
                 <span className="inline-flex items-center gap-1 font-mono text-[0.75rem]">
                   {row.fileHash.slice(0, 8)}
-                  <CopyButton value={row.fileHash} size="sm" />
+                  <CopyButton value={row.fileHash} />
                 </span>
               </>
             )}

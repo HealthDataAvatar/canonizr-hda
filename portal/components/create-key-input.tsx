@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label";
 import { IconHint } from "@/components/ui/icon-hint";
 import { KEY_NAME_MAX_LENGTH } from "@/lib/pure/key-name-validation";
 import { Dices, TriangleAlert } from "lucide-react";
+import { IconButton } from "./ui/icon-button";
 
 export interface CreateKeyInputProps {
   name: string;
@@ -47,15 +48,12 @@ export function CreateKeyInput({
             <IconHint icon={TriangleAlert} title={error!} tone="destructive" />
             <p id="key-name-error" className="sr-only">{error}</p>
           </>
-        ) : (
-          <button
-            type="button"
-            onClick={onRandomise}
-            className="shrink-0 cursor-pointer"
-          >
-            <IconHint icon={Dices} title="Random name" tone="muted" />
-          </button>
+        ) : (null
         )}
+        <IconButton
+          icon={Dices}
+          title="Random name"
+          onClick={onRandomise} />
         <Button
           onClick={onCreate}
           disabled={loading || !!error}

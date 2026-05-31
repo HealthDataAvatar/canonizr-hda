@@ -6,7 +6,7 @@ TAG         ?= latest
 TF_DIR      ?= infra/terraform
 DEPLOY_TIME ?= $(shell date -u +%Y%m%dT%H%M%SZ)
 
-.PHONY: build gateway-push deploy test test-unit test-gateway-integration test-portal-integration test-integration test-smoke test-focus check-uv fmt lint check install-hooks setup-secrets gen-key gateway-logs worker-logs portal-dev portal-build portal-push portal-logs
+.PHONY: build gateway-push deploy test test-unit test-gateway-integration test-portal-integration test-integration test-smoke test-focus check-uv fmt lint check install-hooks setup-secrets gen-key gateway-logs worker-logs portal-dev portal-build portal-push portal-logs set-admin
 
 # ---------------------------------------------------------------------------
 # Prerequisites
@@ -62,6 +62,26 @@ test: test-unit test-integration
 stripe-setup: check-uv
 	@test -n "$$STRIPE_SECRET_KEY" || { echo "Error: set STRIPE_SECRET_KEY"; exit 1; }
 	cd gateway && uv sync && uv run python ../infra/stripe/setup.py
+
+# ---------------------------------------------------------------------------
+# Admin
+# ---------------------------------------------------------------------------
+set-admin:
+	@test -n "$(EMAIL)" || { echo "Usage: make set-admin EMAIL=you@example.com"; exit 1; }
+	@CONN=$$(az storage account show-connection-string -g rg-canonizr-prod -n stportalcanonizrprod --query connectionString -o tsv) && \
+	USER_ID=$$(az storage entity query --table-name Users --filter "PartitionKey eq 'email' and RowKey eq '$(EMAIL)'" --connection-string "$$CONN" --query "items[0].userId" -o tsv) && \
+	test -n "$$USER_ID" || { echo "Error: user $(EMAIL) not found"; exit 1; } && \
+	INVERTED_TS=$$(python3 -c "import time; print(str(9999999999999 - int(time.time() * 1000)).zfill(13))") && \
+	az storage entity insert --table-name UserPermissions --entity \
+		PartitionKey=$$USER_ID \
+		RowKey=$${INVERTED_TS}_admin \
+		timestamp=$$(date -u +%Y-%m-%dT%H:%M:%SZ) \
+		isAdmin@odata.type=Edm.Boolean isAdmin=true \
+		blocked@odata.type=Edm.Boolean blocked=false \
+		stripeCustomerId="" \
+		changedBy=manual \
+		--connection-string "$$CONN" && \
+	echo "✓ $(EMAIL) ($$USER_ID) is now admin"
 
 # ---------------------------------------------------------------------------
 # Secrets

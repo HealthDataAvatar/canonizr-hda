@@ -12,7 +12,7 @@
 export interface ApiKey {
   id: string;
   displayName: string;
-  keyHint: string;
+  key: string;
   createdDate: string;
   lastUsed: string;
   usageKB: number;

@@ -2,43 +2,11 @@
 
 import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
-import { CopyButton } from "@/components/ui/copy-button";
 import { Check, Copy, RefreshCw, Trash2 } from "lucide-react";
+import { IconButton } from "./ui/icon-button";
+import { CopyButton } from "./ui/copy-button";
 
-function CopyKeyButton({ keyId }: { keyId: string }) {
-  const [state, setState] = useState<"idle" | "busy" | "done">("idle");
-
-  const handleCopy = useCallback(async () => {
-    setState("busy");
-    const res = await fetch(`/api/keys/${keyId}`);
-    const data = await res.json();
-    if (res.ok) {
-      await navigator.clipboard.writeText(data.primaryKey);
-      setState("done");
-      setTimeout(() => setState("idle"), 1500);
-    } else {
-      setState("idle");
-    }
-  }, [keyId]);
-
-  return (
-    <Button
-      variant="outline"
-      size="icon-sm"
-      onClick={handleCopy}
-      disabled={state === "busy"}
-      title={state === "done" ? "Copied" : "Copy key"}
-      aria-label={state === "done" ? "Copied" : "Copy key"}
-    >
-      {state === "done" ? (
-        <Check className="size-3.5 text-accent" />
-      ) : (
-        <Copy className="size-3.5" />
-      )}
-    </Button>
-  );
-}
+// TODO: Change these into a hook, simplify this file
 
 function RotateButton({ keyId }: { keyId: string }) {
   const router = useRouter();
@@ -59,24 +27,19 @@ function RotateButton({ keyId }: { keyId: string }) {
   }, [keyId, router]);
 
   return (
-    <Button
-      variant="outline"
-      size="icon-sm"
+    <IconButton
       onClick={handleRotate}
       disabled={state === "busy"}
       title={state === "done" ? "Regenerated" : "Regenerate key"}
-      aria-label={state === "done" ? "Regenerated" : "Regenerate key"}
-    >
-      {state === "done" ? (
-        <Check className="size-3.5 text-accent" />
-      ) : (
-        <RefreshCw className="size-3.5" />
-      )}
-    </Button>
+      aria-label={state === "done" ? "Copied" : "Copy key"}
+      icon={state === "done" ? Check : RefreshCw}
+    />
   );
 }
 
-export function KeyActions({ keyId }: { keyId: string }) {
+export function KeyActions({ keyId,
+  keyValue,
+}: { keyId: string, keyValue: string }) {
   const router = useRouter();
 
   async function handleDelete() {
@@ -87,12 +50,15 @@ export function KeyActions({ keyId }: { keyId: string }) {
   }
 
   return (
-    <div className="flex justify-end gap-2">
-      <CopyKeyButton keyId={keyId} />
+    <>
+      <CopyButton value={keyValue} />
       <RotateButton keyId={keyId} />
-      <Button variant="ghost" size="icon-sm" onClick={handleDelete} title="Delete key" aria-label="Delete key" className="text-muted-foreground hover:text-destructive">
-        <Trash2 className="size-3.5" />
-      </Button>
-    </div>
+      <IconButton
+        onClick={handleDelete}
+        title="Delete key"
+        icon={Trash2}
+        tone="destructive"
+      />
+    </>
   );
 }

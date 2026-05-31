@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { notFound } from "next/navigation";
 import { auth } from "./auth";
 import { getCurrentPermissions } from "@/lib/data/tables";
+import { ensureUserSetup } from "./ensure-user-setup";
 
 export class AuthError extends Error {
   constructor(message = "Unauthorized") {
@@ -23,6 +24,7 @@ export async function requireUser(
     if (opts.autoRedirect) redirect("/auth");
     throw new AuthError();
   }
+  await ensureUserSetup(session.user.id);
   return { userId: session.user.id, email: session.user.email };
 }
 

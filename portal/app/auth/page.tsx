@@ -11,8 +11,10 @@ export default function AuthPage() {
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit() {
+    const trimmed = email.trim();
+    if (!trimmed) return;
     setLoading(true);
-    const res = await signIn("email", { email, callbackUrl: "/dashboard", redirect: false });
+    const res = await signIn("email", { email: trimmed, callbackUrl: "/dashboard", redirect: false });
     setLoading(false);
     if (res?.ok) setSentAt(new Date());
   }

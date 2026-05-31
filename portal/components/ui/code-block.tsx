@@ -100,7 +100,7 @@ function CodeBlock({
             </button>
           ))}
         </div>
-        <CopyButton value={active.code} size="sm" />
+        <CopyButton value={active.code} />
       </div>
       <pre className="overflow-auto h-64 bg-surface p-5 font-mono text-[0.875rem] leading-[1.6]">
         <code dangerouslySetInnerHTML={{ __html: highlighted }} />

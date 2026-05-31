@@ -12,7 +12,7 @@ export interface AppendPermissions {
  * Called when a new user first signs in. Idempotent — safe to re-run
  * if a previous attempt partially failed.
  *
- * 1. Creates (or finds) a Stripe customer by email
+ * 1. Tries to create a Stripe customer (non-fatal if it fails)
  * 2. Appends initial UserConfig and UserPermissions
  * 3. Creates a default API key if the user has none
  */
@@ -24,7 +24,13 @@ export async function onCreateUser(
 ): Promise<{ customerId: string; keyId: string | null } | null> {
   if (!user.id || !user.email) return null;
 
-  const { customerId } = await services.billing.createCustomer(user.email);
+  let customerId = "";
+  try {
+    const result = await services.billing.createCustomer(user.email);
+    customerId = result.customerId;
+  } catch (e) {
+    console.error("Failed to create Stripe customer for %s: %s", user.email, e);
+  }
 
   await appendInitialConfig(user.id, "system");
   await appendInitialPermissions(user.id, customerId, "system");
