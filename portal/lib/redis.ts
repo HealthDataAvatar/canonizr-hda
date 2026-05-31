@@ -5,34 +5,22 @@
  * picks them up immediately.
  *
  * Connection: REDIS_URL env var.
- * Azure Managed Redis uses clustering (port 10000); local dev uses standard Redis.
+ * Azure Managed Redis (port 10000) uses TLS; local dev uses plain Redis.
+ *
+ * Note: Azure Managed Redis is clustered internally but its proxy endpoint
+ * handles slot routing — connect as a standard client, not ioredis Cluster.
  */
 
-import Redis, { Cluster } from "ioredis";
+import Redis from "ioredis";
 
-let _client: Redis | Cluster | null = null;
+let _client: Redis | null = null;
 
-export function getRedis(): Redis | Cluster | null {
+export function getRedis(): Redis | null {
   const url = process.env.REDIS_URL;
   if (!url) return null;
 
   if (!_client) {
-    if (url.includes(":10000")) {
-      // Azure Managed Redis — clustered even on smallest tier
-      const parsed = new URL(url);
-      _client = new Cluster(
-        [{ host: parsed.hostname, port: 10000 }],
-        {
-          redisOptions: {
-            password: decodeURIComponent(parsed.password),
-            tls: { servername: parsed.hostname },
-          },
-          dnsLookup: (address, callback) => callback(null, address),
-        },
-      );
-    } else {
-      _client = new Redis(url);
-    }
+    _client = new Redis(url);
   }
 
   return _client;
