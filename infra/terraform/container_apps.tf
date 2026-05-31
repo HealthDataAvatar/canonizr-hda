@@ -18,7 +18,7 @@ resource "azurerm_container_app" "docling" {
   revision_mode                = "Single"
 
   template {
-    min_replicas = 1
+    min_replicas = 0
     max_replicas = 3
 
     container {
