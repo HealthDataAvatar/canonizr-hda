@@ -137,28 +137,3 @@ class TestStoreAndGetResult:
         got = await q.get_result("abc")
         assert got is not None
         assert got.status == "ok"
-
-
-class TestDedupe:
-    @pytest.mark.asyncio
-    async def test_check_returns_none_on_miss(self):
-        r = AsyncMock()
-        r.get.return_value = None
-        q = RedisQueue(r)
-        assert await q.check_dedupe("sub1", "hash1") is None
-
-    @pytest.mark.asyncio
-    async def test_check_returns_job_id_on_hit(self):
-        r = AsyncMock()
-        r.get.return_value = "existing-job"
-        q = RedisQueue(r)
-        assert await q.check_dedupe("sub1", "hash1") == "existing-job"
-
-    @pytest.mark.asyncio
-    async def test_set_and_delete(self):
-        r = AsyncMock()
-        q = RedisQueue(r)
-        await q.set_dedupe("sub1", "hash1", "job-123")
-        r.set.assert_called_once()
-        await q.delete_dedupe("sub1", "hash1")
-        r.delete.assert_called_once()

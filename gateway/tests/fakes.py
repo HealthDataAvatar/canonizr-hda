@@ -131,17 +131,10 @@ class FakeQueue:
     def __init__(self):
         self._jobs: list[Job] = []
         self._results: dict[str, JobResult] = {}
-        self._dedupe: dict[str, str] = {}
 
     async def enqueue(self, job: Job) -> str:
         self._jobs.append(job)
         return job.job_id
-
-    async def check_dedupe(self, sub_id: str, doc_hash: str) -> str | None:
-        return self._dedupe.get(f"{sub_id}:{doc_hash}")
-
-    async def set_dedupe(self, sub_id: str, doc_hash: str, job_id: str) -> None:
-        self._dedupe[f"{sub_id}:{doc_hash}"] = job_id
 
     async def get_result(self, job_id: str) -> JobResult | None:
         return self._results.get(job_id)
@@ -154,9 +147,6 @@ class FakeQueue:
 
     async def store_result(self, job_id: str, result: JobResult) -> None:
         self._results[job_id] = result
-
-    async def delete_dedupe(self, sub_id: str, doc_hash: str) -> None:
-        self._dedupe.pop(f"{sub_id}:{doc_hash}", None)
 
     async def ensure_group(self) -> None:
         pass

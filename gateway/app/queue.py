@@ -7,12 +7,13 @@ Uses consumer groups for at-least-once delivery:
 - Stale pending jobs (crashed workers) are reclaimed via XAUTOCLAIM
 """
 
+import asyncio
 import os
 import uuid
 
 import redis.asyncio as aioredis
 
-from .keys import dedupe, job_result
+from .keys import job_result
 from .protocols import Job, JobResult
 
 STREAM_KEY = "stream:convert"
@@ -23,9 +24,9 @@ RESULT_TTL = 86_400  # 24 hours
 
 
 class RedisQueue:
-    """Queue backed by Redis Streams + SET/GET for results and dedup."""
+    """Queue backed by Redis Streams + SET/GET for results."""
 
-    def __init__(self, r: aioredis.Redis):
+    def __init__(self, r: aioredis.Redis | aioredis.RedisCluster):
         self._r = r
 
     # -- Gateway operations --
@@ -33,13 +34,6 @@ class RedisQueue:
     async def enqueue(self, job: Job) -> str:
         await self._r.xadd(STREAM_KEY, job.to_fields())  # type: ignore[arg-type]
         return job.job_id
-
-    async def check_dedupe(self, sub_id: str, doc_hash: str) -> str | None:
-        existing = await self._r.get(dedupe(sub_id=sub_id, doc_hash=doc_hash))
-        return existing if existing else None
-
-    async def set_dedupe(self, sub_id: str, doc_hash: str, job_id: str) -> None:
-        await self._r.set(dedupe(sub_id=sub_id, doc_hash=doc_hash), job_id, ex=RESULT_TTL)
 
     async def get_result(self, job_id: str) -> JobResult | None:
         data = await self._r.get(job_result(job_id=job_id))
@@ -50,40 +44,51 @@ class RedisQueue:
     # -- Worker operations --
 
     async def dequeue(self, timeout: int = 5000) -> Job | None:
-        # 1. Try to reclaim stale pending messages
-        stale = await self._r.xautoclaim(
-            STREAM_KEY,
-            GROUP_NAME,
-            CONSUMER_NAME,
-            min_idle_time=CLAIM_MIN_IDLE_MS,
-            start_id="0-0",
-            count=1,
-        )
-        if stale and stale[1]:
-            stream_id, fields = stale[1][0]
-            return Job.from_fields(stream_id, fields)
+        """Dequeue a job. Polls without blocking (cluster-safe).
 
-        # 2. Read new messages
-        results = await self._r.xreadgroup(
-            GROUP_NAME,
-            CONSUMER_NAME,
-            {STREAM_KEY: ">"},
-            count=1,
-            block=timeout,
-        )
-        if not results:
-            return None
-        stream_id, fields = results[0][1][0]
-        return Job.from_fields(stream_id, fields)
+        Azure Managed Redis uses clustering even on the smallest tier.
+        Blocking XREADGROUP doesn't work across cluster slot redirects,
+        so we poll with a short sleep instead.
+        """
+        deadline = asyncio.get_event_loop().time() + timeout / 1000
+        poll_interval = 0.5  # seconds
+
+        while True:
+            # 1. Try to reclaim stale pending messages
+            stale = await self._r.xautoclaim(
+                STREAM_KEY,
+                GROUP_NAME,
+                CONSUMER_NAME,
+                min_idle_time=CLAIM_MIN_IDLE_MS,
+                start_id="0-0",
+                count=1,
+            )
+            if stale and stale[1]:
+                stream_id, fields = stale[1][0]
+                return Job.from_fields(stream_id, fields)
+
+            # 2. Non-blocking read for new messages
+            results = await self._r.xreadgroup(
+                GROUP_NAME,
+                CONSUMER_NAME,
+                {STREAM_KEY: ">"},
+                count=1,
+                block=None,
+            )
+            if results:
+                stream_id, fields = results[0][1][0]
+                return Job.from_fields(stream_id, fields)
+
+            # 3. No messages — sleep and retry until timeout
+            if asyncio.get_event_loop().time() >= deadline:
+                return None
+            await asyncio.sleep(poll_interval)
 
     async def acknowledge(self, job: Job) -> None:
         await self._r.xack(STREAM_KEY, GROUP_NAME, job.stream_id)
 
     async def store_result(self, job_id: str, result: JobResult) -> None:
         await self._r.set(job_result(job_id=job_id), result.serialize(), ex=RESULT_TTL)
-
-    async def delete_dedupe(self, sub_id: str, doc_hash: str) -> None:
-        await self._r.delete(dedupe(sub_id=sub_id, doc_hash=doc_hash))
 
     # -- Startup --
 

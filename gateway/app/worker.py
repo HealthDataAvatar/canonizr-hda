@@ -59,12 +59,10 @@ async def run():
         await svc.queue.store_result(job.job_id, proc.job_result)
         await svc.queue.acknowledge(job)
 
-        # On failure: refund quota and clear dedupe key so user can retry
+        # On failure: refund quota so user can retry
         if proc.job_result.status == "error" and job.sub_id and proc.file_size > 0:
             await svc.quota.refund(job.sub_id, proc.file_size)
-            if proc.doc_hash:
-                await svc.queue.delete_dedupe(job.sub_id, proc.doc_hash)
-            logger.info("Job %s failed — refunded %d bytes, cleared dedupe", job.job_id, proc.file_size)
+            logger.info("Job %s failed — refunded %d bytes", job.job_id, proc.file_size)
 
         logger.info("Job %s completed with status %s (acked)", job.job_id, proc.job_result.status)
 

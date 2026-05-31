@@ -23,12 +23,20 @@ _pool: redis.Redis | None = None
 
 
 async def get_redis() -> redis.Redis | None:
-    """Return a shared Redis connection, or None if not configured."""
+    """Return a shared Redis connection, or None if not configured.
+
+    Azure Managed Redis uses clustering even on the smallest tier (B0).
+    Detect by port 10000 (Azure convention) and use RedisCluster.
+    Local dev uses standard Redis on port 6379.
+    """
     global _pool
     if not REDIS_URL:
         return None
     if _pool is None:
-        _pool = redis.from_url(REDIS_URL, decode_responses=True)
+        if ":10000" in REDIS_URL:
+            _pool = redis.RedisCluster.from_url(REDIS_URL, decode_responses=True)  # type: ignore[assignment]
+        else:
+            _pool = redis.from_url(REDIS_URL, decode_responses=True)
     return _pool
 
 
