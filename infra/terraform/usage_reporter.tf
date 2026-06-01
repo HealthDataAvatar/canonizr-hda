@@ -79,7 +79,7 @@ resource "azurerm_container_app_job" "usage_reporter" {
       image   = "${azurerm_container_registry.this.login_server}/canonizr-gateway:latest"
       cpu     = 0.25
       memory  = "0.5Gi"
-      command = ["python", "-m", "app.usage_report"]
+      command = ["uv", "run", "python", "-m", "app.usage_report"]
 
       env {
         name  = "LOG_ANALYTICS_WORKSPACE_ID"

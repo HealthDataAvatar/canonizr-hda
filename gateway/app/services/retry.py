@@ -49,7 +49,7 @@ def _emit(
     emitter, job_id, user_id = get_telemetry_context()
     if emitter is None:
         return
-    emitter.emit_upstream_request(
+    emitter.emit(
         UpstreamRequest(
             service=service,
             method=method,

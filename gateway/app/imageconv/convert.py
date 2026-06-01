@@ -1,6 +1,10 @@
 from io import BytesIO
 
+import pillow_heif
 from PIL import Image
+
+pillow_heif.register_heif_opener()
+pillow_heif.register_avif_opener()
 
 # MIME types the captioning VLM accepts natively — no conversion needed
 NATIVE_TYPES = {

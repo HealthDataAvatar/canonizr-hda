@@ -74,6 +74,16 @@ class TableJobStore:
         self.update(meta)
         return True
 
+    def list_expired(self, before: str) -> list[JobMeta]:
+        entities = self._table.query_entities(
+            f"status ne '{JobStatus.DELETED}' and retention_expires ne '' and retention_expires lt '{before}'"
+        )
+        return [_from_entity(e) for e in entities]
+
+    def list_deleted(self) -> list[JobMeta]:
+        entities = self._table.query_entities(f"status eq '{JobStatus.DELETED}'")
+        return [_from_entity(e) for e in entities]
+
     def strip_pii(self, user_id: str) -> int:
         entities = self._table.query_entities(f"PartitionKey eq '{user_id}'")
         count = 0

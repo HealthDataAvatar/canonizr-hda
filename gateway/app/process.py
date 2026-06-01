@@ -14,7 +14,7 @@ from .convert import ServiceNotConfigured, UnsupportedFormat, convert
 from .crypto import decrypt, encrypt
 from .hash import document_hash
 from .protocols import Job, JobResult, JobStatus, UserContext
-from .telemetry import JobTelemetry, ServiceTelemetry, set_telemetry_context
+from .telemetry import JobCompleted, ServiceStep, set_telemetry_context
 from .tracing import Step, Trace
 
 logger = logging.getLogger(__name__)
@@ -119,7 +119,7 @@ def _emit_telemetry(
     steps: list[Step],
     processing_start: float,
 ) -> None:
-    """Build and emit a JobTelemetry event."""
+    """Build and emit a JobCompleted event."""
     now = time.monotonic()
     processing_ms = (now - processing_start) * 1000
 
@@ -137,7 +137,7 @@ def _emit_telemetry(
         total_ms = processing_ms
 
     services = [
-        ServiceTelemetry(
+        ServiceStep(
             name=s.service,
             duration_ms=s.duration_ms,
             retries=s.total_retries,
@@ -152,7 +152,7 @@ def _emit_telemetry(
     prompt_tokens = sum(s.attributes.get("prompt_tokens", 0) for s in steps)
     completion_tokens = sum(s.attributes.get("completion_tokens", 0) for s in steps)
 
-    event = JobTelemetry(
+    event = JobCompleted(
         job_id=job.job_id,
         user_id=user.user_id,
         sub_id=job.sub_id,
@@ -170,7 +170,7 @@ def _emit_telemetry(
         prompt_tokens=prompt_tokens,
         completion_tokens=completion_tokens,
     )
-    svc.telemetry.emit_job_completed(event)
+    svc.telemetry.emit(event)
 
 
 def _mark_error(svc: Services, user_id: str, job_id: str, detail: str) -> None:

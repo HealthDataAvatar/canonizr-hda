@@ -6,8 +6,9 @@ Type checker verifies they satisfy the protocols.
 
 from __future__ import annotations
 
+from typing import Any
+
 from app.protocols import Job, JobMeta, JobResult, JobStatus, UserContext
-from app.telemetry import JobTelemetry, UpstreamRequest
 
 
 class FakeRedis:
@@ -116,6 +117,16 @@ class FakeJobStore:
         meta.status = JobStatus.DELETED
         return True
 
+    def list_expired(self, before: str) -> list[JobMeta]:
+        return [
+            m
+            for m in self._jobs.values()
+            if m.status != JobStatus.DELETED and m.retention_expires and m.retention_expires < before
+        ]
+
+    def list_deleted(self) -> list[JobMeta]:
+        return [m for m in self._jobs.values() if m.status == JobStatus.DELETED]
+
     def strip_pii(self, user_id: str) -> int:
         count = 0
         for (uid, _), meta in self._jobs.items():
@@ -170,11 +181,10 @@ class FakeEmitter:
     """Collects telemetry events for test assertions."""
 
     def __init__(self):
-        self.events: list[JobTelemetry] = []
-        self.upstream_requests: list[UpstreamRequest] = []
+        self.events: list[Any] = []
 
-    def emit_job_completed(self, event: JobTelemetry) -> None:
+    def emit(self, event: Any) -> None:
         self.events.append(event)
 
-    def emit_upstream_request(self, event: UpstreamRequest) -> None:
-        self.upstream_requests.append(event)
+    def shutdown(self) -> None:
+        pass
