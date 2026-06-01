@@ -14,6 +14,7 @@ from .jobs_table import TableJobStore
 from .process import process_job
 from .queue import RedisQueue
 from .quota import QuotaService, get_redis
+from .telemetry import LoggingEmitter
 from .user_resolver import TableUserResolver
 
 logger = logging.getLogger(__name__)
@@ -38,6 +39,7 @@ async def run():
         users=TableUserResolver(r, endpoint=table_url, connection_string=table_conn),
         queue=queue,
         quota=QuotaService(r, endpoint=table_url, connection_string=table_conn),
+        telemetry=LoggingEmitter(),
     )
     await queue.ensure_group()
     logger.info("Worker ready, waiting for jobs")
@@ -50,7 +52,7 @@ async def run():
         logger.info("Processing job %s (%s, %s)", job.job_id, job.mime_type, job.filename)
 
         user = await svc.users.resolve(job.sub_id)
-        if user is None:
+        if user is None or isinstance(user, str):
             logger.error("Job %s has unmapped subscription %s — skipping", job.job_id, job.sub_id)
             await svc.queue.acknowledge(job)
             continue

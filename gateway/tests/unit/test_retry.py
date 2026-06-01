@@ -166,8 +166,9 @@ async def test_no_retry_on_4xx():
 
 
 @pytest.mark.asyncio
-async def test_zero_retries_propagates_immediately():
-    transport = _MockTransport([_response(429)])
+async def test_zero_retries_propagates_5xx_immediately():
+    """max_retries=0 stops 5xx retries after first attempt."""
+    transport = _MockTransport([_response(500)])
     async with httpx.AsyncClient(transport=transport) as client:
         with pytest.raises(HTTPException) as exc_info:
             await request_with_retry(
@@ -177,8 +178,25 @@ async def test_zero_retries_propagates_immediately():
                 deadline=_deadline(10),
                 max_retries=0,
             )
-    assert exc_info.value.status_code == 429
+    assert exc_info.value.status_code == 502
     assert transport.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_429_retries_until_deadline():
+    """429s ignore max_retries and retry until deadline expires."""
+    transport = _MockTransport([_response(429)] * 10)
+    async with httpx.AsyncClient(transport=transport) as client:
+        with pytest.raises(HTTPException) as exc_info:
+            await request_with_retry(
+                client,
+                "POST",
+                "http://test/api",
+                deadline=_deadline(0.5),
+                max_retries=0,
+            )
+    assert exc_info.value.status_code == 429
+    assert transport.call_count >= 1
 
 
 def test_backoff_delay_respects_retry_after():

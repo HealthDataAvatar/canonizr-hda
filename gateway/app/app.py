@@ -6,6 +6,7 @@ No business logic here.
 
 import logging
 import os
+from io import BytesIO
 
 import magic
 from fastapi import FastAPI, File, Header, HTTPException, Query, Request, UploadFile
@@ -18,6 +19,7 @@ from .handlers import Rejected, accept_job, delete_result, download_artifact, po
 from .jobs_table import TableJobStore
 from .queue import RedisQueue
 from .quota import QuotaService, get_redis
+from .telemetry import LoggingEmitter
 from .user_resolver import TableUserResolver
 
 logger = logging.getLogger(__name__)
@@ -48,9 +50,6 @@ async def sanitise_errors(request: Request, exc: HTTPException):
     logger.error("HTTP %d: %s", exc.status_code, exc.detail)
     safe_message = SANITISED_MESSAGES.get(exc.status_code, exc.detail)
     return JSONResponse(status_code=exc.status_code, content={"detail": safe_message})
-
-
-from io import BytesIO
 
 
 async def _read_file(file: UploadFile) -> bytes:
@@ -189,6 +188,7 @@ async def startup():
         users=TableUserResolver(r, endpoint=table_url, connection_string=table_conn),
         queue=queue,
         quota=QuotaService(r, endpoint=table_url, connection_string=table_conn),
+        telemetry=LoggingEmitter(),
     )
     await queue.ensure_group()
 

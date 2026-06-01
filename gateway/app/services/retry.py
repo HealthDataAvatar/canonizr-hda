@@ -7,7 +7,7 @@ import time
 import httpx
 from fastapi import HTTPException
 
-from ..tracing import Span
+from ..tracing import RetryRecord, Span
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +47,8 @@ async def request_with_retry(
     """Make an HTTP request with retry on 429/5xx, bounded by a wall-clock deadline."""
     last_response: httpx.Response | None = None
 
-    for attempt in range(1 + max_retries):
+    attempt = 0
+    while True:
         remaining = _remaining(deadline)
         if remaining <= 0:
             break
@@ -73,22 +74,36 @@ async def request_with_retry(
             return response
 
         last_response = response
-        if attempt < max_retries:
-            delay = _backoff_delay(attempt, response.headers.get("retry-after"))
-            remaining = _remaining(deadline)
-            if delay > remaining:
-                break
-            logger.info(
-                "%s returned %d, retrying in %.1fs (attempt %d/%d)",
-                service_name,
-                response.status_code,
-                delay,
-                attempt + 1,
-                max_retries,
+
+        # For 429s, always retry until deadline; for 5xx, respect max_retries
+        is_rate_limited = response.status_code == 429
+        if not is_rate_limited and attempt >= max_retries:
+            break
+
+        retry_after = response.headers.get("retry-after")
+        delay = _backoff_delay(attempt, retry_after)
+        remaining = _remaining(deadline)
+        if delay > remaining:
+            break
+        logger.info(
+            "%s returned %d, retrying in %.1fs (attempt %d%s)",
+            service_name,
+            response.status_code,
+            delay,
+            attempt + 1,
+            "" if is_rate_limited else f"/{max_retries}",
+        )
+        if span:
+            span.add_retry(
+                RetryRecord(
+                    attempt=attempt,
+                    status_code=response.status_code,
+                    delay_s=round(delay, 2),
+                    retry_after_header=retry_after,
+                )
             )
-            if span:
-                span.set(**{f"retry_{attempt}_status": response.status_code, f"retry_{attempt}_delay": round(delay, 2)})
-            await asyncio.sleep(delay)
+        await asyncio.sleep(delay)
+        attempt += 1
 
     # Retries exhausted or deadline reached
     if last_response is not None:

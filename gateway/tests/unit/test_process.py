@@ -11,21 +11,23 @@ from app.process import process_job
 from app.protocols import Job, UserContext
 from app.quota import QuotaService
 from app.response import ConvertResult
-from tests.fakes import FakeBlobStore, FakeJobStore, FakeQueue, FakeRedis, FakeUserResolver
+from tests.fakes import FakeBlobStore, FakeEmitter, FakeJobStore, FakeQueue, FakeRedis, FakeUserResolver
 
 
 def _make_svc():
     key = os.urandom(32)
     user = UserContext(user_id="user_1", encryption_key=key, key_name="test")
     quota_redis = FakeRedis()
+    emitter = FakeEmitter()
     svc = Services(
         blobs=FakeBlobStore(),
         jobs=FakeJobStore(),
         users=FakeUserResolver({"sub_1": user}),
         queue=FakeQueue(),
         quota=QuotaService(quota_redis),
+        telemetry=emitter,
     )
-    return svc, user
+    return svc, user, emitter
 
 
 def _make_job(**overrides):
@@ -37,7 +39,7 @@ def _make_job(**overrides):
 class TestProcessJob:
     @pytest.mark.asyncio
     async def test_successful_conversion(self):
-        svc, user = _make_svc()
+        svc, user, emitter = _make_svc()
         job = _make_job()
 
         # Store encrypted input
@@ -69,9 +71,16 @@ class TestProcessJob:
         assert meta.completed_at != ""
         assert meta.retention_expires != ""
 
+        # Telemetry emitted
+        assert len(emitter.events) == 1
+        event = emitter.events[0]
+        assert event.status == "ok"
+        assert event.input_bytes == 11
+        assert event.processing_ms > 0
+
     @pytest.mark.asyncio
     async def test_missing_input_blob(self):
-        svc, user = _make_svc()
+        svc, user, emitter = _make_svc()
         job = _make_job()
 
         proc = await process_job(job, user, svc)
@@ -81,7 +90,7 @@ class TestProcessJob:
 
     @pytest.mark.asyncio
     async def test_unsupported_format(self):
-        svc, user = _make_svc()
+        svc, user, emitter = _make_svc()
         job = _make_job(mime_type="video/mp4")
 
         encrypted = encrypt(b"fake video", user.encryption_key)
@@ -108,7 +117,7 @@ class TestProcessJob:
 
     @pytest.mark.asyncio
     async def test_unexpected_exception(self):
-        svc, user = _make_svc()
+        svc, user, emitter = _make_svc()
         job = _make_job()
 
         encrypted = encrypt(b"data", user.encryption_key)
@@ -124,3 +133,15 @@ class TestProcessJob:
 
         assert proc.job_result.status == "error"
         assert proc.job_result.status_code == 500
+        assert proc.job_result.detail == "boom"
+
+        # Job metadata also records the real error
+        meta = svc.jobs.get(user.user_id, job.job_id)
+        assert meta is not None
+        assert meta.detail == "boom"
+
+        # Telemetry emitted with error details
+        assert len(emitter.events) == 1
+        event = emitter.events[0]
+        assert event.status == "error"
+        assert event.error == "boom"

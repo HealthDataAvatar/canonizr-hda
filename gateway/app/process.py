@@ -14,7 +14,8 @@ from .convert import ServiceNotConfigured, UnsupportedFormat, convert
 from .crypto import decrypt, encrypt
 from .hash import document_hash
 from .protocols import Job, JobResult, JobStatus, UserContext
-from .tracing import Trace
+from .telemetry import JobTelemetry, ServiceTelemetry
+from .tracing import Step, Trace
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +33,7 @@ class ProcessResult:
 
 async def process_job(job: Job, user: UserContext, svc: Services) -> ProcessResult:
     """Process a single job. Pure function — all dependencies via svc and user."""
+    processing_start = time.monotonic()
     blob_prefix = f"{user.user_id}/{job.job_id}"
 
     # Read and decrypt input
@@ -71,31 +73,103 @@ async def process_job(job: Job, user: UserContext, svc: Services) -> ProcessResu
             meta.status = JobStatus.OK
             meta.completed_at = now.isoformat()
             meta.retention_expires = (now + timedelta(seconds=DEFAULT_RETENTION_SECONDS)).isoformat()
-            meta.steps = json.dumps(steps) if steps else ""
+            meta.steps = json.dumps([s.to_dict() for s in steps]) if steps else ""
             svc.jobs.update(meta)
 
-        return ProcessResult(JobResult(job_id=job.job_id, status="ok", status_code=200), file_size, doc_hash_val)
+        proc = ProcessResult(JobResult(job_id=job.job_id, status="ok", status_code=200), file_size, doc_hash_val)
+        _emit_telemetry(svc, job, user, proc, steps, processing_start)
+        return proc
 
     except UnsupportedFormat as e:
         _mark_error(svc, user.user_id, job.job_id, str(e))
-        return ProcessResult(
+        proc = ProcessResult(
             JobResult(job_id=job.job_id, status="error", detail=str(e), status_code=400), file_size, doc_hash_val
         )
+        _emit_telemetry(svc, job, user, proc, [], processing_start)
+        return proc
 
     except ServiceNotConfigured as e:
         _mark_error(svc, user.user_id, job.job_id, str(e))
-        return ProcessResult(
+        proc = ProcessResult(
             JobResult(job_id=job.job_id, status="error", detail=str(e), status_code=422), file_size, doc_hash_val
         )
+        _emit_telemetry(svc, job, user, proc, [], processing_start)
+        return proc
 
     except Exception as e:
         logger.error("Job %s failed: %s", job.job_id, e)
         _mark_error(svc, user.user_id, job.job_id, str(e))
-        return ProcessResult(
+        trace.finish()
+        steps = trace.to_steps()
+        proc = ProcessResult(
             JobResult(job_id=job.job_id, status="error", detail=str(e), status_code=500),
             file_size,
             doc_hash_val,
         )
+        _emit_telemetry(svc, job, user, proc, steps, processing_start)
+        return proc
+
+
+def _emit_telemetry(
+    svc: Services,
+    job: Job,
+    user: UserContext,
+    proc: ProcessResult,
+    steps: list[Step],
+    processing_start: float,
+) -> None:
+    """Build and emit a JobTelemetry event."""
+    now = time.monotonic()
+    processing_ms = (now - processing_start) * 1000
+
+    # Look up queue wait from job metadata
+    meta = svc.jobs.get(user.user_id, job.job_id)
+    queue_wait_ms = 0.0
+    if meta and meta.created_at:
+        try:
+            created = datetime.fromisoformat(meta.created_at)
+            total_ms = (datetime.now(UTC) - created).total_seconds() * 1000
+            queue_wait_ms = max(total_ms - processing_ms, 0.0)
+        except (ValueError, TypeError):
+            total_ms = processing_ms
+    else:
+        total_ms = processing_ms
+
+    services = [
+        ServiceTelemetry(
+            name=s.service,
+            duration_ms=s.duration_ms,
+            retries=s.total_retries,
+            retry_delay_ms=s.total_retry_delay_ms,
+        )
+        for s in steps
+    ]
+
+    # Aggregate captioning stats from steps
+    images_captioned = sum(s.attributes.get("images_captioned", 0) for s in steps)
+    images_errored = sum(s.attributes.get("images_errored", 0) for s in steps)
+    prompt_tokens = sum(s.attributes.get("prompt_tokens", 0) for s in steps)
+    completion_tokens = sum(s.attributes.get("completion_tokens", 0) for s in steps)
+
+    event = JobTelemetry(
+        job_id=job.job_id,
+        user_id=user.user_id,
+        sub_id=job.sub_id,
+        status=proc.job_result.status,
+        error=proc.job_result.detail if proc.job_result.status == "error" else "",
+        mime_type=job.mime_type,
+        filename=job.filename,
+        input_bytes=proc.file_size,
+        queue_wait_ms=round(queue_wait_ms, 1),
+        processing_ms=round(processing_ms, 1),
+        total_ms=round(total_ms, 1),
+        services=services,
+        images_captioned=images_captioned,
+        images_errored=images_errored,
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+    )
+    svc.telemetry.emit_job_completed(event)
 
 
 def _mark_error(svc: Services, user_id: str, job_id: str, detail: str) -> None:

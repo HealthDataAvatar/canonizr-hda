@@ -1,6 +1,6 @@
 # Canonizr API
 
-`https://api.canonizr.com` — authenticate with `Ocp-Apim-Subscription-Key` header.
+`https://apim-canonizr-prod.azure-api.net` — authenticate with `Ocp-Apim-Subscription-Key` header.
 
 ---
 
@@ -9,7 +9,7 @@
 Submit a file for conversion. Always returns 202.
 
 ```bash
-curl -X POST https://api.canonizr.com/v1/jobs \
+curl -X POST https://apim-canonizr-prod.azure-api.net/v1/jobs \
   -H "Ocp-Apim-Subscription-Key: YOUR_API_KEY" \
   -F "file=@document.pdf"
 ```
@@ -95,7 +95,7 @@ Poll for result.
 Immediately delete stored files for a job. Metadata retained for billing audit.
 
 ```bash
-curl -X DELETE https://api.canonizr.com/v1/jobs/{job_id} \
+curl -X DELETE https://apim-canonizr-prod.azure-api.net/v1/jobs/{job_id} \
   -H "Ocp-Apim-Subscription-Key: YOUR_API_KEY"
 ```
 
@@ -187,12 +187,12 @@ These are accepted but not yet implemented. Passing them now is safe (ignored).
 ### curl
 
 ```bash
-JOB=$(curl -s -X POST https://api.canonizr.com/v1/jobs \
+JOB=$(curl -s -X POST https://apim-canonizr-prod.azure-api.net/v1/jobs \
   -H "Ocp-Apim-Subscription-Key: $KEY" \
   -F "file=@doc.pdf" | jq -r .job_id)
 
 while true; do
-  R=$(curl -s -w '\n%{http_code}' https://api.canonizr.com/v1/jobs/$JOB \
+  R=$(curl -s -w '\n%{http_code}' https://apim-canonizr-prod.azure-api.net/v1/jobs/$JOB \
     -H "Ocp-Apim-Subscription-Key: $KEY")
   CODE=$(echo "$R" | tail -1)
   BODY=$(echo "$R" | sed '$d')
@@ -208,7 +208,7 @@ done
 import requests, time
 
 KEY = "your-key"
-BASE = "https://api.canonizr.com"
+BASE = "https://apim-canonizr-prod.azure-api.net"
 H = {"Ocp-Apim-Subscription-Key": KEY}
 
 r = requests.post(f"{BASE}/convert", headers=H, files={"file": open("doc.pdf", "rb")})
@@ -228,7 +228,7 @@ while True:
 
 ```javascript
 const KEY = "your-key";
-const BASE = "https://api.canonizr.com";
+const BASE = "https://apim-canonizr-prod.azure-api.net";
 const H = { "Ocp-Apim-Subscription-Key": KEY };
 
 const form = new FormData();

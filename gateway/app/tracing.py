@@ -7,19 +7,57 @@ from collections.abc import Generator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from enum import StrEnum
 from typing import Any
 
-_SERVICE_SPANS = frozenset(
-    {
-        "docling",
-        "gotenberg",
-        "captioning",
-        "markitdown",
-        "passthrough",
-        "extract_pages",
-        "libreoffice",
-    }
-)
+
+class Service(StrEnum):
+    """Pipeline services that produce traced steps."""
+
+    DOCLING = "docling"
+    GOTENBERG = "gotenberg"
+    CAPTIONING = "captioning"
+    MARKITDOWN = "markitdown"
+    PASSTHROUGH = "passthrough"
+    EXTRACT_PAGES = "extract_pages"
+    LIBREOFFICE = "libreoffice"
+
+
+_SERVICE_NAMES = frozenset(Service)
+
+
+@dataclass
+class RetryRecord:
+    """A single retry attempt on an upstream service."""
+
+    attempt: int
+    status_code: int
+    delay_s: float
+    retry_after_header: str | None = None
+
+
+@dataclass
+class Step:
+    """Typed output from a service span — stored in JobMeta.steps as JSON."""
+
+    service: str
+    started_at: str
+    duration_ms: float
+    attributes: dict[str, Any] = field(default_factory=dict)
+    total_retries: int = 0
+    total_retry_delay_ms: float = 0.0
+
+    def to_dict(self) -> dict[str, Any]:
+        d: dict[str, Any] = {
+            "service": self.service,
+            "started_at": self.started_at,
+            "duration_ms": self.duration_ms,
+        }
+        d.update(self.attributes)
+        if self.total_retries:
+            d["total_retries"] = self.total_retries
+            d["total_retry_delay_ms"] = self.total_retry_delay_ms
+        return d
 
 
 @dataclass
@@ -27,6 +65,7 @@ class Span:
     name: str
     attributes: dict[str, Any] = field(default_factory=dict)
     children: list[Span] = field(default_factory=list)
+    retries: list[RetryRecord] = field(default_factory=list)
     _start: float = field(default=0.0, repr=False)
     _end: float | None = field(default=None, repr=False)
     _wall_start: datetime | None = field(default=None, repr=False)
@@ -53,6 +92,9 @@ class Span:
 
     def set(self, **attrs: Any) -> None:
         self.attributes.update(attrs)
+
+    def add_retry(self, record: RetryRecord) -> None:
+        self.retries.append(record)
 
     def to_dict(self) -> dict[str, Any]:
         result: dict[str, Any] = {"name": self.name}
@@ -86,25 +128,33 @@ class Trace:
     def to_dict(self) -> dict[str, Any]:
         return self.root.to_dict()
 
-    def to_steps(self) -> list[dict[str, Any]]:
-        """Flatten the span tree into a list of service-level step dicts."""
-        steps: list[dict[str, Any]] = []
-        _collect_steps(self.root, steps)
-        steps.sort(key=lambda s: s["started_at"])
+    def to_steps(self) -> list[Step]:
+        """Flatten the span tree into a sorted list of typed Steps."""
+        steps = _collect_steps(self.root)
+        steps.sort(key=lambda s: s.started_at)
         return steps
 
 
-def _collect_steps(span: Span, out: list[dict[str, Any]]) -> None:
-    if span.name in _SERVICE_SPANS:
-        step: dict[str, Any] = {
-            "started_at": span._wall_start.isoformat() if span._wall_start else "",
-            "service": span.attributes.get("service", span.name),
-            "duration_ms": round(span.duration_ms, 1) if span.duration_ms is not None else 0,
-        }
-        for k, v in span.attributes.items():
-            if k != "service":
-                step[k] = v
-        out.append(step)
-        return
+def _collect_steps(span: Span) -> list[Step]:
+    """Recursively collect service-level spans as typed Steps."""
+    if span.name in _SERVICE_NAMES:
+        return [_span_to_step(span)]
+    steps: list[Step] = []
     for child in span.children:
-        _collect_steps(child, out)
+        steps.extend(_collect_steps(child))
+    return steps
+
+
+def _span_to_step(span: Span) -> Step:
+    """Convert a service span to a typed Step."""
+    attrs = {k: v for k, v in span.attributes.items() if k != "service"}
+    total_retries = len(span.retries)
+    total_retry_delay_ms = round(sum(r.delay_s * 1000 for r in span.retries), 1)
+    return Step(
+        service=span.attributes.get("service", span.name),
+        started_at=span._wall_start.isoformat() if span._wall_start else "",
+        duration_ms=round(span.duration_ms, 1) if span.duration_ms is not None else 0,
+        attributes=attrs,
+        total_retries=total_retries,
+        total_retry_delay_ms=total_retry_delay_ms,
+    )

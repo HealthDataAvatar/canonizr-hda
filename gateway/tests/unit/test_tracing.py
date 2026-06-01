@@ -87,11 +87,11 @@ def test_to_steps_single_service():
 
     assert len(steps) == 1
     step = steps[0]
-    assert step["service"] == "docling"
-    assert step["input_bytes"] == 100
-    assert step["pages"] == 3
-    assert step["duration_ms"] >= 0
-    assert step["started_at"]
+    assert step.service == "docling"
+    assert step.attributes["input_bytes"] == 100
+    assert step.attributes["pages"] == 3
+    assert step.duration_ms >= 0
+    assert step.started_at
 
 
 def test_to_steps_multiple_sorted():
@@ -104,9 +104,9 @@ def test_to_steps_multiple_sorted():
     steps = trace.to_steps()
 
     assert len(steps) == 2
-    assert steps[0]["service"] == "gotenberg"
-    assert steps[1]["service"] == "docling"
-    assert steps[0]["started_at"] <= steps[1]["started_at"]
+    assert steps[0].service == "gotenberg"
+    assert steps[1].service == "docling"
+    assert steps[0].started_at <= steps[1].started_at
 
 
 def test_to_steps_skips_internal_spans():
@@ -118,7 +118,7 @@ def test_to_steps_skips_internal_spans():
     steps = trace.to_steps()
 
     assert len(steps) == 1
-    assert steps[0]["service"] == "docling"
+    assert steps[0].service == "docling"
 
 
 def test_to_steps_empty():
@@ -135,8 +135,8 @@ def test_to_steps_service_attribute_overrides_name():
     steps = trace.to_steps()
 
     assert len(steps) == 1
-    assert steps[0]["service"] == "openai/gpt-4o"
-    assert steps[0]["images"] == 2
+    assert steps[0].service == "openai/gpt-4o"
+    assert steps[0].attributes["images"] == 2
 
 
 def test_to_steps_passthrough():
@@ -147,4 +147,4 @@ def test_to_steps_passthrough():
     steps = trace.to_steps()
 
     assert len(steps) == 1
-    assert steps[0]["service"] == "passthrough"
+    assert steps[0].service == "passthrough"

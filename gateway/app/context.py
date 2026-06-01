@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from .protocols import BlobStore, JobStore, Queue, UserResolver
 from .quota import QuotaService
+from .telemetry import TelemetryEmitter
 
 
 @dataclass
@@ -15,3 +16,4 @@ class Services:
     users: UserResolver
     queue: Queue
     quota: QuotaService
+    telemetry: TelemetryEmitter

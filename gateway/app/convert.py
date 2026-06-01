@@ -7,7 +7,7 @@ from markitdown import MarkItDown
 from .imageconv import extract_pages, is_multipage
 from .response import ConvertResult
 from .services import captioning, docling, libreoffice
-from .tracing import Trace
+from .tracing import Service, Trace
 
 markitdown = MarkItDown()
 
@@ -61,7 +61,7 @@ async def convert(
     # Passthrough — already LLM-readable
     if mime_type in PASSTHROUGH_TYPES:
         if parent:
-            with parent.span("passthrough"):
+            with parent.span(Service.PASSTHROUGH):
                 pass
         return ConvertResult(
             markdown=file_bytes.decode("utf-8", errors="replace"),
@@ -78,7 +78,7 @@ async def convert(
             )
         if is_multipage(mime_type):
             if parent:
-                with parent.span("extract_pages") as ep_span:
+                with parent.span(Service.EXTRACT_PAGES) as ep_span:
                     pages = extract_pages(file_bytes)
                     ep_span.set(page_count=len(pages))
             else:
@@ -86,7 +86,7 @@ async def convert(
 
             results = []
             if parent:
-                with parent.span("captioning", service="openai/gpt-4o", page_count=len(pages)) as cap_span:
+                with parent.span(Service.CAPTIONING, service="openai/gpt-4o", page_count=len(pages)) as cap_span:
                     for i, (p, mt) in enumerate(pages):
                         with cap_span.span(f"page[{i}]") as page_span:
                             r = await captioning.describe_file(p, mt, deadline, page_span)
@@ -111,7 +111,7 @@ async def convert(
                 captioning_completion_tokens=sum(r.captioning_completion_tokens for r in results),
             )
         if parent:
-            with parent.span("captioning", service="openai/gpt-4o") as cap_span:
+            with parent.span(Service.CAPTIONING, service="openai/gpt-4o") as cap_span:
                 result = await captioning.describe_file(file_bytes, mime_type, deadline, cap_span)
                 cap_span.set(
                     images_captioned=result.images_captioned,
@@ -126,7 +126,7 @@ async def convert(
     # PDF — Docling for quality extraction
     if mime_type == "application/pdf":
         if parent:
-            with parent.span("docling") as docling_span:
+            with parent.span(Service.DOCLING) as docling_span:
                 return await docling.convert(file_bytes, mime_type, deadline, docling_span)
         return await docling.convert(file_bytes, mime_type, deadline)
 
@@ -134,7 +134,7 @@ async def convert(
     if mime_type in MARKITDOWN_TYPES:
         loop = asyncio.get_event_loop()
         if parent:
-            with parent.span("markitdown") as md_span:
+            with parent.span(Service.MARKITDOWN) as md_span:
                 mit_result = await loop.run_in_executor(
                     None,
                     functools.partial(
@@ -160,7 +160,7 @@ async def convert(
         if not libreoffice.is_available():
             raise ServiceNotConfigured(f"This file type ({mime_type}) requires LibreOffice. Rerun setup to enable it.")
         if parent:
-            with parent.span("gotenberg") as lo_span:
+            with parent.span(Service.GOTENBERG) as lo_span:
                 pdf_bytes, _ = await libreoffice.convert(file_bytes, mime_type, filename, deadline, lo_span)
         else:
             pdf_bytes, _ = await libreoffice.convert(file_bytes, mime_type, filename, deadline)

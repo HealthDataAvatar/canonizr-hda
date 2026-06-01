@@ -11,7 +11,7 @@ from app.handlers import AcceptResult, Rejected, accept_job, delete_result, poll
 from app.keys import quota_limit, quota_usage
 from app.protocols import JobResult, JobStatus, UserContext
 from app.quota import QuotaService
-from tests.fakes import FakeBlobStore, FakeJobStore, FakeQueue, FakeRedis, FakeUserResolver
+from tests.fakes import FakeBlobStore, FakeEmitter, FakeJobStore, FakeQueue, FakeRedis, FakeUserResolver
 
 
 def _make_user(user_id="user_1", sub_id="sub_1"):
@@ -29,6 +29,7 @@ def _make_svc(sub_id="sub_1", user_id="user_1"):
             users=FakeUserResolver({sub_id: user}),
             queue=FakeQueue(),
             quota=QuotaService(quota_redis, max_rejected=3),
+            telemetry=FakeEmitter(),
         ),
         user,
         quota_redis,
