@@ -69,7 +69,7 @@ export default async function DashboardLayout({
           <MobileNav email={email} isAdmin={isAdmin} />
         </header>
 
-        <main id="main-content" className="mx-auto w-full max-w-4xl flex-1 px-6 py-8 space-y-8">
+        <main id="main-content" className="mx-auto w-full max-w-7xl flex-1 px-6 py-8 space-y-8">
           {recentError && <ErrorBanner error={recentError} />}
           {children}
         </main>
