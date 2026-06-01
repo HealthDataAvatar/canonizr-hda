@@ -128,6 +128,11 @@ resource "azurerm_container_app" "gateway" {
         value = var.deploy_time
       }
 
+      env {
+        name  = "POSTHOG_API_KEY"
+        value = var.posthog_api_key
+      }
+
       liveness_probe {
         transport = "HTTP"
         path      = "/health"
@@ -237,6 +242,11 @@ resource "azurerm_container_app" "worker" {
       env {
         name  = "CAPTIONING_API_MODEL"
         value = var.openai_model
+      }
+
+      env {
+        name  = "POSTHOG_API_KEY"
+        value = var.posthog_api_key
       }
 
       env {

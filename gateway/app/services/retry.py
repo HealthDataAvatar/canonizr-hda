@@ -7,6 +7,7 @@ import time
 import httpx
 from fastapi import HTTPException
 
+from ..telemetry import UpstreamRequest, get_telemetry_context
 from ..tracing import RetryRecord, Span
 
 logger = logging.getLogger(__name__)
@@ -33,6 +34,38 @@ def _backoff_delay(attempt: int, retry_after: str | None) -> float:
     return min(delay, _BACKOFF_MAX)
 
 
+def _emit(
+    service: str,
+    method: str,
+    status_code: int,
+    duration_ms: float,
+    response_bytes: int = 0,
+    is_retry: bool = False,
+    attempt: int = 0,
+    retry_after_header: str | None = None,
+    error: str | None = None,
+) -> None:
+    """Emit an upstream_request event via the current telemetry context."""
+    emitter, job_id, user_id = get_telemetry_context()
+    if emitter is None:
+        return
+    emitter.emit_upstream_request(
+        UpstreamRequest(
+            service=service,
+            method=method,
+            status_code=status_code,
+            duration_ms=round(duration_ms, 1),
+            response_bytes=response_bytes,
+            is_retry=is_retry,
+            attempt=attempt,
+            retry_after_header=retry_after_header,
+            error=error,
+            job_id=job_id,
+            user_id=user_id,
+        )
+    )
+
+
 async def request_with_retry(
     client: httpx.AsyncClient,
     method: str,
@@ -55,22 +88,39 @@ async def request_with_retry(
 
         # Shrink per-request timeout to fit within deadline
         client.timeout = httpx.Timeout(remaining)
+        request_start = time.monotonic()
 
         try:
             response = await client.request(method, url, **kwargs)
         except httpx.TimeoutException:
+            duration_ms = (time.monotonic() - request_start) * 1000
             if span:
                 span.set(error="timeout", retry_attempt=attempt)
+            _emit(service_name, method, 504, duration_ms, is_retry=attempt > 0, attempt=attempt, error="timeout")
             raise HTTPException(status_code=504, detail=f"{service_name} service timeout")
         except httpx.RequestError as e:
+            duration_ms = (time.monotonic() - request_start) * 1000
             if span:
                 span.set(error=str(e), retry_attempt=attempt)
+            _emit(service_name, method, 502, duration_ms, is_retry=attempt > 0, attempt=attempt, error=str(e))
             raise HTTPException(status_code=502, detail=f"Failed to reach {service_name}: {e}")
 
+        duration_ms = (time.monotonic() - request_start) * 1000
+        response_bytes = len(response.content)
+
         if span:
-            span.set(status_code=response.status_code, response_bytes=len(response.content))
+            span.set(status_code=response.status_code, response_bytes=response_bytes)
 
         if response.status_code not in _RETRY_STATUSES:
+            _emit(
+                service_name,
+                method,
+                response.status_code,
+                duration_ms,
+                response_bytes=response_bytes,
+                is_retry=attempt > 0,
+                attempt=attempt,
+            )
             return response
 
         last_response = response
@@ -85,14 +135,19 @@ async def request_with_retry(
         remaining = _remaining(deadline)
         if delay > remaining:
             break
-        logger.info(
-            "%s returned %d, retrying in %.1fs (attempt %d%s)",
+
+        # Emit telemetry for the failed attempt before retrying
+        _emit(
             service_name,
+            method,
             response.status_code,
-            delay,
-            attempt + 1,
-            "" if is_rate_limited else f"/{max_retries}",
+            duration_ms,
+            response_bytes=response_bytes,
+            is_retry=attempt > 0,
+            attempt=attempt,
+            retry_after_header=retry_after,
         )
+
         if span:
             span.add_retry(
                 RetryRecord(
@@ -105,8 +160,17 @@ async def request_with_retry(
         await asyncio.sleep(delay)
         attempt += 1
 
-    # Retries exhausted or deadline reached
+    # Retries exhausted or deadline reached — emit final failed attempt
     if last_response is not None:
+        _emit(
+            service_name,
+            method,
+            last_response.status_code,
+            0,
+            is_retry=True,
+            attempt=attempt,
+            error="retries_exhausted",
+        )
         status = last_response.status_code
         if status == 429:
             raise HTTPException(status_code=429, detail=f"{service_name} rate limit exceeded")

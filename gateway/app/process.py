@@ -14,7 +14,7 @@ from .convert import ServiceNotConfigured, UnsupportedFormat, convert
 from .crypto import decrypt, encrypt
 from .hash import document_hash
 from .protocols import Job, JobResult, JobStatus, UserContext
-from .telemetry import JobTelemetry, ServiceTelemetry
+from .telemetry import JobTelemetry, ServiceTelemetry, set_telemetry_context
 from .tracing import Step, Trace
 
 logger = logging.getLogger(__name__)
@@ -34,6 +34,7 @@ class ProcessResult:
 async def process_job(job: Job, user: UserContext, svc: Services) -> ProcessResult:
     """Process a single job. Pure function — all dependencies via svc and user."""
     processing_start = time.monotonic()
+    set_telemetry_context(svc.telemetry, job.job_id, user.user_id)
     blob_prefix = f"{user.user_id}/{job.job_id}"
 
     # Read and decrypt input

@@ -19,7 +19,7 @@ from .handlers import Rejected, accept_job, delete_result, download_artifact, po
 from .jobs_table import TableJobStore
 from .queue import RedisQueue
 from .quota import QuotaService, get_redis
-from .telemetry import LoggingEmitter
+from .telemetry import PostHogEmitter
 from .user_resolver import TableUserResolver
 
 logger = logging.getLogger(__name__)
@@ -188,7 +188,7 @@ async def startup():
         users=TableUserResolver(r, endpoint=table_url, connection_string=table_conn),
         queue=queue,
         quota=QuotaService(r, endpoint=table_url, connection_string=table_conn),
-        telemetry=LoggingEmitter(),
+        telemetry=PostHogEmitter(),
     )
     await queue.ensure_group()
 

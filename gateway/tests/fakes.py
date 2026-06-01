@@ -7,7 +7,7 @@ Type checker verifies they satisfy the protocols.
 from __future__ import annotations
 
 from app.protocols import Job, JobMeta, JobResult, JobStatus, UserContext
-from app.telemetry import JobTelemetry
+from app.telemetry import JobTelemetry, UpstreamRequest
 
 
 class FakeRedis:
@@ -171,6 +171,10 @@ class FakeEmitter:
 
     def __init__(self):
         self.events: list[JobTelemetry] = []
+        self.upstream_requests: list[UpstreamRequest] = []
 
     def emit_job_completed(self, event: JobTelemetry) -> None:
         self.events.append(event)
+
+    def emit_upstream_request(self, event: UpstreamRequest) -> None:
+        self.upstream_requests.append(event)

@@ -88,3 +88,9 @@ variable "openai_model_version" {
   type    = string
   default = "2024-11-20"
 }
+
+variable "posthog_api_key" {
+  description = "PostHog project API key (write-only, safe to be public)"
+  type        = string
+  default     = "phc_Bjy9d1BMIlblL4Dans0OdI3djqA1CR0M34oBkzAkwGi"
+}

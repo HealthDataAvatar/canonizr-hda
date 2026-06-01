@@ -14,7 +14,7 @@ from .jobs_table import TableJobStore
 from .process import process_job
 from .queue import RedisQueue
 from .quota import QuotaService, get_redis
-from .telemetry import LoggingEmitter
+from .telemetry import PostHogEmitter
 from .user_resolver import TableUserResolver
 
 logger = logging.getLogger(__name__)
@@ -39,7 +39,7 @@ async def run():
         users=TableUserResolver(r, endpoint=table_url, connection_string=table_conn),
         queue=queue,
         quota=QuotaService(r, endpoint=table_url, connection_string=table_conn),
-        telemetry=LoggingEmitter(),
+        telemetry=PostHogEmitter(),
     )
     await queue.ensure_group()
     logger.info("Worker ready, waiting for jobs")

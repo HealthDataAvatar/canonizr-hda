@@ -102,6 +102,35 @@ class TestAcceptJob:
         assert usage == 11
 
     @pytest.mark.asyncio
+    async def test_natural_quota_exhaustion(self):
+        """Submit files until quota is naturally consumed, then verify rejection."""
+        svc, _, quota_redis = _make_svc()
+        quota_redis.seed(quota_limit(sub_id="sub_1"), "20")
+        # First: 10 bytes, usage → 10, under quota
+        await accept_job(b"0123456789", "a.txt", "text/plain", "sub_1", svc)
+        # Second: 10 bytes, usage → 20, exactly fills quota
+        await accept_job(b"abcdefghij", "b.txt", "text/plain", "sub_1", svc)
+        # Third: even 1 byte should be rejected — quota fully consumed
+        with pytest.raises(Rejected) as exc_info:
+            await accept_job(b"x", "c.txt", "text/plain", "sub_1", svc)
+        assert exc_info.value.status_code == 429
+        assert "Quota exceeded" in exc_info.value.detail
+
+    @pytest.mark.asyncio
+    async def test_file_larger_than_total_quota(self):
+        """Upload a file larger than the entire quota from zero usage."""
+        svc, _, quota_redis = _make_svc()
+        quota_redis.seed(quota_limit(sub_id="sub_1"), "10")
+        # 100 bytes > 10 byte quota, with 0 usage
+        with pytest.raises(Rejected) as exc_info:
+            await accept_job(b"x" * 100, "big.txt", "text/plain", "sub_1", svc)
+        assert exc_info.value.status_code == 429
+        assert "File too large" in exc_info.value.detail
+        # Usage should NOT have been recorded
+        usage = int(quota_redis._data.get("sub:sub_1:bytes", "0"))
+        assert usage == 0
+
+    @pytest.mark.asyncio
     async def test_sanitizes_filename(self):
         svc, user, _ = _make_svc()
         result = await accept_job(b"data", "../../etc/passwd", "text/plain", "sub_1", svc)

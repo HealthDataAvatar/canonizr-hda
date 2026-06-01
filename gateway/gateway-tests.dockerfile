@@ -1,11 +1,12 @@
 FROM python:3.12-slim
 
-WORKDIR /tests
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
-COPY tests/integration/requirements.txt .
+WORKDIR /workspace
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-editable --extra test
 
-RUN pip install --no-cache-dir -r requirements.txt
+COPY app/ ./app/
+COPY tests/ ./tests/
 
-COPY tests/integration/ .
-
-CMD ["pytest", "-q", "-m", "not smoke", "--junitxml=/reports/junit.xml", "--html=/reports/report.html", "--self-contained-html", "--tb=short"]
+CMD ["uv", "run", "pytest", "tests/integration", "-q", "-m", "not smoke", "--junitxml=/reports/junit.xml", "--html=/reports/report.html", "--self-contained-html", "--tb=short"]
