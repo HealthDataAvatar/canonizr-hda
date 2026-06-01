@@ -90,9 +90,9 @@ async def process_job(job: Job, user: UserContext, svc: Services) -> ProcessResu
 
     except Exception as e:
         logger.error("Job %s failed: %s", job.job_id, e)
-        _mark_error(svc, user.user_id, job.job_id, "Internal processing error")
+        _mark_error(svc, user.user_id, job.job_id, str(e))
         return ProcessResult(
-            JobResult(job_id=job.job_id, status="error", detail="Internal processing error", status_code=500),
+            JobResult(job_id=job.job_id, status="error", detail=str(e), status_code=500),
             file_size,
             doc_hash_val,
         )

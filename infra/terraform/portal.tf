@@ -174,7 +174,7 @@ resource "azurerm_container_app" "portal" {
 
       env {
         name  = "AUTH_URL"
-        value = "https://canonizr-portal.${azurerm_container_app_environment.this.default_domain}"
+        value = "https://portal.canonizr.com"
       }
 
       env {
