@@ -1,8 +1,11 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
+import Markdown from "react-markdown";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { CopyButton } from "@/components/ui/copy-button";
+import { tabVariants } from "@/components/ui/code-block";
 import { UsageBar } from "@/components/usage-bar";
 import { Upload, Loader, FileText } from "lucide-react";
 import { formatKB } from "@/lib/pure/format";
@@ -30,6 +33,7 @@ export function Playground({ keys }: { keys: KeyOption[] }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [resultTab, setResultTab] = useState<"rendered" | "plain">("rendered");
 
   const selectedKey = keys.find((k) => k.id === selectedKeyId);
   const apiKey = selectedKey?.key ?? "";
@@ -190,9 +194,34 @@ export function Playground({ keys }: { keys: KeyOption[] }) {
               {formatKB(Math.ceil(jobInfo.inputBytes / 1024))} processed in {(jobInfo.timeMs / 1000).toFixed(1)}s
             </p>
           )}
-          <pre className="max-h-[600px] overflow-auto rounded-lg border border-border bg-card p-4 text-sm whitespace-pre-wrap">
-            {markdown}
-          </pre>
+          <div className="flex items-center justify-between border-b border-border">
+            <div className="flex">
+              <button
+                type="button"
+                onClick={() => setResultTab("rendered")}
+                className={tabVariants({ active: resultTab === "rendered" })}
+              >
+                Rendered
+              </button>
+              <button
+                type="button"
+                onClick={() => setResultTab("plain")}
+                className={tabVariants({ active: resultTab === "plain" })}
+              >
+                Markdown
+              </button>
+            </div>
+            <CopyButton value={markdown} />
+          </div>
+          {resultTab === "rendered" ? (
+            <div className="prose prose-sm dark:prose-invert max-h-[600px] overflow-auto rounded-lg border border-border bg-card p-4">
+              <Markdown>{markdown}</Markdown>
+            </div>
+          ) : (
+            <pre className="max-h-[600px] overflow-auto rounded-lg border border-border bg-card p-4 text-sm whitespace-pre-wrap">
+              {markdown}
+            </pre>
+          )}
         </div>
       )}
     </div>

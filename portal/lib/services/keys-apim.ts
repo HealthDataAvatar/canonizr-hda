@@ -33,6 +33,7 @@ export class ApimKeyStore implements KeyStore {
   async list(userId: string): Promise<ApiKey[]> {
     const apim = getClient();
     const gwSubs = getGatewayUsersTable();
+    const redis = getRedis();
     const results: ApiKey[] = [];
     for await (const sub of apim.subscription.list(RG(), SVC())) {
       if (sub.displayName?.startsWith(`user:${userId}:`)) {
@@ -43,13 +44,18 @@ export class ApimKeyStore implements KeyStore {
           const raw = entity.quota_bytes;
           if (raw != null && Number(raw) > 0) quotaKB = Math.round(Number(raw) / 1024);
         } catch {}
+        let usageKB = 0;
+        if (redis) {
+          const bytes = await redis.get(`sub:${sub.name!}:bytes`);
+          if (bytes) usageKB = Math.ceil(Number(bytes) / 1024);
+        }
         results.push({
           id: sub.name!,
           displayName: sub.displayName.replace(`user:${userId}:`, ""),
           key: secrets.primaryKey ?? "",
           createdDate: sub.createdDate?.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) ?? "",
           lastUsed: "—",
-          usageKB: 0,
+          usageKB,
           quotaKB,
         });
       }

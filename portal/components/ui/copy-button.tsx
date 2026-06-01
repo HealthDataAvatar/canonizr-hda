@@ -20,8 +20,8 @@ function CopyButton({
     <IconButton
       onClick={handleCopy}
       tone={copied ? "accent" : "muted"}
-      title={copied ? "Copied" : "Copy key"}
-      aria-label={copied ? "Copied" : "Copy key"}
+      title={copied ? "Copied" : "Copy"}
+      aria-label={copied ? "Copied" : "Copy"}
       icon={copied ? Check : Copy}
     />
   );

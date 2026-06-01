@@ -13,6 +13,7 @@ export class TableKeyStore implements KeyStore {
   async list(userId: string): Promise<ApiKey[]> {
     const client = getTableClient(TableName.API_KEYS);
     const gwSubs = getTableClient(TableName.GW_SUBSCRIPTIONS);
+    const redis = getRedis();
     const entities = client.listEntities({
       queryOptions: { filter: `PartitionKey eq '${userId}'` },
     });
@@ -24,7 +25,12 @@ export class TableKeyStore implements KeyStore {
         const raw = sub.quota_bytes;
         if (raw != null && Number(raw) > 0) quotaKB = Math.round(Number(raw) / 1024);
       } catch {}
-      keys.push(toApiKey(e, quotaKB));
+      let usageKB = 0;
+      if (redis) {
+        const bytes = await redis.get(`sub:${e.rowKey as string}:bytes`);
+        if (bytes) usageKB = Math.ceil(Number(bytes) / 1024);
+      }
+      keys.push(toApiKey(e, quotaKB, usageKB));
     }
     return keys;
   }
@@ -119,7 +125,7 @@ export class TableKeyStore implements KeyStore {
   }
 }
 
-function toApiKey(e: Record<string, unknown>, quotaKB: number | null): ApiKey {
+function toApiKey(e: Record<string, unknown>, quotaKB: number | null, usageKB: number): ApiKey {
   const created = e.createdDate as string;
   return {
     id: e.rowKey as string,
@@ -127,7 +133,7 @@ function toApiKey(e: Record<string, unknown>, quotaKB: number | null): ApiKey {
     key: e.primaryKey as string,
     createdDate: created ? new Date(created).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "",
     lastUsed: "—",
-    usageKB: 0,
+    usageKB,
     quotaKB,
   };
 }

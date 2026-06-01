@@ -109,4 +109,4 @@ function CodeBlock({
   );
 }
 
-export { CodeBlock, codeBlockVariants, type CodeSample };
+export { CodeBlock, codeBlockVariants, tabVariants, type CodeSample };

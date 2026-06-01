@@ -1,21 +1,48 @@
 /**
  * BillingStore backed by Stripe.
  * Production implementation.
+ *
+ * Usage and invoice data is cached in Redis (5 min TTL) to avoid
+ * hitting Stripe on every page load. Cache keys use only the Stripe
+ * customer ID (not PII).
  */
 
+import { getRedis } from "@/lib/redis";
 import { BillingStore, Invoice, Usage } from ".";
 
 
 const PRICE_LOOKUP_KEY = "canonizr_per_100kb";
 const METER_EVENT_NAME = "conversion_bytes";
+const CACHE_TTL = 300; // 5 minutes
 
 function getStripe() {
   const Stripe = require("stripe") as typeof import("stripe").default;
   return new Stripe(process.env.STRIPE_SECRET_KEY!);
 }
 
+async function cached<T>(key: string, fetch: () => Promise<T>): Promise<T> {
+  const redis = getRedis();
+  if (redis) {
+    const hit = await redis.get(key);
+    if (hit) return JSON.parse(hit) as T;
+  }
+  const result = await fetch();
+  if (redis) {
+    await redis.set(key, JSON.stringify(result), "EX", CACHE_TTL);
+  }
+  return result;
+}
+
 export class StripeBillingStore implements BillingStore {
   async getUsage(customerId: string): Promise<Usage> {
+    return cached(`billing:${customerId}:usage`, () => this._fetchUsage(customerId));
+  }
+
+  async getInvoices(customerId: string): Promise<Invoice[]> {
+    return cached(`billing:${customerId}:invoices`, () => this._fetchInvoices(customerId));
+  }
+
+  private async _fetchUsage(customerId: string): Promise<Usage> {
     const stripe = getStripe();
     const subs = await stripe.subscriptions.list({ customer: customerId, status: "active", limit: 1 });
     const sub = subs.data[0];
@@ -43,7 +70,7 @@ export class StripeBillingStore implements BillingStore {
     };
   }
 
-  async getInvoices(customerId: string): Promise<Invoice[]> {
+  private async _fetchInvoices(customerId: string): Promise<Invoice[]> {
     const stripe = getStripe();
     const invoices = await stripe.invoices.list({ customer: customerId, limit: 12 });
     return invoices.data.map((inv) => {
