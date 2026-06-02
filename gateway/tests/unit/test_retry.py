@@ -8,6 +8,7 @@ import pytest
 from fastapi import HTTPException
 
 from app.services.retry import Attempt, _should_keep_trying, backoff_delay, request_with_retry
+from app.tracing import Span
 
 
 def _deadline(seconds: float) -> float:
@@ -48,6 +49,7 @@ async def test_success_no_retry():
             "POST",
             "http://test/api",
             deadline=_deadline(10),
+            span=Span("test"),
         )
     assert resp.status_code == 200
     assert transport.call_count == 1
@@ -68,6 +70,7 @@ async def test_retry_on_429_then_success(_sleep):
             "POST",
             "http://test/api",
             deadline=_deadline(10),
+            span=Span("test"),
         )
     assert resp.status_code == 200
     assert transport.call_count == 2
@@ -83,6 +86,7 @@ async def test_retry_on_503_then_success(_sleep):
             "POST",
             "http://test/api",
             deadline=_deadline(10),
+            span=Span("test"),
         )
     assert resp.status_code == 200
     assert transport.call_count == 2
@@ -100,6 +104,7 @@ async def test_exhausted_retries_429_raises_429(_sleep):
                 "POST",
                 "http://test/api",
                 deadline=_deadline(10),
+                span=Span("test"),
             )
     assert exc_info.value.status_code == 429
 
@@ -116,6 +121,7 @@ async def test_exhausted_retries_502_raises_502(_sleep):
                 "http://test/api",
                 deadline=_deadline(10),
                 max_retries=2,
+                span=Span("test"),
             )
     assert exc_info.value.status_code == 502
 
@@ -136,6 +142,7 @@ async def test_deadline_exceeded_stops_retries():
                 "http://test/api",
                 deadline=_deadline(0.1),
                 max_retries=5,
+                span=Span("test"),
             )
     assert transport.call_count == 1
     assert exc_info.value.status_code == 429
@@ -151,6 +158,7 @@ async def test_no_retry_on_4xx():
             "POST",
             "http://test/api",
             deadline=_deadline(10),
+            span=Span("test"),
         )
     assert resp.status_code == 400
     assert transport.call_count == 1
@@ -168,6 +176,7 @@ async def test_zero_retries_propagates_5xx_immediately():
                 "http://test/api",
                 deadline=_deadline(10),
                 max_retries=0,
+                span=Span("test"),
             )
     assert exc_info.value.status_code == 502
     assert transport.call_count == 1
@@ -186,6 +195,7 @@ async def test_429_retries_until_deadline(_sleep):
                 "http://test/api",
                 deadline=_deadline(0.01),
                 max_retries=0,
+                span=Span("test"),
             )
     assert exc_info.value.status_code == 429
     assert transport.call_count >= 1
@@ -205,9 +215,14 @@ def _make_attempt(
 ) -> Attempt:
     if response is None:
         response = _fake_response(status_code)
-    defaults = dict(error=None, duration_ms=10.0, response_bytes=0)
-    defaults.update(kwargs)
-    return Attempt(response=response, status_code=status_code, attempt_number=attempt_number, **defaults)
+    return Attempt(
+        response=response,
+        status_code=status_code,
+        attempt_number=attempt_number,
+        error=kwargs.get("error"),
+        duration_ms=kwargs.get("duration_ms", 10.0),
+        response_bytes=kwargs.get("response_bytes", 0),
+    )
 
 
 class TestAttempt:

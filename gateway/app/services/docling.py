@@ -20,17 +20,13 @@ CHUNK_PAGES = int(os.environ.get("DOCLING_CHUNK_PAGES", "10"))
 CHUNK_CONCURRENCY = int(os.environ.get("DOCLING_CHUNK_CONCURRENCY", "3"))
 
 
-async def _convert_single(
-    file_bytes: bytes, mime_type: str, deadline: float, parent: Span | None = None
-) -> tuple[str, list[dict]]:
+async def _convert_single(file_bytes: bytes, mime_type: str, deadline: float, parent: Span) -> tuple[str, list[dict]]:
     """Send a single PDF (or chunk) to Docling. Returns (markdown, pictures)."""
     content = BytesIO(file_bytes)
 
-    http_span = None
-    if parent is not None:
-        http_span = Span(name="http_request", attributes={"input_size_bytes": len(file_bytes)})
-        http_span._start = time.monotonic()
-        parent.children.append(http_span)
+    http_span = Span(name="http_request", attributes={"input_size_bytes": len(file_bytes)})
+    http_span._start = time.monotonic()
+    parent.children.append(http_span)
 
     async with httpx.AsyncClient() as client:
         response = await request_with_retry(
@@ -48,8 +44,7 @@ async def _convert_single(
             },
         )
 
-    if http_span:
-        http_span._end = time.monotonic()
+    http_span._end = time.monotonic()
 
     raw = response.json()
     md_content = raw.get("document", {}).get("md_content", "")
@@ -68,7 +63,7 @@ def merge_chunks(results: list[tuple[int, str, list[dict]]]) -> tuple[str, list[
     return md, pictures
 
 
-async def convert(file_bytes: bytes, mime_type: str, deadline: float, parent: Span | None = None) -> ConvertResult:
+async def convert(file_bytes: bytes, mime_type: str, deadline: float, parent: Span) -> ConvertResult:
     """Extract a PDF via Docling, then caption non-decorative figures.
 
     Large PDFs are split into chunks and processed in parallel.
@@ -79,17 +74,14 @@ async def convert(file_bytes: bytes, mime_type: str, deadline: float, parent: Sp
         md_content, pictures = await _convert_single(file_bytes, mime_type, deadline, parent)
     else:
         logger.info("Splitting PDF into %d chunks of up to %d pages", len(chunks), CHUNK_PAGES)
-        if parent:
-            parent.set(chunks=len(chunks), pages_per_chunk=CHUNK_PAGES)
+        parent.set(chunks=len(chunks), pages_per_chunk=CHUNK_PAGES)
 
         sem = asyncio.Semaphore(CHUNK_CONCURRENCY)
 
         async def _limited(i: int, chunk: bytes) -> tuple[int, str, list[dict]]:
             async with sem:
-                chunk_span = None
-                if parent:
-                    chunk_span = Span(name=f"chunk[{i}]", attributes={"chunk_index": i})
-                    parent.children.append(chunk_span)
+                chunk_span = Span(name=f"chunk[{i}]", attributes={"chunk_index": i})
+                parent.children.append(chunk_span)
                 md, pics = await _convert_single(chunk, mime_type, deadline, chunk_span)
                 return i, md, pics
 
@@ -97,8 +89,7 @@ async def convert(file_bytes: bytes, mime_type: str, deadline: float, parent: Sp
         results = await asyncio.gather(*tasks)
         md_content, pictures = merge_chunks(list(results))
 
-    if parent:
-        parent.set(md_length=len(md_content), pictures_count=len(pictures))
+    parent.set(md_length=len(md_content), pictures_count=len(pictures))
 
     actions = ["docling"]
     cap = CaptionResult(markdown=md_content)

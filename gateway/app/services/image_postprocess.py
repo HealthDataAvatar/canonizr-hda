@@ -183,44 +183,39 @@ async def caption_images(
     md_content: str,
     pictures: list[dict],
     deadline: float,
-    parent: Span | None = None,
+    parent: Span,
 ) -> CaptionResult:
     """Replace base64 images in markdown with captions. Raises CaptioningUpstreamError on failure."""
     entries = _classify_images(md_content, pictures)
     if not entries:
         return CaptionResult(markdown=md_content)
 
-    cap_span = None
-    if parent:
-        cap_span = Span(name="captioning", attributes={"image_count": len(entries)})
-        cap_span._start = time.monotonic()
-        parent.children.append(cap_span)
+    cap_span = Span(name="captioning", attributes={"image_count": len(entries)})
+    cap_span._start = time.monotonic()
+    parent.children.append(cap_span)
 
     semaphore = asyncio.Semaphore(CAPTIONING_CONCURRENCY)
     tasks: list[tuple[int, asyncio.Task]] = []
     image_spans: dict[int, Span] = {}
 
     async def _caption_one(index: int, image_b64: str, mime_type: str):
-        img_span = None
-        if cap_span:
-            img_span = Span(
-                name=f"caption_image[{index}]",
-                attributes={
-                    "base64_bytes_original": len(image_b64),
-                },
-            )
-            img_span._start = time.monotonic()
-            cap_span.children.append(img_span)
-            image_spans[index] = img_span
+        img_span = Span(
+            name=f"caption_image[{index}]",
+            attributes={
+                "base64_bytes_original": len(image_b64),
+            },
+        )
+        img_span._start = time.monotonic()
+        cap_span.children.append(img_span)
+        image_spans[index] = img_span
 
         raw = base64.b64decode(image_b64)
         converted, mime_type = prepare_image_for_vlm(raw, mime_type)
         image_b64 = base64.b64encode(converted).decode("utf-8")
-        if img_span:
-            img_span.set(
-                base64_bytes=len(image_b64),
-                converted_mime=mime_type,
-            )
+        img_span.set(
+            base64_bytes=len(image_b64),
+            converted_mime=mime_type,
+        )
 
         async with semaphore:
             return await captioning.describe(image_b64, mime_type, deadline, parent=img_span)
@@ -241,34 +236,30 @@ async def caption_images(
             entry["outcome"] = ImageOutcome.CAPTIONED
             total_prompt_tokens += result.prompt_tokens
             total_completion_tokens += result.completion_tokens
-            if index in image_spans:
-                image_spans[index]._end = time.monotonic()
-                image_spans[index].set(
-                    prompt_tokens=result.prompt_tokens,
-                    completion_tokens=result.completion_tokens,
-                    dimensions=entry.get("dimensions"),
-                )
+            image_spans[index]._end = time.monotonic()
+            image_spans[index].set(
+                prompt_tokens=result.prompt_tokens,
+                completion_tokens=result.completion_tokens,
+                dimensions=entry.get("dimensions"),
+            )
         except Exception as e:
-            if index in image_spans:
-                image_spans[index]._end = time.monotonic()
-                image_spans[index].set(error=str(e))
+            image_spans[index]._end = time.monotonic()
+            image_spans[index].set(error=str(e))
             for _, remaining in tasks:
                 remaining.cancel()
-            if cap_span:
-                cap_span._end = time.monotonic()
+            cap_span._end = time.monotonic()
             raise CaptioningUpstreamError(index, e) from e
 
     result, counts, _ = _apply_replacements(md_content, entries)
 
-    if cap_span:
-        cap_span._end = time.monotonic()
-        cap_span.set(
-            captioned=counts[ImageOutcome.CAPTIONED],
-            skipped=counts[ImageOutcome.SKIPPED_DECORATIVE] + counts[ImageOutcome.SKIPPED_TOO_SMALL],
-            errored=counts[ImageOutcome.ERRORED_DECODE],
-            prompt_tokens=total_prompt_tokens,
-            completion_tokens=total_completion_tokens,
-        )
+    cap_span._end = time.monotonic()
+    cap_span.set(
+        captioned=counts[ImageOutcome.CAPTIONED],
+        skipped=counts[ImageOutcome.SKIPPED_DECORATIVE] + counts[ImageOutcome.SKIPPED_TOO_SMALL],
+        errored=counts[ImageOutcome.ERRORED_DECODE],
+        prompt_tokens=total_prompt_tokens,
+        completion_tokens=total_completion_tokens,
+    )
 
     return CaptionResult(
         markdown=result,

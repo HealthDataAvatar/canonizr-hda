@@ -28,17 +28,13 @@ def is_available() -> bool:
     return os.environ.get("LIBREOFFICE_ENABLED", "false").lower() == "true"
 
 
-async def convert(
-    file_bytes: bytes, mime_type: str, filename: str, deadline: float, parent: Span | None = None
-) -> tuple[bytes, str]:
+async def convert(file_bytes: bytes, mime_type: str, filename: str, deadline: float, parent: Span) -> tuple[bytes, str]:
     """Convert a legacy document to PDF via Gotenberg. Returns (pdf_bytes, 'application/pdf')."""
     content = BytesIO(file_bytes)
 
-    http_span = None
-    if parent is not None:
-        http_span = Span(name="http_request", attributes={"input_size_bytes": len(file_bytes)})
-        http_span._start = time.monotonic()
-        parent.children.append(http_span)
+    http_span = Span(name="http_request", attributes={"input_size_bytes": len(file_bytes)})
+    http_span._start = time.monotonic()
+    parent.children.append(http_span)
 
     url = f"{GOTENBERG_URL}{CONVERT_PATH}"
 
@@ -53,7 +49,6 @@ async def convert(
             files=[("files", (filename, content, mime_type))],
         )
 
-    if http_span:
-        http_span._end = time.monotonic()
+    http_span._end = time.monotonic()
 
     return response.content, "application/pdf"

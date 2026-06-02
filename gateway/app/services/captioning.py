@@ -43,7 +43,7 @@ class VisionResult:
     elapsed_ms: float = 0.0
 
 
-async def _call(image_b64: str, mime_type: str, deadline: float, parent: Span | None = None) -> VisionResult:
+async def _call(image_b64: str, mime_type: str, deadline: float, parent: Span) -> VisionResult:
     """Send a base64-encoded image to the vision service."""
     payload: dict = {
         "messages": [
@@ -74,11 +74,9 @@ async def _call(image_b64: str, mime_type: str, deadline: float, parent: Span | 
 
     payload_bytes = len(json.dumps(payload))
 
-    http_span = None
-    if parent is not None:
-        http_span = Span(name="http_request", attributes={"payload_bytes": payload_bytes})
-        http_span._start = time.monotonic()
-        parent.children.append(http_span)
+    http_span = Span(name="http_request", attributes={"payload_bytes": payload_bytes})
+    http_span._start = time.monotonic()
+    parent.children.append(http_span)
 
     start_time = time.time()
     async with httpx.AsyncClient() as client:
@@ -94,8 +92,7 @@ async def _call(image_b64: str, mime_type: str, deadline: float, parent: Span | 
         )
     elapsed = (time.time() - start_time) * 1000
 
-    if http_span:
-        http_span._end = time.monotonic()
+    http_span._end = time.monotonic()
 
     raw = response.json()
     text = raw.get("choices", [{}])[0].get("message", {}).get("content", "")
@@ -109,22 +106,17 @@ async def _call(image_b64: str, mime_type: str, deadline: float, parent: Span | 
     )
 
 
-async def describe(image_b64: str, mime_type: str, deadline: float, parent: Span | None = None) -> VisionResult:
+async def describe(image_b64: str, mime_type: str, deadline: float, parent: Span) -> VisionResult:
     """Describe an image from base64. Used for inline images in documents."""
     return await _call(image_b64, mime_type, deadline, parent)
 
 
-async def describe_file(
-    image_bytes: bytes, mime_type: str, deadline: float, parent: Span | None = None
-) -> ConvertResult:
+async def describe_file(image_bytes: bytes, mime_type: str, deadline: float, parent: Span) -> ConvertResult:
     """Describe a standalone image upload."""
     input_size = len(image_bytes)
-    if parent:
-        with parent.span("image_convert", input_size_bytes=input_size) as s:
-            image_bytes, mime_type = prepare_image_for_vlm(image_bytes, mime_type)
-            s.set(output_size_bytes=len(image_bytes), output_mime=mime_type)
-    else:
+    with parent.span("image_convert", input_size_bytes=input_size) as s:
         image_bytes, mime_type = prepare_image_for_vlm(image_bytes, mime_type)
+        s.set(output_size_bytes=len(image_bytes), output_mime=mime_type)
 
     image_b64 = base64.b64encode(image_bytes).decode("utf-8")
     result = await _call(image_b64, mime_type, deadline, parent)

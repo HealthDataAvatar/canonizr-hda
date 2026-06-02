@@ -82,7 +82,7 @@ def _should_keep_trying(att: Attempt, max_retries: int, deadline: float) -> floa
     return delay
 
 
-def _observe(att: Attempt, service_name: str, method: str, span: Span | None, retrying: bool) -> None:
+def _observe(att: Attempt, service_name: str, method: str, span: Span, retrying: bool) -> None:
     """Emit telemetry and update span after an attempt."""
     # Telemetry
     emitter, job_id, user_id = get_telemetry_context()
@@ -101,9 +101,6 @@ def _observe(att: Attempt, service_name: str, method: str, span: Span | None, re
                 user_id=user_id,
             )
         )
-
-    if span is None:
-        return
 
     # Span: record response on first success/final attempt
     if att.response is not None:
@@ -171,7 +168,7 @@ async def request_with_retry(
     deadline: float | None = None,
     service_name: str = "upstream",
     max_retries: int = MAX_RETRIES,
-    span: Span | None = None,
+    span: Span,
     **kwargs,
 ) -> httpx.Response:
     """Make an HTTP request with retry on 429/5xx, bounded by a wall-clock deadline."""
@@ -196,6 +193,7 @@ async def request_with_retry(
         # Success or non-retryable status
         if att.succeeded:
             _observe(att, service_name, method, span, retrying=False)
+            assert att.response is not None
             return att.response
 
         # Check if we should retry

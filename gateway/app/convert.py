@@ -52,17 +52,14 @@ LIBREOFFICE_TYPES = {
 }
 
 
-async def convert(
-    file_bytes: bytes, mime_type: str, filename: str, deadline: float, trace: Trace | None = None
-) -> ConvertResult:
+async def convert(file_bytes: bytes, mime_type: str, filename: str, deadline: float, trace: Trace) -> ConvertResult:
     """Convert any supported file to markdown."""
-    parent = trace.root if trace else None
+    parent = trace.root
 
     # Passthrough — already LLM-readable
     if mime_type in PASSTHROUGH_TYPES:
-        if parent:
-            with parent.span(Service.PASSTHROUGH):
-                pass
+        with parent.span(Service.PASSTHROUGH):
+            pass
         return ConvertResult(
             markdown=file_bytes.decode("utf-8", errors="replace"),
             detected_type=mime_type,
@@ -77,29 +74,21 @@ async def convert(
                 "Set CAPTIONING_ENABLED=true in .env and ensure the captioning container is running."
             )
         if is_multipage(mime_type):
-            if parent:
-                with parent.span(Service.EXTRACT_PAGES) as ep_span:
-                    pages = extract_pages(file_bytes)
-                    ep_span.set(page_count=len(pages))
-            else:
+            with parent.span(Service.EXTRACT_PAGES) as ep_span:
                 pages = extract_pages(file_bytes)
+                ep_span.set(page_count=len(pages))
 
             results = []
-            if parent:
-                with parent.span(Service.CAPTIONING, service="openai/gpt-4o", page_count=len(pages)) as cap_span:
-                    for i, (p, mt) in enumerate(pages):
-                        with cap_span.span(f"page[{i}]") as page_span:
-                            r = await captioning.describe_file(p, mt, deadline, page_span)
-                        results.append(r)
-                    cap_span.set(
-                        images_captioned=sum(r.images_captioned for r in results),
-                        prompt_tokens=sum(r.captioning_prompt_tokens for r in results),
-                        completion_tokens=sum(r.captioning_completion_tokens for r in results),
-                    )
-            else:
-                for _i, (p, mt) in enumerate(pages):
-                    r = await captioning.describe_file(p, mt, deadline)
+            with parent.span(Service.CAPTIONING, service="openai/gpt-4o", page_count=len(pages)) as cap_span:
+                for i, (p, mt) in enumerate(pages):
+                    with cap_span.span(f"page[{i}]") as page_span:
+                        r = await captioning.describe_file(p, mt, deadline, page_span)
                     results.append(r)
+                cap_span.set(
+                    images_captioned=sum(r.images_captioned for r in results),
+                    prompt_tokens=sum(r.captioning_prompt_tokens for r in results),
+                    completion_tokens=sum(r.captioning_completion_tokens for r in results),
+                )
 
             markdown = "\n\n---\n\n".join(r.markdown for r in results)
             return ConvertResult(
@@ -110,45 +99,32 @@ async def convert(
                 captioning_prompt_tokens=sum(r.captioning_prompt_tokens for r in results),
                 captioning_completion_tokens=sum(r.captioning_completion_tokens for r in results),
             )
-        if parent:
-            with parent.span(Service.CAPTIONING, service="openai/gpt-4o") as cap_span:
-                result = await captioning.describe_file(file_bytes, mime_type, deadline, cap_span)
-                cap_span.set(
-                    images_captioned=result.images_captioned,
-                    prompt_tokens=result.captioning_prompt_tokens,
-                    completion_tokens=result.captioning_completion_tokens,
-                )
-        else:
-            result = await captioning.describe_file(file_bytes, mime_type, deadline)
+        with parent.span(Service.CAPTIONING, service="openai/gpt-4o") as cap_span:
+            result = await captioning.describe_file(file_bytes, mime_type, deadline, cap_span)
+            cap_span.set(
+                images_captioned=result.images_captioned,
+                prompt_tokens=result.captioning_prompt_tokens,
+                completion_tokens=result.captioning_completion_tokens,
+            )
         result.detected_type = mime_type
         return result
 
     # PDF — Docling for quality extraction
     if mime_type == "application/pdf":
-        if parent:
-            with parent.span(Service.DOCLING) as docling_span:
-                return await docling.convert(file_bytes, mime_type, deadline, docling_span)
-        return await docling.convert(file_bytes, mime_type, deadline)
+        with parent.span(Service.DOCLING) as docling_span:
+            return await docling.convert(file_bytes, mime_type, deadline, docling_span)
 
     # Office docs MarkItDown handles directly
     if mime_type in MARKITDOWN_TYPES:
         loop = asyncio.get_event_loop()
-        if parent:
-            with parent.span(Service.MARKITDOWN) as md_span:
-                mit_result = await loop.run_in_executor(
-                    None,
-                    functools.partial(
-                        markitdown.convert_stream, BytesIO(file_bytes), file_extension=_ext_from_filename(filename)
-                    ),
-                )
-                md_span.set(md_length=len(mit_result.text_content))
-        else:
+        with parent.span(Service.MARKITDOWN) as md_span:
             mit_result = await loop.run_in_executor(
                 None,
                 functools.partial(
                     markitdown.convert_stream, BytesIO(file_bytes), file_extension=_ext_from_filename(filename)
                 ),
             )
+            md_span.set(md_length=len(mit_result.text_content))
         return ConvertResult(
             markdown=mit_result.text_content,
             detected_type=mime_type,
@@ -159,11 +135,8 @@ async def convert(
     if mime_type in LIBREOFFICE_TYPES:
         if not libreoffice.is_available():
             raise ServiceNotConfigured(f"This file type ({mime_type}) requires LibreOffice. Rerun setup to enable it.")
-        if parent:
-            with parent.span(Service.GOTENBERG) as lo_span:
-                pdf_bytes, _ = await libreoffice.convert(file_bytes, mime_type, filename, deadline, lo_span)
-        else:
-            pdf_bytes, _ = await libreoffice.convert(file_bytes, mime_type, filename, deadline)
+        with parent.span(Service.GOTENBERG) as lo_span:
+            pdf_bytes, _ = await libreoffice.convert(file_bytes, mime_type, filename, deadline, lo_span)
         result = await convert(pdf_bytes, "application/pdf", filename, deadline, trace)
         result.actions.insert(0, f"gotenberg ({mime_type} -> pdf)")
         result.detected_type = mime_type
