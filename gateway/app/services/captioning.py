@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 import httpx
 
-from ..imageconv import to_native
+from ..imageconv import prepare_image_for_vlm
 from ..prompts import IMAGE
 from ..response import ConvertResult
 from ..tracing import Span
@@ -121,10 +121,10 @@ async def describe_file(
     input_size = len(image_bytes)
     if parent:
         with parent.span("image_convert", input_size_bytes=input_size) as s:
-            image_bytes, mime_type = to_native(image_bytes, mime_type)
+            image_bytes, mime_type = prepare_image_for_vlm(image_bytes, mime_type)
             s.set(output_size_bytes=len(image_bytes), output_mime=mime_type)
     else:
-        image_bytes, mime_type = to_native(image_bytes, mime_type)
+        image_bytes, mime_type = prepare_image_for_vlm(image_bytes, mime_type)
 
     image_b64 = base64.b64encode(image_bytes).decode("utf-8")
     result = await _call(image_b64, mime_type, deadline, parent)

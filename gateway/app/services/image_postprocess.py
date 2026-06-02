@@ -10,6 +10,7 @@ from io import BytesIO
 
 from PIL import Image
 
+from ..imageconv import prepare_image_for_vlm
 from ..tracing import Span
 from . import captioning
 
@@ -205,12 +206,22 @@ async def caption_images(
             img_span = Span(
                 name=f"caption_image[{index}]",
                 attributes={
-                    "base64_bytes": len(image_b64),
+                    "base64_bytes_original": len(image_b64),
                 },
             )
             img_span._start = time.monotonic()
             cap_span.children.append(img_span)
             image_spans[index] = img_span
+
+        raw = base64.b64decode(image_b64)
+        converted, mime_type = prepare_image_for_vlm(raw, mime_type)
+        image_b64 = base64.b64encode(converted).decode("utf-8")
+        if img_span:
+            img_span.set(
+                base64_bytes=len(image_b64),
+                converted_mime=mime_type,
+            )
+
         async with semaphore:
             return await captioning.describe(image_b64, mime_type, deadline, parent=img_span)
 

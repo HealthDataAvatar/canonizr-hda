@@ -14,41 +14,43 @@ NATIVE_TYPES = {
 
 MULTIPAGE_TYPES = {"image/tiff"}
 
-MAX_DIMENSION = 4096
+DEFAULT_MAX_DIMENSION = 2048
 
 
-def _downscale(img: Image.Image) -> Image.Image:
-    """Downscale to fit within MAX_DIMENSION, preserving aspect ratio."""
-    if max(img.size) > MAX_DIMENSION:
-        img.thumbnail((MAX_DIMENSION, MAX_DIMENSION), Image.Resampling.LANCZOS)
+def _downscale(img: Image.Image, max_dimension: int) -> Image.Image:
+    """Downscale to fit within max_dimension, preserving aspect ratio."""
+    if max(img.size) > max_dimension:
+        img.thumbnail((max_dimension, max_dimension), Image.Resampling.LANCZOS)
     return img
 
 
-def to_native(image_bytes: bytes, mime_type: str) -> tuple[bytes, str]:
+def prepare_image_for_vlm(
+    image_bytes: bytes, mime_type: str, *, max_dimension: int = DEFAULT_MAX_DIMENSION
+) -> tuple[bytes, str]:
     """Convert image bytes to PNG if the format isn't natively supported by the VLM.
-    Downscales if either dimension exceeds MAX_DIMENSION.
+    Downscales if either dimension exceeds max_dimension.
     Returns (converted_bytes, mime_type)."""
     img = Image.open(BytesIO(image_bytes))
 
-    if mime_type in NATIVE_TYPES and max(img.size) <= MAX_DIMENSION:
+    if mime_type in NATIVE_TYPES and max(img.size) <= max_dimension:
         return image_bytes, mime_type
 
-    _downscale(img)
+    _downscale(img, max_dimension)
     buf = BytesIO()
     img.convert("RGB").save(buf, format="PNG")
     return buf.getvalue(), "image/png"
 
 
-def extract_pages(image_bytes: bytes) -> list[tuple[bytes, str]]:
+def extract_pages(image_bytes: bytes, *, max_dimension: int = DEFAULT_MAX_DIMENSION) -> list[tuple[bytes, str]]:
     """Extract all pages from a multi-page image (e.g. TIFF) as PNG.
-    Downscales pages that exceed MAX_DIMENSION.
+    Downscales pages that exceed max_dimension.
     Returns a list of (image_bytes, mime_type) tuples."""
     img = Image.open(BytesIO(image_bytes))
     pages = []
     for i in range(getattr(img, "n_frames", 1)):
         img.seek(i)
         frame = img.convert("RGB")
-        _downscale(frame)
+        _downscale(frame, max_dimension)
         buf = BytesIO()
         frame.save(buf, format="PNG")
         pages.append((buf.getvalue(), "image/png"))
