@@ -4,17 +4,55 @@ import { KeyTable } from "@/components/tables/key-table";
 import type { KeyRow } from "@/components/tables/key-table";
 import { CodeBlock } from "@/components/ui/code-block";
 import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 
-export function KeysPageContent({ keys }: { keys: KeyRow[] }) {
+function CreateFormSkeleton() {
+  return (
+    <div className="flex gap-2 items-end">
+      <div className="flex-1 space-y-2">
+        <Skeleton className="h-4 w-20" />
+        <Skeleton className="h-10 w-full" />
+      </div>
+      <Skeleton className="h-10 w-28" />
+    </div>
+  );
+}
+
+function KeyTableSkeleton() {
+  return (
+    <div className="rounded-md border border-border">
+      <table className="w-full table-fixed">
+        <thead>
+          <tr className="border-b border-border">
+            <th className="p-4 text-left"><Skeleton className="h-4 w-12" /></th>
+            <th className="p-4 text-left"><Skeleton className="h-4 w-8" /></th>
+            <th className="p-4 text-left"><Skeleton className="h-4 w-24" /></th>
+          </tr>
+        </thead>
+        <tbody>
+          {[1, 2, 3].map((i) => (
+            <tr key={i} className="border-b border-border">
+              <td className="p-4"><Skeleton className="h-4 w-28" /></td>
+              <td className="p-4"><Skeleton className="h-4 w-36" /></td>
+              <td className="p-4"><Skeleton className="h-4 w-40" /></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+export function KeysPageContent({ keys }: { keys: KeyRow[] | null }) {
   return (
     <div className="space-y-8">
       <h1 className="">API Keys</h1>
 
-      <CreateKeyForm existingNames={keys.map((k) => k.displayName)} />
+      {keys === null ? <CreateFormSkeleton /> : <CreateKeyForm existingNames={keys.map((k) => k.displayName)} />}
 
-      <KeyTable keys={keys} />
+      {keys === null ? <KeyTableSkeleton /> : <KeyTable keys={keys} />}
 
-      {keys.length > 0 && (
+      {keys !== null && keys.length > 0 && (
         <Card>
           <CardContent className="flex items-center justify-between">
             <div>

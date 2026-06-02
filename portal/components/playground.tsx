@@ -13,7 +13,7 @@ import { formatKB } from "@/lib/pure/format";
 const APIM_URL = "https://apim-canonizr-prod.azure-api.net";
 const POLL_INTERVAL = 1500;
 
-interface KeyOption {
+export interface KeyOption {
   id: string;
   displayName: string;
   key: string;

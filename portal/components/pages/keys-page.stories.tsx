@@ -32,6 +32,7 @@ export const AllStates: Story = {
           ),
         },
         { label: "Empty (no keys)", children: <KeysPageContent keys={[]} /> },
+        { label: "Loading", children: <KeysPageContent keys={null} /> },
       ]}
     />
   ),

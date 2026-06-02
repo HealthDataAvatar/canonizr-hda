@@ -1,11 +1,32 @@
+import { Suspense } from "react";
 import { requireUser } from "@/lib/auth/session";
 import { getServices } from "@/lib/services";
 import { Playground } from "@/components/playground";
+import { PlaygroundSkeleton } from "@/components/playground-skeleton";
 
-export default async function PlaygroundPage() {
+export default function PlaygroundPage() {
+  return (
+    <div className="space-y-6">
+      <h1>Playground</h1>
+      <Suspense fallback={<PlaygroundSkeleton />}>
+        <PlaygroundResolver />
+      </Suspense>
+    </div>
+  );
+}
+
+async function PlaygroundResolver() {
   const { userId } = await requireUser({ autoRedirect: true });
   const { keys: keyStore } = getServices();
   const keys = await keyStore.list(userId);
+
+  if (keys.length === 0) {
+    return (
+      <p className="text-muted-foreground">
+        Create an API key first to use the playground.
+      </p>
+    );
+  }
 
   const keyOptions = keys.map((k) => ({
     id: k.id,
@@ -15,16 +36,5 @@ export default async function PlaygroundPage() {
     usageKB: k.usageKB,
   }));
 
-  return (
-    <div className="space-y-6">
-      <h1>Playground</h1>
-      {keys.length === 0 ? (
-        <p className="text-muted-foreground">
-          Create an API key first to use the playground.
-        </p>
-      ) : (
-        <Playground keys={keyOptions} />
-      )}
-    </div>
-  );
+  return <Playground keys={keyOptions} />;
 }
