@@ -379,7 +379,7 @@ wheels = [
 [[package]]
 name = "canonizr-gateway"
 version = "0.1.0"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },
     { name = "azure-data-tables" },
@@ -410,6 +410,7 @@ lint = [
 ]
 test = [
     { name = "openpyxl" },
+    { name = "pillow-heif" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "pytest-cov" },
@@ -435,6 +436,7 @@ requires-dist = [
     { name = "openpyxl", marker = "extra == 'test'" },
     { name = "pillow", specifier = "==11.2.1" },
     { name = "pillow-heif", specifier = "==0.21.0" },
+    { name = "pillow-heif", marker = "extra == 'test'" },
     { name = "posthog", specifier = ">=7.16.3" },
     { name = "pymupdf" },
     { name = "pyright", marker = "extra == 'lint'", specifier = ">=1.1" },

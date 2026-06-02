@@ -6,8 +6,8 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 WORKDIR /workspace
 COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-dev --no-editable
+RUN uv sync --frozen --no-editable --no-install-project
 
 COPY app/ ./app/
 
-CMD ["uv", "run", "uvicorn", "app.app:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uv", "run", "--no-project", "uvicorn", "app.app:app", "--host", "0.0.0.0", "--port", "8000"]
