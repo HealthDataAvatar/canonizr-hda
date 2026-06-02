@@ -16,7 +16,7 @@ from .crypto import decrypt, encrypt
 from .estimates import estimate_seconds
 from .hash import document_hash
 from .protocols import Job, JobMeta, JobStatus, UserContext
-from .sanitize import is_known_mime_type, sanitize_filename
+from .sanitize import is_archive_type, is_known_mime_type, sanitize_filename
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +79,13 @@ async def accept_job(
     if isinstance(resolved, str):
         raise Rejected(403, resolved)
     user = resolved
+
+    if is_archive_type(mime_type):
+        raise Rejected(
+            400,
+            f"Archive files ({mime_type}) are not supported. "
+            "Please extract the archive and submit each file individually.",
+        )
 
     if not is_known_mime_type(mime_type):
         raise Rejected(400, f"Unsupported file type: {mime_type}")

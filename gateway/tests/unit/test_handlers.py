@@ -85,6 +85,30 @@ class TestAcceptJob:
             await accept_job(b"hello", "test.bin", "application/octet-stream", "sub_1", svc)
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "mime,ext",
+        [
+            ("application/zip", "test.zip"),
+            ("application/x-zip-compressed", "test.zip"),
+            ("application/gzip", "test.gz"),
+            ("application/x-tar", "test.tar"),
+            ("application/x-7z-compressed", "test.7z"),
+            ("application/x-rar-compressed", "test.rar"),
+            ("application/vnd.rar", "test.rar"),
+            ("application/x-bzip2", "test.bz2"),
+            ("application/x-xz", "test.xz"),
+            ("application/zstd", "test.zst"),
+        ],
+    )
+    async def test_archive_rejected_with_clear_message(self, mime, ext):
+        svc, _, _ = _make_svc()
+        with pytest.raises(Rejected) as exc_info:
+            await accept_job(b"fake", ext, mime, "sub_1", svc)
+        assert exc_info.value.status_code == 400
+        assert "Archive files" in exc_info.value.detail
+        assert "submit each file individually" in exc_info.value.detail
+
+    @pytest.mark.asyncio
     async def test_quota_exceeded_rejected(self):
         svc, _, quota_redis = _make_svc()
         quota_redis.seed(quota_limit(sub_id="sub_1"), "10")

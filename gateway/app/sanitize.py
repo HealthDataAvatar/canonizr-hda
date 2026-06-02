@@ -7,6 +7,20 @@ KNOWN_MIME_TYPES = PASSTHROUGH_TYPES | MARKITDOWN_TYPES | LIBREOFFICE_TYPES | {"
 # Image types are checked by prefix, not exact match
 IMAGE_PREFIX = "image/"
 
+ARCHIVE_TYPES = {
+    "application/zip",
+    "application/x-zip-compressed",
+    "application/gzip",
+    "application/x-gzip",
+    "application/x-tar",
+    "application/x-7z-compressed",
+    "application/x-rar-compressed",
+    "application/vnd.rar",
+    "application/x-bzip2",
+    "application/x-xz",
+    "application/zstd",
+}
+
 
 def sanitize_filename(raw: str) -> str:
     """Strip path components, control chars, null bytes, and truncate.
@@ -22,6 +36,11 @@ def sanitize_filename(raw: str) -> str:
     name = name.strip().strip(".")
     # Truncate to 255 characters
     return name[:255] or "document"
+
+
+def is_archive_type(mime_type: str) -> bool:
+    """Check if a MIME type is an archive format."""
+    return mime_type in ARCHIVE_TYPES
 
 
 def is_known_mime_type(mime_type: str) -> bool:
