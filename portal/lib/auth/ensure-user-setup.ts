@@ -13,7 +13,7 @@ import { getServices } from "@/lib/services";
 
 const setupComplete = new Set<string>();
 
-export async function ensureUserSetup(userId: string): Promise<void> {
+export async function ensureUserSetup(userId: string, email: string): Promise<void> {
   if (setupComplete.has(userId)) return;
 
   const [config, perms] = await Promise.all([
@@ -61,6 +61,23 @@ export async function ensureUserSetup(userId: string): Promise<void> {
 
   if (tasks.length > 0) {
     await Promise.all(tasks);
+  }
+
+  // Retry Stripe customer creation if it failed during sign-up
+  if (!perms.stripeCustomerId && perms.timestamp) {
+    try {
+      const { billing } = getServices();
+      const { customerId } = await billing.createCustomer(email);
+      if (customerId) {
+        await appendPermissions(userId, {
+          ...perms,
+          stripeCustomerId: customerId,
+          changedBy: "system",
+        });
+      }
+    } catch {
+      // Non-fatal — retries on next process restart
+    }
   }
 
   setupComplete.add(userId);
