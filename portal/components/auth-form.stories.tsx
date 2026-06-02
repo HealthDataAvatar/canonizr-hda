@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
-import { Showcase, TEST_EMAILS } from "../.storybook/common";
+import { Showcase, TEST_EMAILS } from "@/.storybook/common";
 import { AuthSignInForm } from "./auth-sign-in-form";
 import { AuthEmailSent } from "./auth-email-sent";
 

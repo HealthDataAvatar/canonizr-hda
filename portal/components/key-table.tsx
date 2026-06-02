@@ -1,16 +1,9 @@
 "use client";
 
+import { createColumnHelper } from "@tanstack/react-table";
 import { KeyActions } from "@/components/key-actions";
 import { QuotaEditor } from "@/components/quota-editor";
-import { EmptyState } from "@/components/ui/empty-state";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { DataTable } from "@/components/ui/data-table";
 import { APIKeySpan } from "./ui/api-key-span";
 
 export interface KeyRow {
@@ -21,78 +14,63 @@ export interface KeyRow {
   quotaKB: number | null;
 }
 
-function DesktopKeyTable({ keys }: { keys: KeyRow[] }) {
-  return (
-    <Table className="table-fixed">
-      <caption className="sr-only">API keys</caption>
-      <TableHeader>
-        <TableRow>
-          <TableHead className="w-3/12">Name</TableHead>
-          <TableHead className="w-3/12">Key</TableHead>
-          <TableHead className="w-4/12">Usage / Quota</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {keys.map((key) => (
-          <TableRow key={key.id}>
-            <TableCell className="text-sm">
-              <APIKeySpan text={key.displayName} />
-            </TableCell>
-            <TableCell className="font-mono text-sm text-muted-foreground flex gap-2">
-              •••• {key.value.slice(-4)}
-              <KeyActions keyId={key.id} keyValue={key.value} />
-            </TableCell>
-            <TableCell>
-              <QuotaEditor keyId={key.id} usageKB={key.usageKB} quotaKB={key.quotaKB} />
-            </TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
-  );
-}
+const col = createColumnHelper<KeyRow>();
 
-function MobileKeyList({ keys }: { keys: KeyRow[] }) {
+const columns = [
+  col.accessor("displayName", {
+    header: "Name",
+    size: 200,
+    cell: ({ getValue }) => <APIKeySpan text={getValue()} />,
+  }),
+  col.accessor("value", {
+    header: "Key",
+    size: 200,
+    cell: ({ row }) => (
+      <span className="font-mono text-sm text-muted-foreground flex gap-2">
+        •••• {row.original.value.slice(-4)}
+        <KeyActions keyId={row.original.id} keyValue={row.original.value} />
+      </span>
+    ),
+  }),
+  col.display({
+    id: "quota",
+    header: "Usage / Quota",
+    size: 300,
+    cell: ({ row }) => (
+      <QuotaEditor
+        keyId={row.original.id}
+        usageKB={row.original.usageKB}
+        quotaKB={row.original.quotaKB}
+      />
+    ),
+  }),
+];
+
+function MobileKeyCard({ row }: { row: KeyRow }) {
   return (
-    <div className="space-y-2">
-      {keys.map((key) => (
-        <div
-          key={key.id}
-          className="rounded-lg border border-border px-4 py-3 space-y-2"
-        >
-          <div className="flex items-center justify-between">
-            <span className="font-medium font-mono text-sm">
-              {key.displayName}
-            </span>
-            <KeyActions keyId={key.id} keyValue={key.value} />
-          </div>
-          <span className="font-mono text-sm text-muted-foreground">
-            •••• {key.value}
-          </span>
-          <QuotaEditor keyId={key.id} usageKB={key.usageKB} quotaKB={key.quotaKB} />
-        </div>
-      ))}
+    <div className="rounded-lg border border-border px-4 py-3 space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="font-medium font-mono text-sm">{row.displayName}</span>
+        <KeyActions keyId={row.id} keyValue={row.value} />
+      </div>
+      <span className="font-mono text-sm text-muted-foreground">
+        •••• {row.value}
+      </span>
+      <QuotaEditor keyId={row.id} usageKB={row.usageKB} quotaKB={row.quotaKB} />
     </div>
   );
 }
 
 export function KeyTable({ keys }: { keys: KeyRow[] }) {
-  if (keys.length === 0) {
-    return (
-      <EmptyState>
-        No API keys yet. Name your first key above to get started.
-      </EmptyState>
-    );
-  }
-
   return (
-    <div className="@container">
-      <div className="hidden @[640px]:block">
-        <DesktopKeyTable keys={keys} />
-      </div>
-      <div className="@[640px]:hidden">
-        <MobileKeyList keys={keys} />
-      </div>
-    </div>
+    <DataTable
+      columns={columns}
+      data={keys}
+      caption="API keys"
+      emptyMessage="No API keys yet. Name your first key above to get started."
+      getRowId={(row) => row.id}
+      mobileCard={(row) => <MobileKeyCard row={row} />}
+      tableClassName="table-fixed"
+    />
   );
 }

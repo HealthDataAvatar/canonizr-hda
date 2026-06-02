@@ -17,21 +17,26 @@ export class TableKeyStore implements KeyStore {
     const entities = client.listEntities({
       queryOptions: { filter: `PartitionKey eq '${userId}'` },
     });
-    const keys: ApiKey[] = [];
+    const rawKeys: Record<string, unknown>[] = [];
     for await (const e of entities) {
-      let quotaKB: number | null = null;
-      try {
-        const sub = await gwSubs.getEntity("subscription", e.rowKey as string);
-        const raw = sub.quota_bytes;
-        if (raw != null && Number(raw) > 0) quotaKB = Math.round(Number(raw) / 1024);
-      } catch {}
-      let usageKB = 0;
-      if (redis) {
-        const bytes = await redis.get(`sub:${e.rowKey as string}:bytes`);
-        if (bytes) usageKB = Math.ceil(Number(bytes) / 1024);
-      }
-      keys.push(toApiKey(e, quotaKB, usageKB));
+      rawKeys.push(e);
     }
+    const keys = await Promise.all(
+      rawKeys.map(async (e) => {
+        const id = e.rowKey as string;
+        const [subEntity, usageBytes] = await Promise.all([
+          gwSubs.getEntity("subscription", id).catch(() => null),
+          redis ? redis.get(`sub:${id}:bytes`) : null,
+        ]);
+        let quotaKB: number | null = null;
+        if (subEntity) {
+          const raw = subEntity.quota_bytes;
+          if (raw != null && Number(raw) > 0) quotaKB = Math.round(Number(raw) / 1024);
+        }
+        const usageKB = usageBytes ? Math.ceil(Number(usageBytes) / 1024) : 0;
+        return toApiKey(e, quotaKB, usageKB);
+      }),
+    );
     return keys;
   }
 

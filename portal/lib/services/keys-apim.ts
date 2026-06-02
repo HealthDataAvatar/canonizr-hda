@@ -31,35 +31,39 @@ const PRODUCT_ID = "paid";
 
 export class ApimKeyStore implements KeyStore {
   async list(userId: string): Promise<ApiKey[]> {
-    const apim = getClient();
     const gwSubs = getGatewayUsersTable();
     const redis = getRedis();
-    const results: ApiKey[] = [];
-    for await (const sub of apim.subscription.list(RG(), SVC())) {
-      if (sub.displayName?.startsWith(`user:${userId}:`)) {
-        const secrets = await apim.subscription.listSecrets(RG(), SVC(), sub.name!);
-        let quotaKB: number | null = null;
-        try {
-          const entity = await gwSubs.getEntity("subscription", sub.name!);
-          const raw = entity.quota_bytes;
-          if (raw != null && Number(raw) > 0) quotaKB = Math.round(Number(raw) / 1024);
-        } catch {}
-        let usageKB = 0;
-        if (redis) {
-          const bytes = await redis.get(`sub:${sub.name!}:bytes`);
-          if (bytes) usageKB = Math.ceil(Number(bytes) / 1024);
-        }
-        results.push({
-          id: sub.name!,
-          displayName: sub.displayName.replace(`user:${userId}:`, ""),
-          key: secrets.primaryKey ?? "",
-          createdDate: sub.createdDate?.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) ?? "",
-          lastUsed: "—",
-          usageKB,
-          quotaKB,
-        });
-      }
+
+    // 1. Query GwSubscriptions for this user's keys (single table scan)
+    const subs: { id: string; keyName: string; quotaKB: number | null }[] = [];
+    for await (const entity of gwSubs.listEntities({
+      queryOptions: { filter: `user_id eq '${userId}'` },
+    })) {
+      const raw = entity.quota_bytes;
+      const quotaKB = raw != null && Number(raw) > 0 ? Math.round(Number(raw) / 1024) : null;
+      subs.push({ id: entity.rowKey as string, keyName: entity.key_name as string, quotaKB });
     }
+
+    // 2. Fetch APIM secrets, subscription details, and Redis usage in parallel per key
+    const apim = getClient();
+    const results = await Promise.all(
+      subs.map(async (sub) => {
+        const [secrets, apimSub, usageBytes] = await Promise.all([
+          apim.subscription.listSecrets(RG(), SVC(), sub.id),
+          apim.subscription.get(RG(), SVC(), sub.id),
+          redis ? redis.get(`sub:${sub.id}:bytes`) : null,
+        ]);
+        return {
+          id: sub.id,
+          displayName: sub.keyName,
+          key: secrets.primaryKey ?? "",
+          createdDate: apimSub.createdDate?.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) ?? "",
+          lastUsed: "—",
+          usageKB: usageBytes ? Math.ceil(Number(usageBytes) / 1024) : 0,
+          quotaKB: sub.quotaKB,
+        };
+      }),
+    );
     return results;
   }
 

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
-import { Showcase } from "../.storybook/common";
+import { Showcase } from "@/.storybook/common";
 import { CreateKeyInput } from "./create-key-input";
 import { CreatedKeyCard } from "./created-key-card";
 import { validateKeyName } from "@/lib/pure/key-name-validation";

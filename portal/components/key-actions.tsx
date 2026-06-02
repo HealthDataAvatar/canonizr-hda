@@ -3,6 +3,7 @@
 import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Copy, RefreshCw, Trash2 } from "lucide-react";
+import { ActionGroup } from "./ui/action-group";
 import { IconButton } from "./ui/icon-button";
 import { CopyButton } from "./ui/copy-button";
 
@@ -50,7 +51,7 @@ export function KeyActions({ keyId,
   }
 
   return (
-    <>
+    <ActionGroup>
       <CopyButton value={keyValue} />
       <RotateButton keyId={keyId} />
       <IconButton
@@ -59,6 +60,6 @@ export function KeyActions({ keyId,
         icon={Trash2}
         tone="destructive"
       />
-    </>
+    </ActionGroup>
   );
 }

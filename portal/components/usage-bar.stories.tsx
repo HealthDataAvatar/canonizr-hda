@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
-import { Showcase } from "../.storybook/common";
+import { Showcase } from "@/.storybook/common";
 import { UsageBar } from "./usage-bar";
 
 const meta = {

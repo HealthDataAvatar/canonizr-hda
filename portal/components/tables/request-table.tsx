@@ -1,29 +1,20 @@
 "use client";
 
 import { useState } from "react";
-import {
-  useReactTable,
-  getCoreRowModel,
-  getSortedRowModel,
-  getPaginationRowModel,
-  createColumnHelper,
-  flexRender,
-  type SortingState,
-} from "@tanstack/react-table";
-import { Download, TimerOff, Trash2, Loader, Check, TriangleAlert, ChevronUp, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { createColumnHelper } from "@tanstack/react-table";
+import { Download, TimerOff, Trash2, Loader, Check, TriangleAlert } from "lucide-react";
 import { timeAgo } from "@/lib/pure/time";
 import { formatKB } from "@/lib/pure/format";
+import { ActionGroup } from "@/components/ui/action-group";
+import { IconButton } from "@/components/ui/icon-button";
 import { IconHint } from "@/components/ui/icon-hint";
-import { Button } from "@/components/ui/button";
+import { IconLink } from "@/components/ui/icon-link";
 import { CopyButton } from "@/components/ui/copy-button";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { DataTable } from "@/components/ui/data-table";
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
 export type BlobState =
   | { status: "available"; url: string }
@@ -49,22 +40,20 @@ export interface RequestRow {
 }
 
 // ---------------------------------------------------------------------------
-// Shared sub-components
+// Sub-components
 // ---------------------------------------------------------------------------
 
 function BlobLink({ blob, label }: { blob: BlobState; label: string }) {
   switch (blob.status) {
     case "available":
       return (
-        <a
+        <IconLink
+          icon={Download}
+          title={`Download ${label}`}
           href={blob.url}
           target="_blank"
           rel="noopener noreferrer"
-          title={`Download ${label}`}
-          className="text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <Download className="size-4" />
-        </a>
+        />
       );
     case "processing":
       return <IconHint icon={Loader} title={`${label} processing`} isSpinning />;
@@ -80,7 +69,7 @@ function StatusIcon({ row }: { row: RequestRow }) {
     return <IconHint icon={Check} title={row.completedAt ? `Completed ${new Date(row.completedAt).toLocaleString()}` : "Success"} />;
   }
   if (row.status === 202) {
-    return <IconHint icon={Loader} title={`Submitted ${new Date(row.timestamp).toLocaleString()}`}  isSpinning/>;
+    return <IconHint icon={Loader} title={`Submitted ${new Date(row.timestamp).toLocaleString()}`} isSpinning />;
   }
   return <IconHint icon={TriangleAlert} title={`Error ${row.status} — ${new Date(row.timestamp).toLocaleString()}`} tone="destructive" />;
 }
@@ -91,23 +80,21 @@ function isDeletable(row: RequestRow): boolean {
 
 function DeleteButton({ row, onDelete }: { row: RequestRow; onDelete: (id: string) => void }) {
   return (
-    <button
-      type="button"
+    <IconButton
+      icon={Trash2}
+      title="Delete stored data"
+      tone="destructive"
       onClick={() => {
         if (confirm("Delete all stored data for this request? This cannot be undone.")) {
           onDelete(row.id);
         }
       }}
-      title="Delete stored data"
-      className="rounded-md text-muted-foreground hover:text-destructive transition-colors cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-ring"
-    >
-      <Trash2 className="size-4" />
-    </button>
+    />
   );
 }
 
 // ---------------------------------------------------------------------------
-// Job detail panel (shared between desktop and mobile)
+// Expanded detail panel
 // ---------------------------------------------------------------------------
 
 function JobDetailPanel({ row }: { row: RequestRow }) {
@@ -166,19 +153,10 @@ function JobDetailPanel({ row }: { row: RequestRow }) {
 }
 
 // ---------------------------------------------------------------------------
-// Desktop table (hidden below sm)
+// Column definitions
 // ---------------------------------------------------------------------------
 
 const col = createColumnHelper<RequestRow>();
-
-function SortIcon({ sorted }: { sorted: false | "asc" | "desc" }) {
-  if (!sorted) return <ChevronUp className="size-3 opacity-0 group-hover:opacity-30" />;
-  return sorted === "asc"
-    ? <ChevronUp className="size-3" />
-    : <ChevronDown className="size-3" />;
-}
-
-const PAGE_SIZE = 20;
 
 function buildColumns(onDelete?: (id: string) => void) {
   return [
@@ -190,12 +168,8 @@ function buildColumns(onDelete?: (id: string) => void) {
         const ts = getValue();
         return (
           <div className="flex flex-col">
-            <span className="font-mono text-sm">
-              {new Date(ts).toLocaleString()}
-            </span>
-            <span className="text-sm text-muted-foreground">
-              {timeAgo(ts)}
-            </span>
+            <span className="font-mono text-sm">{new Date(ts).toLocaleString()}</span>
+            <span className="text-sm text-muted-foreground">{timeAgo(ts)}</span>
           </div>
         );
       },
@@ -204,9 +178,7 @@ function buildColumns(onDelete?: (id: string) => void) {
       header: "Key",
       enableSorting: true,
       cell: ({ getValue }) => (
-        <span className="font-mono text-sm text-muted-foreground">
-          {getValue()}
-        </span>
+        <span className="font-mono text-sm text-muted-foreground">{getValue()}</span>
       ),
     }),
     col.accessor("id", {
@@ -265,78 +237,11 @@ function buildColumns(onDelete?: (id: string) => void) {
   ];
 }
 
-function DesktopTable({
-  table,
-}: {
-  table: ReturnType<typeof useReactTable<RequestRow>>;
-}) {
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  const colCount = table.getHeaderGroups()[0]?.headers.length ?? 1;
-
-  return (
-    <Table className="table-fixed">
-      <caption className="sr-only">Job history</caption>
-      <TableHeader>
-        {table.getHeaderGroups().map((hg) => (
-          <TableRow key={hg.id}>
-            {hg.headers.map((header) => (
-              <TableHead
-                key={header.id}
-                className={header.column.getCanSort() ? "cursor-pointer select-none group" : ""}
-                style={{ width: header.getSize() !== 150 ? header.getSize() : undefined }}
-                onClick={header.column.getToggleSortingHandler()}
-                title={header.column.getCanSort() ? "Sort" : undefined}
-              >
-                <span className="inline-flex items-center gap-1">
-                  {flexRender(header.column.columnDef.header, header.getContext())}
-                  {header.column.getCanSort() && (
-                    <SortIcon sorted={header.column.getIsSorted()} />
-                  )}
-                </span>
-              </TableHead>
-            ))}
-          </TableRow>
-        ))}
-      </TableHeader>
-      <TableBody>
-        {table.getRowModel().rows.map((row) => {
-          const r = row.original;
-          const hasDetail = r.detail || r.steps || r.originalFilename;
-          const expanded = expandedId === r.id;
-          return (
-            <>
-              <TableRow
-                key={r.id}
-                id={r.id}
-                className={`scroll-mt-24 target:bg-accent-subtle ${hasDetail ? "cursor-pointer" : ""}`}
-                onClick={hasDetail ? () => setExpandedId(expanded ? null : r.id) : undefined}
-              >
-                {row.getVisibleCells().map((cell) => (
-                  <TableCell key={cell.id}>
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </TableCell>
-                ))}
-              </TableRow>
-              {expanded && (
-                <TableRow key={`${r.id}-detail`}>
-                  <TableCell colSpan={colCount} className="bg-muted/30 px-6 py-4">
-                    <JobDetailPanel row={r} />
-                  </TableCell>
-                </TableRow>
-              )}
-            </>
-          );
-        })}
-      </TableBody>
-    </Table>
-  );
-}
-
 // ---------------------------------------------------------------------------
-// Mobile list (visible below sm)
+// Mobile card
 // ---------------------------------------------------------------------------
 
-function MobileCard({
+function MobileRequestCard({
   row,
   onDelete,
 }: {
@@ -358,12 +263,8 @@ function MobileCard({
       >
         <div className="flex flex-col gap-0.5">
           <div className="flex items-baseline gap-2">
-            <span className="font-mono text-sm">
-              {new Date(row.timestamp).toLocaleString()}
-            </span>
-            <span className="font-mono text-sm">
-              {formatKB(row.billableKB)}
-            </span>
+            <span className="font-mono text-sm">{new Date(row.timestamp).toLocaleString()}</span>
+            <span className="font-mono text-sm">{formatKB(row.billableKB)}</span>
           </div>
           <span className="font-mono text-sm text-muted-foreground">
             {row.keyName} · {timeAgo(row.timestamp)}
@@ -380,7 +281,6 @@ function MobileCard({
               {row.id.slice(0, 8)}
               <CopyButton value={row.id} />
             </span>
-
             {row.fileHash && (
               <>
                 <span className="text-muted-foreground">Hash</span>
@@ -413,60 +313,8 @@ function MobileCard({
   );
 }
 
-function MobileList({
-  rows,
-  onDelete,
-}: {
-  rows: RequestRow[];
-  onDelete?: (id: string) => void;
-}) {
-  return (
-    <div className="space-y-2">
-      {rows.map((r) => (
-        <MobileCard key={r.id} row={r} onDelete={onDelete} />
-      ))}
-    </div>
-  );
-}
-
 // ---------------------------------------------------------------------------
-// Pagination
-// ---------------------------------------------------------------------------
-
-function Pagination({ table }: { table: ReturnType<typeof useReactTable<RequestRow>> }) {
-  if (table.getPageCount() <= 1) return null;
-  return (
-    <div className="flex items-center justify-between">
-      <p className="text-sm text-muted-foreground">
-        Page {table.getState().pagination.pageIndex + 1} of{" "}
-        {table.getPageCount()}
-      </p>
-      <div className="flex gap-1">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => table.previousPage()}
-          disabled={!table.getCanPreviousPage()}
-          title="Previous page"
-        >
-          <ChevronLeft className="size-4" />
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => table.nextPage()}
-          disabled={!table.getCanNextPage()}
-          title="Next page"
-        >
-          <ChevronRight className="size-4" />
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Public component — switches between desktop and mobile
+// Public component
 // ---------------------------------------------------------------------------
 
 export function RequestTable({
@@ -476,35 +324,19 @@ export function RequestTable({
   requests: RequestRow[];
   onDelete?: (id: string) => void;
 }) {
-  const [sorting, setSorting] = useState<SortingState>([
-    { id: "timestamp", desc: true },
-  ]);
-
-  const columns = buildColumns(onDelete);
-
-  const table = useReactTable({
-    data: requests,
-    columns,
-    state: { sorting },
-    onSortingChange: setSorting,
-    enableSortingRemoval: false,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    initialState: { pagination: { pageSize: PAGE_SIZE } },
-  });
-
-  const pageRows = table.getRowModel().rows.map((r) => r.original);
-
   return (
-    <div className="@container space-y-4">
-      <div className="hidden @[640px]:block">
-        <DesktopTable table={table} />
-      </div>
-      <div className="@[640px]:hidden">
-        <MobileList rows={pageRows} onDelete={onDelete} />
-      </div>
-      <Pagination table={table} />
-    </div>
+    <DataTable
+      columns={buildColumns(onDelete)}
+      data={requests}
+      caption="Job history"
+      emptyMessage="No requests yet."
+      sortable
+      defaultSort={[{ id: "timestamp", desc: true }]}
+      pageSize={20}
+      getRowId={(row) => row.id}
+      expandedContent={(row) => <JobDetailPanel row={row} />}
+      mobileCard={(row) => <MobileRequestCard row={row} onDelete={onDelete} />}
+      tableClassName="table-fixed"
+    />
   );
 }

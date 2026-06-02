@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
-import { Showcase, TEST_KEY_NAMES, TEST_KEY_VALUES } from "../.storybook/common";
+import { Showcase, TEST_KEY_NAMES, TEST_KEY_VALUES } from "@/.storybook/common";
 import { KeyTable } from "./key-table";
 
 const meta = {
