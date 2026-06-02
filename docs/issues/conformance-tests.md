@@ -1,0 +1,1 @@
+We want a service we can trigger to test a whole collection of files against either local or production server.
