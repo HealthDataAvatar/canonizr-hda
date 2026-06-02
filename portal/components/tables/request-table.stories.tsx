@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
-import { RequestTable, type BlobState, type RequestRow } from "./request-table";
+import { BlobState, RequestRow, RequestTable } from "./request-table";
 
 const meta = {
   title: "Components/RequestTable",
@@ -88,17 +88,6 @@ export const TargetedRow: Story = {
       ]}
     />
   ),
-  decorators: [
-    (Story) => (
-      <>
-        <p className="mb-4 text-sm text-muted-foreground">
-          The error row below simulates the <code>:target</code> state (highlighted via anchor link from the error banner).
-        </p>
-        <style>{`#req-targeted { background: var(--accent-subtle); }`}</style>
-        <Story />
-      </>
-    ),
-  ],
 };
 
 export const NoRequests: Story = {
