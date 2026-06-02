@@ -67,9 +67,9 @@ function BlobLink({ blob, label }: { blob: BlobState; label: string }) {
         </a>
       );
     case "processing":
-      return <IconHint icon={Loader} title={`${label} processing`} tone="faded" className="[&_svg]:animate-spin [&_svg]:[animation-duration:6s]" />;
+      return <IconHint icon={Loader} title={`${label} processing`} isSpinning />;
     case "expired":
-      return <IconHint icon={TimerOff} title={`${label} expired`} tone="faded" />;
+      return <IconHint icon={TimerOff} title={`${label} expired`} />;
     case "none":
       return <span className="text-sm text-muted-foreground">—</span>;
   }
@@ -80,7 +80,7 @@ function StatusIcon({ row }: { row: RequestRow }) {
     return <IconHint icon={Check} title={row.completedAt ? `Completed ${new Date(row.completedAt).toLocaleString()}` : "Success"} />;
   }
   if (row.status === 202) {
-    return <IconHint icon={Loader} title={`Submitted ${new Date(row.timestamp).toLocaleString()}`} tone="faded" className="[&_svg]:animate-spin [&_svg]:[animation-duration:6s]" />;
+    return <IconHint icon={Loader} title={`Submitted ${new Date(row.timestamp).toLocaleString()}`}  isSpinning/>;
   }
   return <IconHint icon={TriangleAlert} title={`Error ${row.status} — ${new Date(row.timestamp).toLocaleString()}`} tone="destructive" />;
 }
@@ -227,7 +227,7 @@ function buildColumns(onDelete?: (id: string) => void) {
       },
     }),
     col.accessor("billableKB", {
-      header: "Billed",
+      header: "Size",
       size: 90,
       enableSorting: true,
       cell: ({ getValue }) => (

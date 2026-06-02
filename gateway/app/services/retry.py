@@ -40,7 +40,6 @@ def _emit(
     status_code: int,
     duration_ms: float,
     response_bytes: int = 0,
-    is_retry: bool = False,
     attempt: int = 0,
     retry_after_header: str | None = None,
     error: str | None = None,
@@ -56,7 +55,6 @@ def _emit(
             status_code=status_code,
             duration_ms=round(duration_ms, 1),
             response_bytes=response_bytes,
-            is_retry=is_retry,
             attempt=attempt,
             retry_after_header=retry_after_header,
             error=error,
@@ -96,13 +94,13 @@ async def request_with_retry(
             duration_ms = (time.monotonic() - request_start) * 1000
             if span:
                 span.set(error="timeout", retry_attempt=attempt)
-            _emit(service_name, method, 504, duration_ms, is_retry=attempt > 0, attempt=attempt, error="timeout")
+            _emit(service_name, method, 504, duration_ms, attempt=attempt, error="timeout")
             raise HTTPException(status_code=504, detail=f"{service_name} service timeout")
         except httpx.RequestError as e:
             duration_ms = (time.monotonic() - request_start) * 1000
             if span:
                 span.set(error=str(e), retry_attempt=attempt)
-            _emit(service_name, method, 502, duration_ms, is_retry=attempt > 0, attempt=attempt, error=str(e))
+            _emit(service_name, method, 502, duration_ms, attempt=attempt, error=str(e))
             raise HTTPException(status_code=502, detail=f"Failed to reach {service_name}: {e}")
 
         duration_ms = (time.monotonic() - request_start) * 1000
@@ -118,7 +116,6 @@ async def request_with_retry(
                 response.status_code,
                 duration_ms,
                 response_bytes=response_bytes,
-                is_retry=attempt > 0,
                 attempt=attempt,
             )
             return response
@@ -143,7 +140,6 @@ async def request_with_retry(
             response.status_code,
             duration_ms,
             response_bytes=response_bytes,
-            is_retry=attempt > 0,
             attempt=attempt,
             retry_after_header=retry_after,
         )
@@ -167,7 +163,6 @@ async def request_with_retry(
             method,
             last_response.status_code,
             0,
-            is_retry=True,
             attempt=attempt,
             error="retries_exhausted",
         )

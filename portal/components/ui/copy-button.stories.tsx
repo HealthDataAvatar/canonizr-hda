@@ -12,7 +12,3 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = {
   args: { value: "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4" },
 };
-
-export const Small: Story = {
-  args: { value: "sk_test_abc123" },
-};

@@ -1,11 +1,8 @@
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
+import { Showcase, TEST_EMAILS } from "../.storybook/common";
 import { AuthSignInForm } from "./auth-sign-in-form";
 import { AuthEmailSent } from "./auth-email-sent";
-
-// ---------------------------------------------------------------------------
-// Interactive wrapper
-// ---------------------------------------------------------------------------
 
 function AuthInteractive() {
   const [email, setEmail] = useState("");
@@ -31,45 +28,16 @@ export const Interactive: Story = {};
 
 export const AllStates: Story = {
   render: () => (
-    <div className="space-y-8 max-w-sm">
-      <div>
-        <p className="text-xs text-muted-foreground mb-2">Default</p>
-        <AuthSignInForm
-          email=""
-          onEmailChange={() => {}}
-          loading={false}
-          onSubmit={() => {}}
-        />
-      </div>
-
-      <div>
-        <p className="text-xs text-muted-foreground mb-2">Email entered</p>
-        <AuthSignInForm
-          email="user@example.com"
-          onEmailChange={() => {}}
-          loading={false}
-          onSubmit={() => {}}
-        />
-      </div>
-
-      <div>
-        <p className="text-xs text-muted-foreground mb-2">Sending</p>
-        <AuthSignInForm
-          email="user@example.com"
-          onEmailChange={() => {}}
-          loading={true}
-          onSubmit={() => {}}
-        />
-      </div>
-
-      <div>
-        <p className="text-xs text-muted-foreground mb-2">Email sent</p>
-        <AuthEmailSent
-          email="user@example.com"
-          sentAt={new Date()}
-          onGoBack={() => {}}
-        />
-      </div>
-    </div>
+    <Showcase
+      maxWidth="max-w-sm"
+      items={[
+        { label: "Default", children: <AuthSignInForm email="" onEmailChange={() => {}} loading={false} onSubmit={() => {}} /> },
+        { label: "Email entered", children: <AuthSignInForm email={TEST_EMAILS.short} onEmailChange={() => {}} loading={false} onSubmit={() => {}} /> },
+        { label: "Long email", children: <AuthSignInForm email={TEST_EMAILS.long} onEmailChange={() => {}} loading={false} onSubmit={() => {}} /> },
+        { label: "Sending", children: <AuthSignInForm email={TEST_EMAILS.short} onEmailChange={() => {}} loading={true} onSubmit={() => {}} /> },
+        { label: "Email sent", children: <AuthEmailSent email={TEST_EMAILS.short} sentAt={new Date()} onGoBack={() => {}} /> },
+        { label: "Email sent (long)", children: <AuthEmailSent email={TEST_EMAILS.long} sentAt={new Date()} onGoBack={() => {}} /> },
+      ]}
+    />
   ),
 };

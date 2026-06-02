@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
+import { Showcase } from "../../.storybook/common";
 import { Input } from "./input";
 import { Label } from "./label";
 
@@ -10,19 +11,19 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Default: Story = {
-  args: { placeholder: "e.g. production, agent-1" },
-};
 
-export const Email: Story = {
-  args: { type: "email", placeholder: "you@example.com" },
-};
-
-export const WithLabel: Story = {
+export const AllStates: Story = {
   render: () => (
-    <div className="max-w-sm space-y-1.5">
-      <Label htmlFor="key-name">Key name</Label>
-      <Input id="key-name" placeholder="e.g. production, agent-1" maxLength={64} />
-    </div>
+    <Showcase
+      maxWidth="max-w-sm"
+      items={[
+        { label: "Empty", children: <Input placeholder="e.g. production, agent-1" /> },
+        { label: "Filled", children: <Input defaultValue="agent-bold-crane" /> },
+        { label: "Email", children: <Input defaultValue="agent-bold-crane" type="email" /> },
+        { label: "Long value (overflow)", children: <Input defaultValue={"a]very-long-key-name-that-should-overflow-or-truncate-in-the-input-field-to-test-boundaries"} /> },
+        { label: "Disabled", children: <Input defaultValue="locked-value" disabled /> },
+        { label: "With maxLength (64)", children: <Input defaultValue={"a".repeat(64)} maxLength={64} /> },
+      ]}
+    />
   ),
 };

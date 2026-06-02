@@ -1,9 +1,12 @@
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
+import { Showcase } from "../.storybook/common";
 import { CreateKeyInput } from "./create-key-input";
 import { CreatedKeyCard } from "./created-key-card";
 import { validateKeyName } from "@/lib/pure/key-name-validation";
 import { generateKeyName } from "@/lib/pure/key-names";
+
+const noop = () => {};
 
 function InputInteractive({
   existingNames,
@@ -35,8 +38,6 @@ function InputInteractive({
   );
 }
 
-const noop = () => {};
-
 const meta = {
   title: "Components/CreateKeyInput",
   component: InputInteractive,
@@ -52,54 +53,14 @@ export const Interactive: Story = {
 export const AllStates: Story = {
   args: { existingNames: [] },
   render: () => (
-    <div className="space-y-8 max-w-2xl">
-      <div>
-        <p className="text-xs text-muted-foreground mb-2">Default</p>
-        <CreateKeyInput
-          name="agent-bold-crane"
-          onNameChange={noop}
-          onRandomise={noop}
-          error={null}
-          showError={false}
-          loading={false}
-          onCreate={noop}
-        />
-      </div>
-
-      <div>
-        <p className="text-xs text-muted-foreground mb-2">Duplicate name</p>
-        <CreateKeyInput
-          name="agent-bold-crane"
-          onNameChange={noop}
-          onRandomise={noop}
-          error="A key with this name already exists."
-          showError={true}
-          loading={false}
-          onCreate={noop}
-        />
-      </div>
-
-      <div>
-        <p className="text-xs text-muted-foreground mb-2">Loading</p>
-        <CreateKeyInput
-          name="agent-bold-crane"
-          onNameChange={noop}
-          onRandomise={noop}
-          error={null}
-          showError={false}
-          loading={true}
-          onCreate={noop}
-        />
-      </div>
-
-      <div>
-        <p className="text-xs text-muted-foreground mb-2">Key created</p>
-        <CreatedKeyCard
-          keyName="agent-bold-crane"
-          keyValue="abc123def456ghi789jkl012mno345pq"
-          onDismiss={noop}
-        />
-      </div>
-    </div>
+    <Showcase
+      maxWidth="max-w-2xl"
+      items={[
+        { label: "Default", children: <CreateKeyInput name="agent-bold-crane" onNameChange={noop} onRandomise={noop} error={null} showError={false} loading={false} onCreate={noop} /> },
+        { label: "Duplicate name", children: <CreateKeyInput name="agent-bold-crane" onNameChange={noop} onRandomise={noop} error="A key with this name already exists." showError={true} loading={false} onCreate={noop} /> },
+        { label: "Loading", children: <CreateKeyInput name="agent-bold-crane" onNameChange={noop} onRandomise={noop} error={null} showError={false} loading={true} onCreate={noop} /> },
+        { label: "Key created", children: <CreatedKeyCard keyName="agent-bold-crane" keyValue="abc123def456ghi789jkl012mno345pq" onDismiss={noop} /> },
+      ]}
+    />
   ),
 };

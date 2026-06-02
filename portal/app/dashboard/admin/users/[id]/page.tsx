@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getUserDetail } from "@/lib/data/admin-page-data";
 import { AdminUserForm } from "@/components/admin-user-form";
-import { RequestTable } from "@/components/request-table";
+import { RequestTable } from "@/components/tables/request-table";
 import { MetricCard } from "@/components/metric-card";
 import { Section } from "@/components/ui/section";
 import { DefinitionList } from "@/components/ui/definition-list";

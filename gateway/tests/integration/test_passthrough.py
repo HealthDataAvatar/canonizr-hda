@@ -2,7 +2,7 @@
 
 import io
 
-from conftest import submit_and_poll
+from tests.integration.conftest import submit_and_poll
 
 
 def test_plain_text(test_sub):

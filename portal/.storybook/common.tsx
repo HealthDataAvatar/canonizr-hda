@@ -1,0 +1,57 @@
+import type { ReactNode } from "react";
+
+// ---------------------------------------------------------------------------
+// Shared test data — realistic formats matching production
+// ---------------------------------------------------------------------------
+
+export const TEST_KEY_VALUES = {
+  key1: "a3f2c8d1e5b9f0a4c7d2e6b3f8a1c5d9",
+  key2: "9c1e7b4da2f6c8d0e3b5f9a1c4d7e2b6",
+  key3: "7b4df2a8c1e5d9b3f6a0c4d8e2b7f1a5",
+} as const;
+
+export const TEST_KEY_NAMES = {
+  crane: "agent-bold-crane",
+  raven: "agent-quiet-raven",
+  otter: "agent-swift-otter",
+} as const;
+
+export const TEST_EMAILS = {
+  short: "user@example.com",
+  long: "a]very-long-username-that-might-overflow-the-ui@subdomain.example.co.uk",
+} as const;
+
+export const TEST_JOB_IDS = {
+  normal: "2026-05_a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6",
+  recent: "2026-06_f1e2d3c4b5a6f7e8d9c0b1a2f3e4d5c6",
+} as const;
+
+/**
+ * Labelled grid for showing multiple component variants in a single story.
+ *
+ * Usage:
+ *   <Showcase items={[
+ *     { label: "Default", children: <Component /> },
+ *     { label: "Loading", children: <Component loading /> },
+ *   ]} />
+ */
+export function Showcase({
+  items,
+  gap = "space-y-8",
+  maxWidth,
+}: {
+  items: { label: string; children: ReactNode }[];
+  gap?: string;
+  maxWidth?: string;
+}) {
+  return (
+    <div className={`${gap} ${maxWidth ?? ""}`}>
+      {items.map(({ label, children }) => (
+        <div key={label}>
+          <p className="text-xs text-muted-foreground mb-2">{label}</p>
+          {children}
+        </div>
+      ))}
+    </div>
+  );
+}

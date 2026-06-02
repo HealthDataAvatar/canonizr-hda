@@ -3,7 +3,8 @@
 import io
 
 import requests
-from conftest import GATEWAY_URL, TIMEOUT, submit_and_poll
+
+from tests.integration.conftest import GATEWAY_URL, TIMEOUT, submit_and_poll
 
 
 def test_unsupported_format(test_sub):
@@ -44,3 +45,49 @@ def test_missing_subscription_returns_401():
         timeout=TIMEOUT,
     )
     assert r.status_code == 401
+
+
+class TestArchiveRejection:
+    """Archives should be rejected with a clear message telling users to extract first."""
+
+    ARCHIVE_CASES = [
+        ("test.zip", "application/zip"),
+        ("test.tar", "application/x-tar"),
+        ("test.tar.gz", "application/gzip"),
+        ("test.7z", "application/x-7z-compressed"),
+        ("test.rar", "application/vnd.rar"),
+    ]
+
+    def _submit(self, filename, mime, test_sub):
+        return requests.post(
+            f"{GATEWAY_URL}/v1/jobs",
+            files={"file": (filename, b"fake-archive-bytes", mime)},
+            headers={"X-Subscription-Id": test_sub},
+            timeout=TIMEOUT,
+        )
+
+    def test_zip_rejected(self, test_sub):
+        r = self._submit("test.zip", "application/zip", test_sub)
+        assert r.status_code == 400
+        assert "Archive files" in r.json()["detail"]
+        assert "submit each file individually" in r.json()["detail"]
+
+    def test_tar_rejected(self, test_sub):
+        r = self._submit("test.tar", "application/x-tar", test_sub)
+        assert r.status_code == 400
+        assert "Archive files" in r.json()["detail"]
+
+    def test_7z_rejected(self, test_sub):
+        r = self._submit("test.7z", "application/x-7z-compressed", test_sub)
+        assert r.status_code == 400
+        assert "Archive files" in r.json()["detail"]
+
+    def test_rar_rejected(self, test_sub):
+        r = self._submit("test.rar", "application/vnd.rar", test_sub)
+        assert r.status_code == 400
+        assert "Archive files" in r.json()["detail"]
+
+    def test_gzip_rejected(self, test_sub):
+        r = self._submit("test.tar.gz", "application/gzip", test_sub)
+        assert r.status_code == 400
+        assert "Archive files" in r.json()["detail"]

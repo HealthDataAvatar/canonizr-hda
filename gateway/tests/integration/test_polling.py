@@ -1,7 +1,8 @@
 """Integration tests for polling and deletion."""
 
 import requests
-from conftest import GATEWAY_URL, TIMEOUT, submit_and_poll
+
+from tests.integration.conftest import GATEWAY_URL, TIMEOUT, submit_and_poll
 
 
 class TestPolling:

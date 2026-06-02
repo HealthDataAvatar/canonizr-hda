@@ -1,6 +1,6 @@
 """End-to-end tests for queue mode — file goes through gateway → Redis → worker → back."""
 
-from conftest import make_pdf, submit_and_poll
+from tests.integration.conftest import make_pdf, submit_and_poll
 
 
 class TestQueueRoundTrip:

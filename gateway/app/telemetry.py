@@ -1,6 +1,6 @@
 """Typed telemetry API — pluggable backend for job observability.
 
-Events are dataclasses with event_name and distinct_id.
+Events are dataclasses with an event_name.
 Emitters are generic — one emit() method handles all event types.
 Adding a new event = one new dataclass, zero emitter changes.
 """
@@ -12,7 +12,8 @@ import json
 import logging
 import os
 from dataclasses import asdict, dataclass, field
-from typing import Any, Protocol, runtime_checkable
+from enum import StrEnum
+from typing import Any, Protocol
 
 from posthog import Posthog
 
@@ -20,14 +21,14 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# Event protocol — all events must satisfy this
+# Event names
 # ---------------------------------------------------------------------------
 
 
-@runtime_checkable
-class TelemetryEvent(Protocol):
-    event_name: str
-    distinct_id: str
+class EventName(StrEnum):
+    JOB_COMPLETED = "canonizr:job_completed"
+    UPSTREAM_REQUEST = "canonizr:upstream_request"
+    CLEANUP_COMPLETED = "canonizr:cleanup_completed"
 
 
 # ---------------------------------------------------------------------------
@@ -49,12 +50,11 @@ class ServiceStep:
 class JobCompleted:
     """Emitted when a job finishes (success or failure)."""
 
-    event_name: str = field(default="job_completed", init=False)
+    event_name: str = field(default=EventName.JOB_COMPLETED, init=False)
 
     job_id: str = ""
     user_id: str = ""
     sub_id: str = ""
-    distinct_id: str = ""  # set to user_id
     status: str = ""  # "ok" or "error"
     error: str = ""
     mime_type: str = ""
@@ -69,41 +69,30 @@ class JobCompleted:
     prompt_tokens: int = 0
     completion_tokens: int = 0
 
-    def __post_init__(self) -> None:
-        if not self.distinct_id:
-            self.distinct_id = self.user_id
-
 
 @dataclass
 class UpstreamRequest:
     """Emitted for every HTTP call to a downstream service."""
 
-    event_name: str = field(default="upstream_request", init=False)
+    event_name: str = field(default=EventName.UPSTREAM_REQUEST, init=False)
 
     service: str = ""
     method: str = ""
     status_code: int = 0
     duration_ms: float = 0.0
     response_bytes: int = 0
-    is_retry: bool = False
     attempt: int = 0
     retry_after_header: str | None = None
     error: str | None = None
     job_id: str = ""
     user_id: str = ""
-    distinct_id: str = ""
-
-    def __post_init__(self) -> None:
-        if not self.distinct_id:
-            self.distinct_id = self.user_id or "system"
 
 
 @dataclass
 class CleanupCompleted:
     """Emitted when the cleanup cron job finishes."""
 
-    event_name: str = field(default="cleanup_completed", init=False)
-    distinct_id: str = "system"
+    event_name: str = field(default=EventName.CLEANUP_COMPLETED, init=False)
 
     status: str = ""  # "ok", "partial", "error"
     error: str = ""
@@ -149,11 +138,7 @@ class PostHogEmitter:
         d = asdict(event)
         logger.info("%s %s", event.event_name, json.dumps(d))
         if self._client:
-            self._client.capture(
-                distinct_id=event.distinct_id,
-                event=event.event_name,
-                properties=d,
-            )
+            self._client.capture(event.event_name, properties=d)
 
     def shutdown(self) -> None:
         if self._client:

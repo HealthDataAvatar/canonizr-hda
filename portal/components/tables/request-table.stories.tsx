@@ -63,24 +63,21 @@ const realisticRows: RequestRow[] = [
   { id: "req-010", timestamp: new Date(now - 3 * DAY).toISOString(), completedAt: new Date(now - 3 * DAY + 2100).toISOString(), keyName: "agent-bold-crane", fileHash: "3c4d5e6f7a8b9c0d", billableKB: 100, status: 200, result: expired, input: expired },
 ];
 
-export const Realistic: Story = {
-  name: "Realistic usage (all states)",
+export const RealisticAllStates: Story = {
   args: {
     onDelete: (id: string) => alert(`Delete ${id}`),
     requests: realisticRows,
   },
 };
 
-export const Paginated: Story = {
-  name: "Paginated (50 rows)",
+export const Paginated50Rows: Story = {
   args: {
     onDelete: (id: string) => alert(`Delete ${id}`),
     requests: generateRows(50),
   },
 };
 
-export const Targeted: Story = {
-  name: "Targeted row (via anchor)",
+export const TargetedRow: Story = {
   args: { requests: [] },
   render: () => (
     <RequestTable
@@ -104,7 +101,6 @@ export const Targeted: Story = {
   ],
 };
 
-export const Empty: Story = {
-  name: "No requests",
+export const NoRequests: Story = {
   args: { requests: [] },
 };

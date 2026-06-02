@@ -2,7 +2,7 @@
 
 import io
 
-from conftest import EmbeddedImage, make_pdf_with_images, submit_and_poll
+from tests.integration.conftest import EmbeddedImage, make_pdf_with_images, submit_and_poll
 
 
 def test_fixture_pdf_image_is_processed(test_sub):

@@ -7,7 +7,8 @@ They should NOT run in the standard integration test suite.
 import io
 
 import pytest
-from conftest import make_png, make_tiff, submit_and_poll
+
+from tests.integration.conftest import make_png, make_tiff, submit_and_poll
 
 pytestmark = pytest.mark.smoke
 

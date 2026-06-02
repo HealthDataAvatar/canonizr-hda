@@ -1,7 +1,8 @@
 """Smoke tests against a live deployment."""
 
 import requests
-from conftest import FIXTURES, GATEWAY_URL, TIMEOUT, submit_and_poll
+
+from tests.smoke.conftest import FIXTURES, GATEWAY_URL, TIMEOUT, submit_and_poll
 
 
 def test_health(headers):

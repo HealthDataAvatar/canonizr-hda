@@ -2,7 +2,7 @@
 
 import io
 
-from conftest import make_docx, make_xlsx, submit_and_poll
+from tests.integration.conftest import make_docx, make_xlsx, submit_and_poll
 
 
 def test_docx(test_sub):

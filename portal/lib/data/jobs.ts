@@ -1,7 +1,7 @@
 /** Adapts JobRecord from the table helper to RequestRow for the UI. */
 
 import { listJobsForUser, type JobRecord } from "@/lib/data/tables";
-import type { RequestRow, BlobState } from "@/components/request-table";
+import type { RequestRow, BlobState } from "@/components/tables/request-table";
 
 function statusToCode(status: JobRecord["status"]): number {
   switch (status) {

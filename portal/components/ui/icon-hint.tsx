@@ -6,12 +6,9 @@ const iconHintVariants = cva("inline-flex items-center justify-center", {
   variants: {
     size: {
       default: "[&_svg]:size-4",
-      sm: "[&_svg]:size-3.5",
-      lg: "[&_svg]:size-5",
     },
     tone: {
       muted: "text-muted-foreground",
-      faded: "text-muted-foreground/50",
       foreground: "text-foreground",
       accent: "text-accent",
       destructive: "text-destructive",
@@ -28,17 +25,16 @@ function IconHint({
   title,
   size,
   tone,
-  className,
+  isSpinning = false,
 }: {
   icon: LucideIcon;
   title: string;
-} & VariantProps<typeof iconHintVariants> & {
-  className?: string;
-}) {
+  isSpinning?: boolean;
+} & VariantProps<typeof iconHintVariants>) {
   return (
     <span
       title={title}
-      className={cn(iconHintVariants({ size, tone }), className)}
+      className={cn(iconHintVariants({ size, tone }), isSpinning && "[&_svg]:animate-spin [&_svg]:[animation-duration:6s]")}
     >
       <Icon aria-label={title} />
     </span>

@@ -1,6 +1,6 @@
 import { getBillingData } from "@/lib/data/user-page-data";
 import { StatCards } from "@/components/stat-cards";
-import { InvoiceTable } from "@/components/invoice-table";
+import { InvoiceTable } from "@/components/tables/invoice-table";
 import { ManageBillingButton } from "@/components/manage-billing-button";
 
 export default async function BillingPage() {

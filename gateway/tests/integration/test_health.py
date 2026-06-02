@@ -1,7 +1,8 @@
 """Basic gateway health checks."""
 
 import requests
-from conftest import GATEWAY_URL
+
+from tests.integration.conftest import GATEWAY_URL
 
 
 def test_health_check():

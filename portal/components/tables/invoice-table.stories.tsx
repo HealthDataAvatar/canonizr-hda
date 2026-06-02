@@ -9,8 +9,7 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Realistic: Story = {
-  name: "Realistic (paid + open)",
+export const RealisticPaidAndOpen: Story = {
   args: {
     invoices: [
       { id: "inv-1", date: "2026-05-01T00:00:00Z", processedKB: 220000, amount: 5.10, status: "open", url: "#" },
@@ -21,8 +20,7 @@ export const Realistic: Story = {
   },
 };
 
-export const Paginated: Story = {
-  name: "Paginated (30 months)",
+export const Paginated30Months: Story = {
   args: {
     invoices: Array.from({ length: 30 }, (_, i) => {
       const date = new Date(2026, 4 - i, 1);
