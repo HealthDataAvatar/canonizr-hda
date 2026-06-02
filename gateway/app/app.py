@@ -6,6 +6,7 @@ No business logic here.
 
 import logging
 import os
+from contextlib import asynccontextmanager
 from io import BytesIO
 
 import magic
@@ -23,8 +24,38 @@ from .telemetry import PostHogEmitter
 from .user_resolver import TableUserResolver
 
 logger = logging.getLogger(__name__)
+logging.getLogger("azure").setLevel(logging.WARNING)
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global _svc
+    r = await get_redis()
+    if r is None:
+        raise RuntimeError("REDIS_URL is required")
+
+    blob_url = os.environ.get("BLOB_STORAGE_URL", "")
+    blob_conn = os.environ.get("BLOB_STORAGE_CONNECTION_STRING", "")
+    table_url = os.environ.get("TABLE_STORAGE_URL", "")
+    table_conn = os.environ.get("TABLE_STORAGE_CONNECTION_STRING", "")
+
+    queue = RedisQueue(r)
+    _svc = Services(
+        blobs=AzureBlobStore(account_url=blob_url, connection_string=blob_conn),
+        jobs=TableJobStore(endpoint=table_url, connection_string=table_conn),
+        users=TableUserResolver(r, endpoint=table_url, connection_string=table_conn),
+        queue=queue,
+        quota=QuotaService(r, endpoint=table_url, connection_string=table_conn),
+        telemetry=PostHogEmitter(),
+    )
+    await queue.ensure_group()
+    yield
+    from . import quota
+
+    await quota.close()
+
+
+app = FastAPI(lifespan=lifespan)
 
 DEBUG_MODE = os.environ.get("DEBUG", "").lower() in ("1", "true", "yes")
 CORS_ORIGINS = [o for o in os.environ.get("CORS_ORIGINS", "").split(",") if o]
@@ -167,37 +198,6 @@ async def get_artifact(request: Request, job_id: str, artifact: str):
         media_type=result.content_type,
         headers={"Content-Disposition": f'attachment; filename="{result.filename}"'},
     )
-
-
-@app.on_event("startup")
-async def startup():
-    global _svc
-    r = await get_redis()
-    if r is None:
-        raise RuntimeError("REDIS_URL is required")
-
-    blob_url = os.environ.get("BLOB_STORAGE_URL", "")
-    blob_conn = os.environ.get("BLOB_STORAGE_CONNECTION_STRING", "")
-    table_url = os.environ.get("TABLE_STORAGE_URL", "")
-    table_conn = os.environ.get("TABLE_STORAGE_CONNECTION_STRING", "")
-
-    queue = RedisQueue(r)
-    _svc = Services(
-        blobs=AzureBlobStore(account_url=blob_url, connection_string=blob_conn),
-        jobs=TableJobStore(endpoint=table_url, connection_string=table_conn),
-        users=TableUserResolver(r, endpoint=table_url, connection_string=table_conn),
-        queue=queue,
-        quota=QuotaService(r, endpoint=table_url, connection_string=table_conn),
-        telemetry=PostHogEmitter(),
-    )
-    await queue.ensure_group()
-
-
-@app.on_event("shutdown")
-async def shutdown():
-    from . import quota
-
-    await quota.close()
 
 
 @app.get("/health")

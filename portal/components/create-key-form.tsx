@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { generateKeyName } from "@/lib/pure/key-names";
 import { validateKeyName } from "@/lib/pure/key-name-validation";
+import { useKeyActions, type KeyActions } from "@/lib/hooks/use-key-actions";
 import { CreateKeyInput } from "@/components/create-key-input";
 import { CreatedKeyCard } from "@/components/created-key-card";
 
@@ -13,10 +13,13 @@ type State =
 
 export function CreateKeyForm({
   existingNames,
+  actions: actionsOverride,
 }: {
   existingNames: string[];
+  actions?: KeyActions;
 }) {
-  const router = useRouter();
+  const defaultActions = useKeyActions();
+  const actions = actionsOverride ?? defaultActions;
   const [state, setState] = useState<State>({ mode: "idle" });
   const [name, setName] = useState(generateKeyName);
   const [loading, setLoading] = useState(false);
@@ -28,18 +31,12 @@ export function CreateKeyForm({
     setTouched(true);
     if (error) return;
     setLoading(true);
-    const res = await fetch("/api/keys", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: name.trim() }),
-    });
-    const data = await res.json();
+    const result = await actions.create(name);
     setLoading(false);
-    if (res.ok) {
-      setState({ mode: "created", keyName: name.trim(), keyValue: data.primaryKey });
+    if (result) {
+      setState({ mode: "created", keyName: result.keyName, keyValue: result.keyValue });
       setName(generateKeyName());
       setTouched(false);
-      router.refresh();
     }
   }
 

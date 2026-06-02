@@ -70,6 +70,7 @@ async def _clean_job(
 
 def main():
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    logging.getLogger("azure").setLevel(logging.WARNING)
 
     blob_url = os.environ.get("BLOB_STORAGE_URL", "")
     blob_conn = os.environ.get("BLOB_STORAGE_CONNECTION_STRING", "")

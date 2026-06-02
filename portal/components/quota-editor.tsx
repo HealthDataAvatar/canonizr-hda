@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { Pencil, Check, X } from "lucide-react";
+import { useKeyActions, type KeyActions } from "@/lib/hooks/use-key-actions";
 import { Input } from "@/components/ui/input";
 import { IconButton } from "@/components/ui/icon-button";
 import { UsageBar } from "@/components/usage-bar";
@@ -10,6 +11,7 @@ export interface QuotaEditorProps {
   keyId: string;
   usageKB: number;
   quotaKB: number | null;
+  actions?: KeyActions;
 }
 
 type Unit = "MB" | "GB";
@@ -23,7 +25,9 @@ function displayToKB(value: number, unit: Unit): number {
   return unit === "GB" ? value * 1_000_000 : value * 1_000;
 }
 
-export function QuotaEditor({ keyId, usageKB, quotaKB }: QuotaEditorProps) {
+export function QuotaEditor({ keyId, usageKB, quotaKB, actions: actionsOverride }: QuotaEditorProps) {
+  const defaultActions = useKeyActions();
+  const actions = actionsOverride ?? defaultActions;
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -46,14 +50,9 @@ export function QuotaEditor({ keyId, usageKB, quotaKB }: QuotaEditorProps) {
   async function handleSave() {
     setSaving(true);
     const newQuotaKB = value === "" ? null : displayToKB(Number(value), unit);
-    await fetch(`/api/keys/${keyId}/quota`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ quotaKB: newQuotaKB }),
-    });
+    await actions.setQuota(keyId, newQuotaKB);
     setSaving(false);
     setEditing(false);
-    window.location.reload();
   }
 
   if (editing) {

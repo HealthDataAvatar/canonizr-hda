@@ -1,7 +1,7 @@
 "use client";
 
 import { createColumnHelper } from "@tanstack/react-table";
-import { KeyActions } from "@/components/key-actions";
+import { KeyActionsBar } from "@/components/key-actions";
 import { QuotaEditor } from "@/components/quota-editor";
 import { DataTable } from "@/components/ui/data-table";
 import { APIKeySpan } from "./ui/api-key-span";
@@ -28,7 +28,7 @@ const columns = [
     cell: ({ row }) => (
       <span className="font-mono text-sm text-muted-foreground flex gap-2">
         •••• {row.original.value.slice(-4)}
-        <KeyActions keyId={row.original.id} keyValue={row.original.value} />
+        <KeyActionsBar keyId={row.original.id} keyValue={row.original.value} />
       </span>
     ),
   }),
@@ -51,12 +51,11 @@ function MobileKeyCard({ row }: { row: KeyRow }) {
     <div className="rounded-lg border border-border px-4 py-3 space-y-2">
       <div className="flex items-center justify-between">
         <span className="font-medium font-mono text-sm">{row.displayName}</span>
-        <KeyActions keyId={row.id} keyValue={row.value} />
+        <KeyActionsBar keyId={row.id} keyValue={row.value} />
       </div>
-      <span className="font-mono text-sm text-muted-foreground">
-        •••• {row.value}
-      </span>
-      <QuotaEditor keyId={row.id} usageKB={row.usageKB} quotaKB={row.quotaKB} />
+      <div className="flex items-center justify-between">
+        <QuotaEditor keyId={row.id} usageKB={row.usageKB} quotaKB={row.quotaKB} />
+      </div>
     </div>
   );
 }

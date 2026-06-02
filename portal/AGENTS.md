@@ -4,6 +4,10 @@
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
 
+# Component Rules
+
+- **No fetch in components** — components are pure UI. All API calls (`fetch`, mutations) go in hooks (`lib/hooks/`). Components call hooks, never `fetch` directly.
+
 # Storybook Stories
 
 When writing or modifying stories, follow the style guide in `docs/issues/portal-ui-stories.md` (section "Style Guide"). Key rules:

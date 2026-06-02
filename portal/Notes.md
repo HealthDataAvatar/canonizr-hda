@@ -23,3 +23,10 @@
 - Add portal.canonizr.com to the APIM CORS so we can use the playground
 - Page re-renders generate a new random API key each time
 - How do users know they've been blocked?
+- Email on completion - either notification of which job (and the polling link), or a passwordless download link for exactly that file (need to validate email before delivery?), need to add a forward message for A2A so you can have it continue the instruction on arrival. Scoped by key?
+- Send to S3 bucket (or Google drive?)
+- Allow inputting URLs to the playground (no: CORS and SSRF)
+- There's a lag on loading the API and playground pages. Is it fetching something heavy for the API keys?
+- Mobile view isn't adaptive
+- The actual key column should come first, it's what people are there for
+- 504: docling service timeout (for a 10MB pdf) -- can split into pages first?
