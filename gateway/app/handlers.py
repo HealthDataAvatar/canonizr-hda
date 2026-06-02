@@ -17,6 +17,7 @@ from .estimates import estimate_seconds
 from .hash import document_hash
 from .protocols import Job, JobMeta, JobStatus, UserContext
 from .sanitize import is_archive_type, is_known_mime_type, sanitize_filename
+from .telemetry import JobAccepted
 
 logger = logging.getLogger(__name__)
 
@@ -143,6 +144,17 @@ async def accept_job(
 
     # Enqueue
     await svc.queue.enqueue(job)
+
+    svc.telemetry.emit(
+        JobAccepted(
+            job_id=job.job_id,
+            user_id=user.user_id,
+            sub_id=sub_id,
+            mime_type=mime_type,
+            filename=safe_filename,
+            input_bytes=len(file_bytes),
+        )
+    )
 
     return AcceptResult(
         job_id=job.job_id,

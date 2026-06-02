@@ -6,6 +6,7 @@ No business logic here.
 
 import asyncio
 import logging
+import traceback
 
 from .azure_clients import get_blob_service, get_table_service
 from .blob_azure import AzureBlobStore
@@ -16,10 +17,13 @@ from .protocols import JobStatus
 from .queue import RedisQueue
 from .quota import QuotaService, get_redis
 from .sweep import run_sweep_loop
-from .telemetry import JobReclaimed, JobSkippedIdempotent, PostHogEmitter
+from .telemetry import JobReclaimed, JobSkippedIdempotent, PostHogEmitter, WorkerError
 from .user_resolver import TableUserResolver
 
 logger = logging.getLogger(__name__)
+
+MAX_BACKOFF = 60
+MAX_CONSECUTIVE_FAILURES = 20
 
 
 async def run():
@@ -45,45 +49,75 @@ async def run():
     asyncio.create_task(run_sweep_loop(svc))
     logger.info("Worker ready, waiting for jobs")
 
+    consecutive_failures = 0
+
     while True:
-        job = await svc.queue.dequeue(timeout=5000)
-        if job is None:
-            continue
-
-        if job.reclaimed:
-            logger.info("Reclaimed stale job %s via XAUTOCLAIM", job.job_id)
-            svc.telemetry.emit(JobReclaimed(job_id=job.job_id))
-
-        logger.info("Processing job %s (%s, %s)", job.job_id, job.mime_type, job.filename)
-
-        # Idempotency guard: skip jobs already in a terminal state
-        meta = svc.jobs.get_by_job_id(job.job_id)
-        if meta and meta.status in (JobStatus.OK, JobStatus.DELETED):
-            logger.info("Job %s already %s — skipping", job.job_id, meta.status)
-            svc.telemetry.emit(JobSkippedIdempotent(job_id=job.job_id, current_status=meta.status))
-            await svc.queue.acknowledge(job)
-            continue
-
-        user = await svc.users.resolve(job.sub_id)
-        if user is None or isinstance(user, str):
-            logger.error("Job %s has unmapped subscription %s — skipping", job.job_id, job.sub_id)
-            await svc.queue.acknowledge(job)
-            continue
-
-        beat = svc.queue.heartbeat(job)
         try:
-            proc = await process_job(job, user, svc)
-        finally:
-            beat.cancel()
-        await svc.queue.store_result(job.job_id, proc.job_result)
-        await svc.queue.acknowledge(job)
+            job = await svc.queue.dequeue(timeout=5000)
+            if job is None:
+                consecutive_failures = 0
+                continue
 
-        # On failure: refund quota so user can retry
-        if proc.job_result.status == "error" and job.sub_id and proc.file_size > 0:
-            await svc.quota.refund(job.sub_id, proc.file_size)
-            logger.info("Job %s failed — refunded %d bytes", job.job_id, proc.file_size)
+            if job.reclaimed:
+                logger.info("Reclaimed stale job %s via XAUTOCLAIM", job.job_id)
+                svc.telemetry.emit(JobReclaimed(job_id=job.job_id))
 
-        logger.info("Job %s completed with status %s (acked)", job.job_id, proc.job_result.status)
+            logger.info("Processing job %s (%s, %s)", job.job_id, job.mime_type, job.filename)
+
+            # Idempotency guard: skip jobs already in a terminal state
+            meta = svc.jobs.get_by_job_id(job.job_id)
+            if meta and meta.status in (JobStatus.OK, JobStatus.DELETED):
+                logger.info("Job %s already %s — skipping", job.job_id, meta.status)
+                svc.telemetry.emit(JobSkippedIdempotent(job_id=job.job_id, current_status=meta.status))
+                await svc.queue.acknowledge(job)
+                consecutive_failures = 0
+                continue
+
+            user = await svc.users.resolve(job.sub_id)
+            if user is None or isinstance(user, str):
+                logger.error("Job %s has unmapped subscription %s — skipping", job.job_id, job.sub_id)
+                await svc.queue.acknowledge(job)
+                consecutive_failures = 0
+                continue
+
+            beat = svc.queue.heartbeat(job)
+            try:
+                proc = await process_job(job, user, svc)
+            finally:
+                beat.cancel()
+            await svc.queue.store_result(job.job_id, proc.job_result)
+            await svc.queue.acknowledge(job)
+
+            # On failure: refund quota so user can retry
+            if proc.job_result.status == "error" and job.sub_id and proc.file_size > 0:
+                await svc.quota.refund(job.sub_id, proc.file_size)
+                logger.info("Job %s failed — refunded %d bytes", job.job_id, proc.file_size)
+
+            logger.info("Job %s completed with status %s (acked)", job.job_id, proc.job_result.status)
+            consecutive_failures = 0
+
+        except Exception as exc:
+            consecutive_failures += 1
+            job_id = job.job_id if "job" in dir() and job is not None else ""
+            error_msg = traceback.format_exc()
+            logger.error("Worker error (attempt %d): %s", consecutive_failures, error_msg)
+
+            svc.telemetry.emit(
+                WorkerError(
+                    error=error_msg[-1000:],
+                    error_type=type(exc).__name__,
+                    job_id=job_id,
+                    consecutive_failures=consecutive_failures,
+                )
+            )
+
+            if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
+                logger.critical("Too many consecutive failures (%d) — exiting", consecutive_failures)
+                raise
+
+            backoff = min(2**consecutive_failures, MAX_BACKOFF)
+            logger.info("Retrying in %ds", backoff)
+            await asyncio.sleep(backoff)
 
 
 def main():

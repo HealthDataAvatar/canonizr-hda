@@ -26,17 +26,45 @@ logger = logging.getLogger(__name__)
 
 
 class EventName(StrEnum):
+    JOB_ACCEPTED = "canonizr:job_accepted"
     JOB_COMPLETED = "canonizr:job_completed"
     UPSTREAM_REQUEST = "canonizr:upstream_request"
     CLEANUP_COMPLETED = "canonizr:cleanup_completed"
     JOB_RECOVERED = "canonizr:job_recovered"
     JOB_RECLAIMED = "canonizr:job_reclaimed"
     JOB_SKIPPED_IDEMPOTENT = "canonizr:job_skipped_idempotent"
+    WORKER_ERROR = "canonizr:worker_error"
 
 
 # ---------------------------------------------------------------------------
 # Events
 # ---------------------------------------------------------------------------
+
+
+@dataclass
+class WorkerError:
+    """Emitted when the worker hits an uncaught error."""
+
+    event_name: str = field(default=EventName.WORKER_ERROR, init=False)
+
+    error: str = ""
+    error_type: str = ""
+    job_id: str = ""
+    consecutive_failures: int = 0
+
+
+@dataclass
+class JobAccepted:
+    """Emitted when the gateway accepts a job for processing."""
+
+    event_name: str = field(default=EventName.JOB_ACCEPTED, init=False)
+
+    job_id: str = ""
+    user_id: str = ""
+    sub_id: str = ""
+    mime_type: str = ""
+    filename: str = ""
+    input_bytes: int = 0
 
 
 @dataclass
