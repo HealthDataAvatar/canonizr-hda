@@ -1,3 +1,4 @@
+import { logger } from "@/lib/logger";
 import { NextResponse } from "next/server";
 import { requireUser, AuthError } from "@/lib/auth/session";
 import { getServices } from "@/lib/services";
@@ -20,7 +21,7 @@ export async function GET(
     return NextResponse.json({ primaryKey });
   } catch (err) {
     if (err instanceof AuthError) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    console.error("GET /api/keys/[id] error:", err);
+    logger.error({ err }, "GET /api/keys/[id] error");
     return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
 }
@@ -43,7 +44,7 @@ export async function DELETE(
     return NextResponse.json({ ok: true });
   } catch (err) {
     if (err instanceof AuthError) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    console.error("DELETE /api/keys/[id] error:", err);
+    logger.error({ err }, "DELETE /api/keys/[id] error");
     return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
 }

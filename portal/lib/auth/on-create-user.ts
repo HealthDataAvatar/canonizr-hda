@@ -1,3 +1,4 @@
+import { logger } from "@/lib/logger";
 import type { KeyStore, BillingStore } from "@/lib/services";
 
 export interface AppendConfig {
@@ -29,7 +30,7 @@ export async function onCreateUser(
     const result = await services.billing.createCustomer(user.email);
     customerId = result.customerId;
   } catch (e) {
-    console.error("Failed to create Stripe customer for %s: %s", user.email, e);
+    logger.error({ err: e, email: user.email }, "Failed to create Stripe customer");
   }
 
   await appendInitialConfig(user.id, "system");

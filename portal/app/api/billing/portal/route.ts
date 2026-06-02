@@ -1,3 +1,4 @@
+import { logger } from "@/lib/logger";
 import { NextResponse } from "next/server";
 import { requireUser, AuthError } from "@/lib/auth/session";
 import { getCurrentPermissions } from "@/lib/data/tables";
@@ -24,7 +25,7 @@ export async function POST() {
     return NextResponse.json({ url });
   } catch (err) {
     if (err instanceof AuthError) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    console.error("POST /api/billing/portal error:", err);
+    logger.error({ err }, "POST /api/billing/portal error");
     return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
 }

@@ -1,3 +1,4 @@
+import { logger } from "@/lib/logger";
 import { NextResponse } from "next/server";
 import {
   getCurrentPermissions,
@@ -46,7 +47,7 @@ export async function POST(request: Request) {
 
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
   if (!webhookSecret) {
-    console.error("STRIPE_WEBHOOK_SECRET not configured");
+    logger.error("STRIPE_WEBHOOK_SECRET not configured");
     return NextResponse.json({ error: "Server misconfigured" }, { status: 500 });
   }
 
@@ -55,7 +56,7 @@ export async function POST(request: Request) {
   try {
     event = stripe.webhooks.constructEvent(body, sig, webhookSecret);
   } catch (err) {
-    console.error("Webhook signature verification failed:", err);
+    logger.error({ err }, "Webhook signature verification failed");
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
 
@@ -86,7 +87,7 @@ export async function POST(request: Request) {
 
   const userId = await getUserIdByStripeCustomerId(customerId);
   if (!userId) {
-    console.warn(`Webhook: no user found for Stripe customer ${customerId}`);
+    logger.warn({ customerId }, "Webhook: no user found for Stripe customer");
     return NextResponse.json({ received: true });
   }
 

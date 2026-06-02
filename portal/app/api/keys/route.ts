@@ -1,3 +1,4 @@
+import { logger } from "@/lib/logger";
 import { NextResponse } from "next/server";
 import { requireUser, AuthError } from "@/lib/auth/session";
 import { getServices } from "@/lib/services";
@@ -11,7 +12,7 @@ export async function GET() {
     return NextResponse.json({ keys });
   } catch (err) {
     if (err instanceof AuthError) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    console.error("GET /api/keys error:", err);
+    logger.error({ err }, "GET /api/keys error");
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Internal error" },
       { status: 500 }
@@ -48,7 +49,7 @@ export async function POST(request: Request) {
     return NextResponse.json(result, { status: 201 });
   } catch (err) {
     if (err instanceof AuthError) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    console.error("POST /api/keys error:", err);
+    logger.error({ err }, "POST /api/keys error");
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Internal error" },
       { status: 500 }

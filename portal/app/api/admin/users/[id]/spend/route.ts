@@ -1,3 +1,4 @@
+import { logger } from "@/lib/logger";
 import { NextResponse } from "next/server";
 import { requireAdmin, AuthError } from "@/lib/auth/session";
 import { getServices } from "@/lib/services";
@@ -20,7 +21,7 @@ export async function GET(
     return NextResponse.json({ totalInvoiced: sumInvoiceAmounts(invoices) });
   } catch (err) {
     if (err instanceof AuthError) return NextResponse.json(null, { status: 404 });
-    console.error("GET /api/admin/users/[id]/spend error:", err);
+    logger.error({ err }, "GET /api/admin/users/[id]/spend error");
     return NextResponse.json({ totalInvoiced: 0 });
   }
 }

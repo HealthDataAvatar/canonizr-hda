@@ -7,6 +7,8 @@
 export async function register() {
   if (process.env.NEXT_RUNTIME === "edge") return;
 
+  const { logger } = await import("@/lib/logger");
+
   if (process.env.APPLICATIONINSIGHTS_CONNECTION_STRING) {
     const { NodeSDK } = await import("@opentelemetry/sdk-node");
     const { getNodeAutoInstrumentations } = await import(
@@ -23,7 +25,7 @@ export async function register() {
       instrumentations: [getNodeAutoInstrumentations()],
     });
     sdk.start();
-    console.log("OpenTelemetry started (Azure Monitor).");
+    logger.info("OpenTelemetry started (Azure Monitor)");
   }
 
   // Table Storage available via either endpoint (prod) or connection string (local)
@@ -31,7 +33,7 @@ export async function register() {
 
   const { ensureAllTables } = await import("@/lib/data/ensure-tables");
   await ensureAllTables();
-  console.log("Tables ensured.");
+  logger.info("Tables ensured");
 
   // In local dev (Azurite), seed an admin user for portal-dev
   const connStr = process.env.TABLE_STORAGE_CONNECTION_STRING;
@@ -85,6 +87,6 @@ export async function register() {
       changedBy: "system",
     });
 
-    console.log(`Seeded local admin: ${adminEmail}`);
+    logger.info({ email: adminEmail }, "Seeded local admin");
   }
 }

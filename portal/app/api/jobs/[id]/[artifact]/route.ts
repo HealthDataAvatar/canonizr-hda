@@ -1,3 +1,4 @@
+import { logger } from "@/lib/logger";
 import { NextResponse } from "next/server";
 import { requireUser, AuthError } from "@/lib/auth/session";
 import { getServices } from "@/lib/services";
@@ -48,7 +49,7 @@ export async function GET(
     });
   } catch (err) {
     if (err instanceof AuthError) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    console.error("GET /api/jobs/[id]/[artifact] error:", err);
+    logger.error({ err }, "GET /api/jobs/[id]/[artifact] error");
     return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
 }
