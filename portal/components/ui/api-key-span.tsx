@@ -4,7 +4,7 @@ function APIKeySpan({ text }: { text: string }) {
   return (
     <span
       className={
-        "font-mono"
+        "font-mono truncate"
       }
     >
       {text}

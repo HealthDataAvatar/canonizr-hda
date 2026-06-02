@@ -125,19 +125,24 @@ export const AllStates: Story = {
         ),
       },
       {
-        label: "With mobile cards",
+        label: "With mobile columns",
         children: (
           <DataTable
             columns={columns}
             data={fewRows}
             getRowId={(r) => r.id}
-            mobileCard={(row) => (
-              <div className="rounded-lg border border-border px-4 py-3 space-y-1">
-                <div className="font-medium text-sm">{row.name}</div>
-                <div className="text-sm text-muted-foreground">{row.email}</div>
-                <div className="text-sm text-muted-foreground">{row.role}</div>
-              </div>
-            )}
+            mobile={{
+              columns: [
+                col.accessor("name", { header: "Name" }),
+                col.accessor("role", { header: "Role" }),
+              ],
+              expandedContent: (row) => (
+                <div className="text-sm text-muted-foreground space-y-1">
+                  <p>Email: {row.email}</p>
+                  <p>Joined: {new Date(row.joined).toLocaleDateString()}</p>
+                </div>
+              ),
+            }}
           />
         ),
       },

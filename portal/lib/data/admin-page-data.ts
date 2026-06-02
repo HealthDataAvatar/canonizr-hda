@@ -11,7 +11,7 @@ import { getServices } from "@/lib/services";
 import { getTableClient } from "./table-client";
 import { TableName } from "./table-names";
 import type { RequestRow } from "@/components/tables/request-table";
-import type { KeyRow } from "@/components/key-table";
+import type { KeyRow } from "@/components/tables/key-table";
 import { aggregateJobs, sumInvoiceAmounts, type JobSummaryInput } from "@/lib/pure/admin-calc";
 
 // -------------------------------------------------------------------------

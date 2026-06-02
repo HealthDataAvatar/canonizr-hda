@@ -67,15 +67,27 @@ const columns = [
   }),
 ];
 
-function MobileInvoiceCard({ row }: { row: InvoiceRow }) {
+const mobileInvoiceColumns = [
+  col.accessor("date", {
+    header: "Period",
+    cell: ({ getValue }) => <span className="text-sm">{formatMonth(getValue())}</span>,
+  }),
+  col.accessor("amount", {
+    header: "Amount",
+    cell: ({ getValue }) => <span className="font-mono text-sm">${getValue().toFixed(2)}</span>,
+  }),
+  col.accessor("status", {
+    header: "",
+    size: 40,
+    cell: ({ getValue }) => <StatusIndicator status={getValue()} />,
+  }),
+];
+
+function MobileInvoiceDetail({ row }: { row: InvoiceRow }) {
   return (
-    <div className="flex items-center justify-between rounded-lg border border-border px-4 py-3">
-      <span className="text-sm">{formatMonth(row.date)}</span>
-      <div className="flex items-center gap-3">
-        <span className="font-mono text-sm">${row.amount.toFixed(2)}</span>
-        <StatusIndicator status={row.status} />
-        <InvoiceLink url={row.url} />
-      </div>
+    <div className="flex items-center gap-4 text-sm">
+      <span className="text-muted-foreground">Processed: <span className="font-mono">{formatKB(row.processedKB)}</span></span>
+      <InvoiceLink url={row.url} />
     </div>
   );
 }
@@ -89,8 +101,11 @@ export function InvoiceTable({ invoices }: { invoices: InvoiceRow[] }) {
       emptyMessage="No invoices yet."
       pageSize={12}
       getRowId={(row) => row.id}
-      mobileCard={(row) => <MobileInvoiceCard row={row} />}
-      mobileBreakpoint="480px"
+      mobile={{
+        columns: mobileInvoiceColumns,
+        expandedContent: (row) => <MobileInvoiceDetail row={row} />,
+        breakpoint: "480px",
+      }}
     />
   );
 }

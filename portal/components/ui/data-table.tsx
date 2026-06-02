@@ -11,7 +11,7 @@ import {
   type SortingState,
 } from "@tanstack/react-table";
 import { ChevronUp, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
   Table,
@@ -21,6 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { ActionGroup } from "./action-group";
 
 // ---------------------------------------------------------------------------
 // Sort indicator
@@ -41,30 +42,25 @@ function Pagination<T>({ table }: { table: ReturnType<typeof useReactTable<T>> }
   if (table.getPageCount() <= 1) return null;
   return (
     <div className="flex items-center justify-between">
-      <p className="text-sm text-muted-foreground">
-        Page {table.getState().pagination.pageIndex + 1} of{" "}
-        {table.getPageCount()}
-      </p>
-      <div className="flex gap-1">
-        <Button
-          variant="outline"
-          size="sm"
+
+      <ActionGroup>
+        <IconButton
+          icon={ChevronLeft}
+          title="Previous page"
           onClick={() => table.previousPage()}
           disabled={!table.getCanPreviousPage()}
-          title="Previous page"
-        >
-          <ChevronLeft className="size-4" />
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
+        />
+        <span className="text-sm text-muted-foreground">
+          Page {table.getState().pagination.pageIndex + 1} of{" "}
+          {table.getPageCount()}
+        </span>
+        <IconButton
+          icon={ChevronRight}
+          title="Next page"
           onClick={() => table.nextPage()}
           disabled={!table.getCanNextPage()}
-          title="Next page"
-        >
-          <ChevronRight className="size-4" />
-        </Button>
-      </div>
+        />
+      </ActionGroup>
     </div>
   );
 }
@@ -72,6 +68,15 @@ function Pagination<T>({ table }: { table: ReturnType<typeof useReactTable<T>> }
 // ---------------------------------------------------------------------------
 // DataTable
 // ---------------------------------------------------------------------------
+
+export interface MobileLayout<T> {
+  /** Column defs for mobile (fewer columns, rest in expandedContent). */
+  columns: ColumnDef<T, any>[];
+  /** Render function for expanded row content on mobile. */
+  expandedContent: (row: T) => ReactNode | null;
+  /** Container query breakpoint for switching to desktop. Default: 640px. */
+  breakpoint?: string;
+}
 
 export interface DataTableProps<T> {
   /** TanStack column definitions. */
@@ -102,10 +107,8 @@ export interface DataTableProps<T> {
   getRowId?: (row: T) => string;
 
   // -- Mobile --
-  /** Render a card for mobile layout. If omitted, the table is used at all sizes. */
-  mobileCard?: (row: T) => ReactNode;
-  /** Container query breakpoint for switching to desktop. Default: 640px. */
-  mobileBreakpoint?: string;
+  /** Mobile layout with separate columns and expanded content. If omitted, the same table is used at all sizes. */
+  mobile?: MobileLayout<T>;
 
   // -- Styling --
   /** Additional class on the table element. */
@@ -122,8 +125,7 @@ export function DataTable<T>({
   pageSize = 0,
   expandedContent,
   getRowId,
-  mobileCard,
-  mobileBreakpoint = "640px",
+  mobile,
   tableClassName,
 }: DataTableProps<T>) {
   const [sorting, setSorting] = useState<SortingState>(defaultSort);
@@ -148,7 +150,8 @@ export function DataTable<T>({
     return <EmptyState>{emptyMessage}</EmptyState>;
   }
 
-  const colCount = table.getHeaderGroups()[0]?.headers.length ?? 1;
+  const hasExpand = !!expandedContent;
+  const colCount = (table.getHeaderGroups()[0]?.headers.length ?? 1) + (hasExpand ? 1 : 0);
   const pageRows = table.getRowModel().rows.map((r) => r.original);
 
   const desktopTable = (
@@ -157,6 +160,7 @@ export function DataTable<T>({
       <TableHeader>
         {table.getHeaderGroups().map((hg) => (
           <TableRow key={hg.id}>
+            {hasExpand && <TableHead className="w-8" />}
             {hg.headers.map((header) => {
               const canSort = sortable && header.column.getCanSort();
               return (
@@ -189,6 +193,7 @@ export function DataTable<T>({
               key={rowId}
               row={row}
               rowId={rowId}
+              hasExpand={hasExpand}
               hasDetail={hasDetail}
               expanded={expanded}
               onToggle={() => setExpandedId(expanded ? null : rowId)}
@@ -201,7 +206,7 @@ export function DataTable<T>({
     </Table>
   );
 
-  if (!mobileCard) {
+  if (!mobile) {
     return (
       <div className="space-y-4">
         {desktopTable}
@@ -210,23 +215,115 @@ export function DataTable<T>({
     );
   }
 
-  const bpClass = `@[${mobileBreakpoint}]`;
+  const bpClass = `@[${mobile.breakpoint ?? "640px"}]`;
   return (
     <div className="@container space-y-4">
       <div className={`hidden ${bpClass}:block`}>
         {desktopTable}
       </div>
       <div className={`${bpClass}:hidden`}>
-        <div className="space-y-2">
-          {pageRows.map((row, i) => (
-            <div key={getRowId ? getRowId(row) : i}>
-              {mobileCard(row)}
-            </div>
-          ))}
-        </div>
+        <MobileTable
+          columns={mobile.columns}
+          data={pageRows}
+          expandedContent={mobile.expandedContent}
+          getRowId={getRowId}
+          sortable={sortable}
+          defaultSort={defaultSort}
+          tableClassName={tableClassName}
+        />
       </div>
       {pageSize > 0 && <Pagination table={table} />}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Mobile table (fewer columns, same expand behavior)
+// ---------------------------------------------------------------------------
+
+function MobileTable<T>({
+  columns,
+  data,
+  expandedContent,
+  getRowId,
+  sortable,
+  defaultSort,
+  tableClassName,
+}: {
+  columns: ColumnDef<T, any>[];
+  data: T[];
+  expandedContent?: (row: T) => ReactNode | null;
+  getRowId?: (row: T) => string;
+  sortable: boolean;
+  defaultSort: SortingState;
+  tableClassName?: string;
+}) {
+  const [sorting, setSorting] = useState<SortingState>(defaultSort);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  const table = useReactTable({
+    data,
+    columns,
+    state: { sorting },
+    onSortingChange: sortable ? setSorting : undefined,
+    enableSortingRemoval: false,
+    getCoreRowModel: getCoreRowModel(),
+    ...(sortable && { getSortedRowModel: getSortedRowModel() }),
+    getRowId: getRowId ? (row) => getRowId(row) : undefined,
+  });
+
+  const hasExpand = !!expandedContent;
+  const colCount = (table.getHeaderGroups()[0]?.headers.length ?? 1) + (hasExpand ? 1 : 0);
+
+  return (
+    <Table className={tableClassName}>
+      <TableHeader>
+        {table.getHeaderGroups().map((hg) => (
+          <TableRow key={hg.id}>
+            {hasExpand && <TableHead className="w-8" />}
+            {hg.headers.map((header) => {
+              const canSort = sortable && header.column.getCanSort();
+              return (
+                <TableHead
+                  key={header.id}
+                  className={canSort ? "cursor-pointer select-none group" : ""}
+                  style={header.getSize() !== 150 ? { width: header.getSize() } : undefined}
+                  onClick={canSort ? header.column.getToggleSortingHandler() : undefined}
+                  title={canSort ? "Sort" : undefined}
+                >
+                  <span className="inline-flex items-center gap-1">
+                    {flexRender(header.column.columnDef.header, header.getContext())}
+                    {canSort && <SortIcon sorted={header.column.getIsSorted()} />}
+                  </span>
+                </TableHead>
+              );
+            })}
+          </TableRow>
+        ))}
+      </TableHeader>
+      <TableBody>
+        {table.getRowModel().rows.map((row) => {
+          const rowId = getRowId ? getRowId(row.original) : row.id;
+          const detail = expandedContent?.(row.original);
+          const hasDetail = detail !== null && detail !== undefined;
+          const expanded = expandedId === rowId;
+
+          return (
+            <DesktopRow
+              key={rowId}
+              row={row}
+              rowId={rowId}
+              hasExpand={hasExpand}
+              hasDetail={hasDetail}
+              expanded={expanded}
+              onToggle={() => setExpandedId(expanded ? null : rowId)}
+              colCount={colCount}
+              detail={expanded ? detail : null}
+            />
+          );
+        })}
+      </TableBody>
+    </Table>
   );
 }
 
@@ -237,6 +334,7 @@ export function DataTable<T>({
 function DesktopRow<T>({
   row,
   rowId,
+  hasExpand,
   hasDetail,
   expanded,
   onToggle,
@@ -245,6 +343,7 @@ function DesktopRow<T>({
 }: {
   row: ReturnType<ReturnType<typeof useReactTable<T>>["getRowModel"]>["rows"][0];
   rowId: string;
+  hasExpand: boolean;
   hasDetail: boolean;
   expanded: boolean;
   onToggle: () => void;
@@ -253,11 +352,20 @@ function DesktopRow<T>({
 }) {
   return (
     <>
-      <TableRow
-        id={rowId}
-        className={`scroll-mt-24 target:bg-accent-subtle ${hasDetail ? "cursor-pointer" : ""}`}
-        onClick={hasDetail ? onToggle : undefined}
-      >
+      <TableRow id={rowId} className="scroll-mt-24 target:bg-accent-subtle">
+        {hasExpand && (
+          <TableCell className="w-8 px-2">
+            {hasDetail && (
+              <IconButton
+                icon={ChevronRight}
+                title={expanded ? "Collapse row" : "Expand row"}
+                aria-expanded={expanded}
+                onClick={onToggle}
+                className={expanded ? "rotate-90" : ""}
+              />
+            )}
+          </TableCell>
+        )}
         {row.getVisibleCells().map((cell) => (
           <TableCell key={cell.id}>
             {flexRender(cell.column.columnDef.cell, cell.getContext())}

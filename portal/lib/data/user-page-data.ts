@@ -11,7 +11,7 @@ import { getCurrentConfig, getCurrentPermissions } from "@/lib/data/tables";
 import { getJobsForUser } from "./jobs";
 import { calculateBilling } from "@/lib/pure/billing-calc";
 import type { RequestRow } from "@/components/tables/request-table";
-import type { KeyRow } from "@/components/key-table";
+import type { KeyRow } from "@/components/tables/key-table";
 
 // -------------------------------------------------------------------------
 // Recent error (used by layout error banner)

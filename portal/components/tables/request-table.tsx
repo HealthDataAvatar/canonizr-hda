@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { createColumnHelper } from "@tanstack/react-table";
 import { Download, TimerOff, Trash2, Loader, Check, TriangleAlert } from "lucide-react";
 import { timeAgo } from "@/lib/pure/time";
@@ -11,6 +10,7 @@ import { IconHint } from "@/components/ui/icon-hint";
 import { IconLink } from "@/components/ui/icon-link";
 import { CopyButton } from "@/components/ui/copy-button";
 import { DataTable } from "@/components/ui/data-table";
+import { TableExport } from "@/components/ui/table-export";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -238,77 +238,60 @@ function buildColumns(onDelete?: (id: string) => void) {
 }
 
 // ---------------------------------------------------------------------------
-// Mobile card
+// Mobile columns (Time, Size, Status — rest in expanded content)
 // ---------------------------------------------------------------------------
 
-function MobileRequestCard({
-  row,
-  onDelete,
-}: {
-  row: RequestRow;
-  onDelete?: (id: string) => void;
-}) {
-  const [isExpanded, setIsExpanded] = useState(false);
+const mobileColumns = [
+  col.accessor("timestamp", {
+    header: "Time",
+    enableSorting: true,
+    cell: ({ getValue }) => (
+      <span className="font-mono text-sm">{timeAgo(getValue())}</span>
+    ),
+  }),
+  col.accessor("billableKB", {
+    header: "Size",
+    enableSorting: true,
+    cell: ({ getValue }) => (
+      <span className="font-mono text-sm">{formatKB(getValue())}</span>
+    ),
+  }),
+  col.accessor("status", {
+    header: "",
+    size: 40,
+    enableSorting: false,
+    cell: ({ row }) => <StatusIcon row={row.original} />,
+  }),
+];
 
+function MobileDetailPanel({ row, onDelete }: { row: RequestRow; onDelete?: (id: string) => void }) {
   return (
-    <div
-      id={row.id}
-      className="scroll-mt-24 rounded-lg border border-border target:bg-accent-subtle"
-    >
-      <button
-        type="button"
-        onClick={() => setIsExpanded(!isExpanded)}
-        className="flex w-full items-center justify-between px-4 py-3 text-left cursor-pointer"
-        aria-expanded={isExpanded}
-      >
-        <div className="flex flex-col gap-0.5">
-          <div className="flex items-baseline gap-2">
-            <span className="font-mono text-sm">{new Date(row.timestamp).toLocaleString()}</span>
-            <span className="font-mono text-sm">{formatKB(row.billableKB)}</span>
-          </div>
-          <span className="font-mono text-sm text-muted-foreground">
-            {row.keyName} · {timeAgo(row.timestamp)}
-          </span>
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-y-2 gap-x-4 text-sm">
+        <span className="text-muted-foreground">Key</span>
+        <span className="font-mono">{row.keyName}</span>
+        <span className="text-muted-foreground">Job ID</span>
+        <span className="inline-flex items-center gap-1 font-mono">
+          {row.id.slice(0, 8)}
+          <CopyButton value={row.id} />
+        </span>
+        <span className="text-muted-foreground">Time</span>
+        <span className="font-mono">{new Date(row.timestamp).toLocaleString()}</span>
+      </div>
+
+      <JobDetailPanel row={row} />
+
+      <div className="flex items-center gap-4 border-t border-border pt-3">
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Output</span>
+          <BlobLink blob={row.result} label="output" />
         </div>
-        <StatusIcon row={row} />
-      </button>
-
-      {isExpanded && (
-        <div className="border-t border-border px-4 py-3 space-y-3">
-          <div className="grid grid-cols-2 gap-y-2 gap-x-4 text-sm">
-            <span className="text-muted-foreground">Job ID</span>
-            <span className="inline-flex items-center gap-1 font-mono text-sm">
-              {row.id.slice(0, 8)}
-              <CopyButton value={row.id} />
-            </span>
-            {row.fileHash && (
-              <>
-                <span className="text-muted-foreground">Hash</span>
-                <span className="inline-flex items-center gap-1 font-mono text-sm">
-                  {row.fileHash.slice(0, 8)}
-                  <CopyButton value={row.fileHash} />
-                </span>
-              </>
-            )}
-          </div>
-
-          <JobDetailPanel row={row} />
-
-          <div className="grid grid-cols-[1fr_1fr_auto] items-center border-t border-border pt-3">
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">Output</span>
-              <BlobLink blob={row.result} label="output" />
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">Original</span>
-              <BlobLink blob={row.input} label="original" />
-            </div>
-            {isDeletable(row) && onDelete ? (
-              <DeleteButton row={row} onDelete={onDelete} />
-            ) : <span />}
-          </div>
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Original</span>
+          <BlobLink blob={row.input} label="original" />
         </div>
-      )}
+        {isDeletable(row) && onDelete && <DeleteButton row={row} onDelete={onDelete} />}
+      </div>
     </div>
   );
 }
@@ -317,6 +300,20 @@ function MobileRequestCard({
 // Public component
 // ---------------------------------------------------------------------------
 
+function requestExportRows(requests: RequestRow[]): { headers: string[]; rows: string[][] } {
+  const headers = ["Time", "Key", "Job ID", "Size", "Status", "File", "Type"];
+  const rows = requests.map((r) => [
+    new Date(r.timestamp).toLocaleString(),
+    r.keyName,
+    r.id,
+    formatKB(r.billableKB),
+    String(r.status),
+    r.originalFilename ?? "",
+    r.mimeType ?? "",
+  ]);
+  return { headers, rows };
+}
+
 export function RequestTable({
   requests,
   onDelete,
@@ -324,19 +321,30 @@ export function RequestTable({
   requests: RequestRow[];
   onDelete?: (id: string) => void;
 }) {
+  const { headers, rows } = requestExportRows(requests);
   return (
-    <DataTable
-      columns={buildColumns(onDelete)}
-      data={requests}
-      caption="Job history"
-      emptyMessage="No requests yet."
-      sortable
-      defaultSort={[{ id: "timestamp", desc: true }]}
-      pageSize={20}
-      getRowId={(row) => row.id}
-      expandedContent={(row) => <JobDetailPanel row={row} />}
-      mobileCard={(row) => <MobileRequestCard row={row} onDelete={onDelete} />}
-      tableClassName="table-fixed"
-    />
+    <div className="space-y-2">
+      {requests.length > 0 && (
+        <div className="flex justify-end">
+          <TableExport headers={headers} rows={rows} filenameBase="requests" />
+        </div>
+      )}
+      <DataTable
+        columns={buildColumns(onDelete)}
+        data={requests}
+        caption="Job history"
+        emptyMessage="No requests yet."
+        sortable
+        defaultSort={[{ id: "timestamp", desc: true }]}
+        pageSize={20}
+        getRowId={(row) => row.id}
+        expandedContent={(row) => <JobDetailPanel row={row} />}
+        mobile={{
+          columns: mobileColumns,
+          expandedContent: (row) => <MobileDetailPanel row={row} onDelete={onDelete} />,
+        }}
+        tableClassName="table-fixed"
+      />
+    </div>
   );
 }

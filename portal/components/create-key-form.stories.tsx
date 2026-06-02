@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
-import { Showcase } from "@/.storybook/common";
+import { Showcase, TEST_KEY_VALUES } from "@/.storybook/common";
 import { CreateKeyInput } from "./create-key-input";
 import { CreatedKeyCard } from "./created-key-card";
 import { validateKeyName } from "@/lib/pure/key-name-validation";
@@ -17,7 +17,23 @@ function InputInteractive({
 }) {
   const [name, setName] = useState(initialName ?? generateKeyName);
   const [touched, setTouched] = useState(!!initialName);
+  const [loading, setLoading] = useState(false);
+  const [createdKey, setCreatedKey] = useState<{ name: string; value: string } | null>(null);
   const error = validateKeyName(name, existingNames);
+
+  if (createdKey) {
+    return (
+      <CreatedKeyCard
+        keyName={createdKey.name}
+        keyValue={createdKey.value}
+        onDismiss={() => {
+          setCreatedKey(null);
+          setName(generateKeyName());
+          setTouched(false);
+        }}
+      />
+    );
+  }
 
   return (
     <CreateKeyInput
@@ -32,8 +48,17 @@ function InputInteractive({
       }}
       error={error}
       showError={touched && !!error}
-      loading={false}
-      onCreate={() => setTouched(true)}
+      loading={loading}
+      onCreate={() => {
+        setTouched(true);
+        if (!error) {
+          setLoading(true);
+          setTimeout(() => {
+            setLoading(false);
+            setCreatedKey({ name, value: TEST_KEY_VALUES.key1 });
+          }, 800);
+        }
+      }}
     />
   );
 }

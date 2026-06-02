@@ -6,18 +6,40 @@ import { AuthEmailSent } from "./auth-email-sent";
 
 function AuthInteractive() {
   const [email, setEmail] = useState("");
+  const [sentAt, setSentAt] = useState<Date | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  function handleSubmit() {
+    if (!email.trim()) return;
+    setLoading(true);
+    setTimeout(() => {
+      setLoading(false);
+      setSentAt(new Date());
+    }, 800);
+  }
+
+  if (sentAt) {
+    return (
+      <div className="w-full max-w-sm">
+        <AuthEmailSent email={email} sentAt={sentAt} onGoBack={() => setSentAt(null)} />
+      </div>
+    );
+  }
+
   return (
-    <AuthSignInForm
-      email={email}
-      onEmailChange={setEmail}
-      loading={false}
-      onSubmit={() => {}}
-    />
+    <div className="w-full max-w-sm">
+      <AuthSignInForm
+        email={email}
+        onEmailChange={setEmail}
+        loading={loading}
+        onSubmit={handleSubmit}
+      />
+    </div>
   );
 }
 
 const meta = {
-  title: "Pages/Auth",
+  title: "Components/AuthForm",
   component: AuthInteractive,
 } satisfies Meta<typeof AuthInteractive>;
 

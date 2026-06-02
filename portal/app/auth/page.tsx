@@ -2,8 +2,7 @@
 
 import { signIn } from "next-auth/react";
 import { useState } from "react";
-import { AuthSignInForm } from "@/components/auth-sign-in-form";
-import { AuthEmailSent } from "@/components/auth-email-sent";
+import { AuthPageContent } from "@/components/pages/auth-page-content";
 
 export default function AuthPage() {
   const [email, setEmail] = useState("");
@@ -20,36 +19,13 @@ export default function AuthPage() {
   }
 
   return (
-    <div className="flex flex-1 items-center justify-center px-6 py-24">
-      <div className="w-full max-w-sm space-y-6">
-        <div className="text-center space-y-2">
-          <h1 className="tracking-tight">
-            Canonizr
-          </h1>
-          <p className="text-muted-foreground">
-            Read any file.{" "}
-            <a
-              href="https://canonizr.com"
-              className="text-accent hover:underline"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Learn more
-            </a>
-          </p>
-        </div>
-
-        {sentAt ? (
-          <AuthEmailSent email={email} sentAt={sentAt} onGoBack={() => setSentAt(null)} />
-        ) : (
-          <AuthSignInForm
-            email={email}
-            onEmailChange={setEmail}
-            loading={loading}
-            onSubmit={handleSubmit}
-          />
-        )}
-      </div>
-    </div>
+    <AuthPageContent
+      email={email}
+      sentAt={sentAt}
+      loading={loading}
+      onEmailChange={setEmail}
+      onSubmit={handleSubmit}
+      onGoBack={() => setSentAt(null)}
+    />
   );
 }

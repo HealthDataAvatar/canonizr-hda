@@ -22,16 +22,19 @@ export function AuthEmailSent({ email, sentAt, onGoBack }: AuthEmailSentProps) {
         <span className="font-mono text-accent">{email}</span>
 
         {" "} which contains your login link {" "}
+
+      </p>
+      <IconButton
+        icon={Undo2}
+        title="Go back"
+      />
+      <p>
         <IconHint
           icon={Clock}
           title={`Sent at ${timeString}`}
           tone="muted"
         />
       </p>
-      <IconButton
-        icon={Undo2}
-        title="Go back"
-      />
     </div>
   );
 }

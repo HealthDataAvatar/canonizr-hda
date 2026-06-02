@@ -48,7 +48,7 @@ export function Showcase({
     <div className={`${gap} ${maxWidth ?? ""}`}>
       {items.map(({ label, children }) => (
         <div key={label}>
-          <p className="text-xs text-muted-foreground mb-2">{label}</p>
+          <p className="text-xs background-red text-muted-foreground mb-2 border-b-1 ">{label}</p>
           {children}
         </div>
       ))}
