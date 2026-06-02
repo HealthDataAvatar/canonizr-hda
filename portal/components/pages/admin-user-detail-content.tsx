@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import { createColumnHelper } from "@tanstack/react-table";
 import { AdminUserForm } from "@/components/admin-user-form";

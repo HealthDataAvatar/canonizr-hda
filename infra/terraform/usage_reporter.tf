@@ -18,7 +18,14 @@ resource "azurerm_role_assignment" "usage_reporter_log_reader" {
   principal_id         = azurerm_user_assigned_identity.usage_reporter.principal_id
 }
 
-# Portal Key Vault access — Stripe key + Table Storage connection string
+# Table Storage access — reads subscription mappings, watermark, audit log
+resource "azurerm_role_assignment" "usage_reporter_table_data" {
+  scope                = azurerm_storage_account.portal.id
+  role_definition_name = "Storage Table Data Contributor"
+  principal_id         = azurerm_user_assigned_identity.usage_reporter.principal_id
+}
+
+# Portal Key Vault access — Stripe key
 resource "azurerm_key_vault_access_policy" "usage_reporter" {
   key_vault_id = azurerm_key_vault.portal.id
   tenant_id    = data.azurerm_client_config.current.tenant_id
@@ -67,12 +74,6 @@ resource "azurerm_container_app_job" "usage_reporter" {
     identity            = azurerm_user_assigned_identity.usage_reporter.id
   }
 
-  secret {
-    name                = "table-storage-connection-string"
-    key_vault_secret_id = azurerm_key_vault_secret.portal_table_storage.versionless_id
-    identity            = azurerm_user_assigned_identity.usage_reporter.id
-  }
-
   template {
     container {
       name    = "usage-reporter"
@@ -82,6 +83,16 @@ resource "azurerm_container_app_job" "usage_reporter" {
       command = ["uv", "run", "python", "-m", "app.usage_report"]
 
       env {
+        name  = "AZURE_CLIENT_ID"
+        value = azurerm_user_assigned_identity.usage_reporter.client_id
+      }
+
+      env {
+        name  = "TABLE_STORAGE_URL"
+        value = azurerm_storage_account.portal.primary_table_endpoint
+      }
+
+      env {
         name  = "LOG_ANALYTICS_WORKSPACE_ID"
         value = azurerm_log_analytics_workspace.this.id
       }
@@ -89,11 +100,6 @@ resource "azurerm_container_app_job" "usage_reporter" {
       env {
         name        = "STRIPE_SECRET_KEY"
         secret_name = "stripe-secret-key"
-      }
-
-      env {
-        name        = "TABLE_STORAGE_CONNECTION_STRING"
-        secret_name = "table-storage-connection-string"
       }
     }
   }

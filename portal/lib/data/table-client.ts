@@ -8,10 +8,10 @@
  */
 
 import { TableClient } from "@azure/data-tables";
-import type { TokenCredential } from "@azure/identity";
+import { DefaultAzureCredential, type TokenCredential } from "@azure/identity";
 
 let _connectionString: string | null = null;
-let _credential: TokenCredential | null = null;
+let _credential: TokenCredential | undefined;
 
 /** Override the connection string (for tests). Pass null to clear. */
 export function setConnectionString(conn: string | null) {
@@ -20,9 +20,6 @@ export function setConnectionString(conn: string | null) {
 
 function getCredential(): TokenCredential {
   if (!_credential) {
-    // Lazy import to avoid loading @azure/identity in local dev / tests
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { DefaultAzureCredential } = require("@azure/identity");
     _credential = new DefaultAzureCredential();
   }
   return _credential;

@@ -39,6 +39,7 @@ export interface RequestRow {
   originalFilename?: string;
   mimeType?: string;
   inputBytes?: number;
+  retentionExpires?: string;
 }
 
 // ---------------------------------------------------------------------------

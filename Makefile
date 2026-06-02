@@ -60,6 +60,7 @@ test-smoke: check-uv
 	cd gateway && uv run pytest tests/smoke -q --timeout=120
 
 test: test-unit test-integration
+	@echo "Tests started at $(DEPLOY_TIME) passed"
 
 # ---------------------------------------------------------------------------
 # Stripe
