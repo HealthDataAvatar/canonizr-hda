@@ -13,15 +13,18 @@ describe("table-client", () => {
     expect(client.tableName).toBe("TestTable");
   });
 
-  it("throws when no connection string is set", () => {
+  it("throws when no connection is configured", () => {
     // Clear the override and env
     setConnectionString(null);
-    const saved = process.env.TABLE_STORAGE_CONNECTION_STRING;
+    const savedConn = process.env.TABLE_STORAGE_CONNECTION_STRING;
+    const savedUrl = process.env.TABLE_STORAGE_URL;
     delete process.env.TABLE_STORAGE_CONNECTION_STRING;
+    delete process.env.TABLE_STORAGE_URL;
     try {
-      expect(() => getTableClient("Test")).toThrow("TABLE_STORAGE_CONNECTION_STRING is not set");
+      expect(() => getTableClient("Test")).toThrow("TABLE_STORAGE_URL or TABLE_STORAGE_CONNECTION_STRING");
     } finally {
-      if (saved) process.env.TABLE_STORAGE_CONNECTION_STRING = saved;
+      if (savedConn) process.env.TABLE_STORAGE_CONNECTION_STRING = savedConn;
+      if (savedUrl) process.env.TABLE_STORAGE_URL = savedUrl;
     }
   });
 });

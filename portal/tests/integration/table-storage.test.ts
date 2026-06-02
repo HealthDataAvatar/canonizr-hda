@@ -12,7 +12,7 @@ import { getJobsForUser } from "@/lib/data/jobs";
 // ---------------------------------------------------------------------------
 
 describe("verification tokens", () => {
-  const adapter = AzureTableStorageAdapter(process.env.TABLE_STORAGE_CONNECTION_STRING!);
+  const adapter = AzureTableStorageAdapter();
 
   it("creates and consumes a token", async () => {
     const token = {
@@ -58,7 +58,7 @@ describe("verification tokens", () => {
 // ---------------------------------------------------------------------------
 
 describe("users", () => {
-  const adapter = AzureTableStorageAdapter(process.env.TABLE_STORAGE_CONNECTION_STRING!);
+  const adapter = AzureTableStorageAdapter();
 
   it("creates and retrieves a user", async () => {
     const user = await adapter.createUser!({

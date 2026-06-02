@@ -26,6 +26,13 @@ resource "azurerm_role_assignment" "portal_apim_contributor" {
   principal_id         = azurerm_user_assigned_identity.portal.principal_id
 }
 
+# Portal identity can read/write Table Storage (managed identity instead of connection string)
+resource "azurerm_role_assignment" "portal_table_data" {
+  scope                = azurerm_storage_account.portal.id
+  role_definition_name = "Storage Table Data Contributor"
+  principal_id         = azurerm_user_assigned_identity.portal.principal_id
+}
+
 
 # ---------------------------------------------------------------------------
 # Dedicated Key Vault for portal secrets
@@ -89,14 +96,6 @@ resource "azurerm_key_vault_secret" "portal_email_from" {
 # resource "azurerm_key_vault_secret" "portal_google_client_id" { ... }
 # resource "azurerm_key_vault_secret" "portal_google_client_secret" { ... }
 
-# Table Storage connection string — not a user-managed secret, but still
-# sensitive, so store in KV rather than Terraform state / env vars.
-resource "azurerm_key_vault_secret" "portal_table_storage" {
-  name         = "table-storage-connection-string"
-  value        = azurerm_storage_account.portal.primary_connection_string
-  key_vault_id = azurerm_key_vault.portal.id
-  depends_on   = [azurerm_key_vault_access_policy.portal_terraform]
-}
 
 # ---------------------------------------------------------------------------
 # Application Insights (OpenTelemetry traces + metrics)
@@ -139,12 +138,6 @@ resource "azurerm_container_app" "portal" {
   secret {
     name                = "auth-secret"
     key_vault_secret_id = azurerm_key_vault_secret.portal_auth_secret.versionless_id
-    identity            = azurerm_user_assigned_identity.portal.id
-  }
-
-  secret {
-    name                = "table-storage-connection-string"
-    key_vault_secret_id = azurerm_key_vault_secret.portal_table_storage.versionless_id
     identity            = azurerm_user_assigned_identity.portal.id
   }
 
@@ -218,16 +211,16 @@ resource "azurerm_container_app" "portal" {
         value = azurerm_application_insights.portal.connection_string
       }
 
+      env {
+        name  = "TABLE_STORAGE_URL"
+        value = azurerm_storage_account.portal.primary_table_endpoint
+      }
+
       # --- Secrets injected from Key Vault ---
 
       env {
         name        = "AUTH_SECRET"
         secret_name = "auth-secret"
-      }
-
-      env {
-        name        = "TABLE_STORAGE_CONNECTION_STRING"
-        secret_name = "table-storage-connection-string"
       }
 
       env {

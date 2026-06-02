@@ -26,14 +26,16 @@ export async function register() {
     console.log("OpenTelemetry started (Azure Monitor).");
   }
 
-  if (!process.env.TABLE_STORAGE_CONNECTION_STRING) return;
+  // Table Storage available via either endpoint (prod) or connection string (local)
+  if (!process.env.TABLE_STORAGE_URL && !process.env.TABLE_STORAGE_CONNECTION_STRING) return;
 
   const { ensureAllTables } = await import("@/lib/data/ensure-tables");
   await ensureAllTables();
   console.log("Tables ensured.");
 
   // In local dev (Azurite), seed an admin user for portal-dev
-  if (process.env.TABLE_STORAGE_CONNECTION_STRING.includes("http://")) {
+  const connStr = process.env.TABLE_STORAGE_CONNECTION_STRING;
+  if (connStr && connStr.includes("http://")) {
     const { getTableClient } = await import("@/lib/data/table-client");
     const { TableName } = await import("@/lib/data/table-names");
     const { appendConfig } = await import("@/lib/data/tables/user-config");

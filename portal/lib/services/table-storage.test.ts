@@ -21,10 +21,8 @@ const mockTableClient = {
   }),
 };
 
-vi.mock("@azure/data-tables", () => ({
-  TableClient: {
-    fromConnectionString: () => mockTableClient,
-  },
+vi.mock("@/lib/data/table-client", () => ({
+  getTableClient: () => mockTableClient,
 }));
 
 const { AzureTableStorageAdapter } = await import("./auth-adapter");
@@ -34,7 +32,7 @@ describe("verification tokens", () => {
 
   beforeEach(() => {
     store.clear();
-    adapter = AzureTableStorageAdapter("fake-connection-string");
+    adapter = AzureTableStorageAdapter();
   });
 
   it("creates and consumes a token", async () => {

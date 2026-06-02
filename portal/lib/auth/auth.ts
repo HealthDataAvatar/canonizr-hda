@@ -7,7 +7,7 @@ import { appendConfig } from "@/lib/data/tables/user-config";
 import { appendPermissions } from "@/lib/data/tables/user-permissions";
 
 const nextAuth = NextAuth({
-  adapter: AzureTableStorageAdapter(process.env.TABLE_STORAGE_CONNECTION_STRING!),
+  adapter: AzureTableStorageAdapter(),
   session: { strategy: "jwt" },
   pages: { signIn: "/auth" },
   providers: [

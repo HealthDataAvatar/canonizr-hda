@@ -4,24 +4,22 @@
  * Tables: Users, Accounts, Sessions, VerificationTokens
  * Partition keys use entity type for simplicity on a single-user-scale app.
  *
- * This is the one place that constructs TableClient directly from a connection
- * string — it runs at module init before getTableClient is available.
- * All other table access goes through getTableClient / table helpers.
+ * Uses getTableClient() for all table access — credential handling is
+ * centralised in table-client.ts.
  */
 
-import { TableClient } from "@azure/data-tables";
 import type { Adapter, AdapterUser, AdapterAccount, AdapterSession } from "next-auth/adapters";
 import { randomUUID, randomBytes } from "crypto";
+import { getTableClient } from "@/lib/data/table-client";
 import { TableName } from "@/lib/data/table-names";
 
-function makeClients(connectionString: string) {
-  const opts = connectionString.includes("http://") ? { allowInsecureConnection: true } : {};
+function makeClients() {
   return {
-    users: TableClient.fromConnectionString(connectionString, TableName.USERS, opts),
-    accounts: TableClient.fromConnectionString(connectionString, TableName.ACCOUNTS, opts),
-    sessions: TableClient.fromConnectionString(connectionString, TableName.SESSIONS, opts),
-    verificationTokens: TableClient.fromConnectionString(connectionString, TableName.VERIFICATION_TOKENS, opts),
-    gwEncryptionKeys: TableClient.fromConnectionString(connectionString, TableName.GW_ENCRYPTION_KEYS, opts),
+    users: getTableClient(TableName.USERS),
+    accounts: getTableClient(TableName.ACCOUNTS),
+    sessions: getTableClient(TableName.SESSIONS),
+    verificationTokens: getTableClient(TableName.VERIFICATION_TOKENS),
+    gwEncryptionKeys: getTableClient(TableName.GW_ENCRYPTION_KEYS),
   };
 }
 
@@ -35,8 +33,8 @@ function toUser(entity: Record<string, unknown>): AdapterUser {
   };
 }
 
-export function AzureTableStorageAdapter(connectionString: string): Adapter {
-  const { users, accounts, sessions, verificationTokens, gwEncryptionKeys } = makeClients(connectionString);
+export function AzureTableStorageAdapter(): Adapter {
+  const { users, accounts, sessions, verificationTokens, gwEncryptionKeys } = makeClients();
 
   return {
     async createUser(user) {

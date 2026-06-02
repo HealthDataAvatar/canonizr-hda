@@ -22,9 +22,27 @@ const sendToLocalDevEndpoint = async (endpoint: string, to: string, content: Ver
   return;
 }
 
+function getEmailClient(): EmailClient {
+  // Production — endpoint + managed identity
+  const endpoint = process.env.COMMS_ENDPOINT;
+  if (endpoint) {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { DefaultAzureCredential } = require("@azure/identity");
+    return new EmailClient(endpoint, new DefaultAzureCredential());
+  }
+
+  // Fallback — connection string (local dev without mail stub)
+  const connStr = process.env.COMMS_CONNECTION_STRING;
+  if (connStr) {
+    return new EmailClient(connStr);
+  }
+
+  throw new Error("Set COMMS_ENDPOINT or COMMS_CONNECTION_STRING");
+}
+
 const sendViaAzure = async (to: string, content: VerificationEmail) => {
   try {
-    const client = new EmailClient(process.env.COMMS_CONNECTION_STRING!);
+    const client = getEmailClient();
 
     const poller = await client.beginSend({
       senderAddress: process.env.EMAIL_FROM!,
