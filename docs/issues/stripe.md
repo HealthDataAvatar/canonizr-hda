@@ -94,18 +94,23 @@ Uses "both" approach: webhooks update eagerly (`payment_method.attached`), billi
 
 ## Manual Steps Required
 
-1. **Add Key Vault secret**: `stripe-webhook-secret` — get the signing secret from Stripe after registering the webhook
+1. **Deploy**: `make deploy` — Terraform seeds `stripe-webhook-secret` with a dummy value (`whsec-initial-rotate-me`)
 2. **Register webhook in Stripe dashboard**:
    - URL: `https://<portal-domain>/api/stripe/webhook`
    - Events: `invoice.payment_failed`, `invoice.paid`, `customer.subscription.deleted`, `payment_method.attached`
-3. **Deploy**: `make deploy` (Terraform will pick up the new env var)
-4. **Test locally**: `stripe listen --forward-to localhost:3000/api/stripe/webhook` with Stripe CLI
+3. **Update Key Vault secret**: Replace the dummy `stripe-webhook-secret` value with the real signing secret from step 2
+4. **Restart portal**: New secret value is picked up on container restart
+5. **Test locally**: `stripe listen --forward-to localhost:3000/api/stripe/webhook` with Stripe CLI
 
 ## Remaining Work Packages
 
 ### WP2: Payment Method Collection (P1, deferred)
 
 Currently users add payment methods via the existing "Manage billing" button (Stripe Billing Portal). Could add a more prominent dedicated CTA in future.
+
+### Verify: Billing page usage matches per-key usage totals
+
+After the metering pipeline is fully deployed, verify that the billing page's "Processed this period" / "Free tier remaining" figures reflect actual usage. Currently the keys page shows per-key usage from Redis/Table Storage (correct), but the billing page reads from Stripe meter event summaries — which can show zero if meter events aren't flowing. Confirm that the sum of per-key usage roughly matches the Stripe-reported total, and that free tier exhaustion triggers correctly.
 
 ### WP5: Retry Failed Stripe Setup (P1, deferred)
 
