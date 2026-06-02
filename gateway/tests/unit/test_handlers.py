@@ -44,6 +44,7 @@ class TestAcceptJob:
         assert isinstance(result, AcceptResult)
         assert result.job_id
         assert result.estimated_seconds > 0
+        assert result.retention_seconds == 86_400
 
     @pytest.mark.asyncio
     async def test_writes_blob_and_metadata(self):

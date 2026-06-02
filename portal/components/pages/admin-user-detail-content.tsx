@@ -1,20 +1,32 @@
 import Link from "next/link";
+import { createColumnHelper } from "@tanstack/react-table";
 import { AdminUserForm } from "@/components/admin-user-form";
 import { RequestTable } from "@/components/tables/request-table";
+import type { KeyRow } from "@/components/tables/key-table";
 import { MetricCard } from "@/components/metric-card";
 import { Section } from "@/components/ui/section";
 import { DefinitionList } from "@/components/ui/definition-list";
-import { formatKB } from "@/lib/pure/format";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { DataTable } from "@/components/ui/data-table";
+import { Mono } from "@/components/ui/mono";
+import { formatKB, formatCurrency } from "@/lib/pure/format";
 import { UsageBar } from "@/components/usage-bar";
 import type { AdminUserDetail } from "@/lib/data/admin-page-data";
+
+const keyCol = createColumnHelper<KeyRow>();
+
+const adminKeyColumns = [
+  keyCol.accessor("id", {
+    header: "Key ID",
+    cell: ({ getValue }) => <Mono muted>{getValue()}</Mono>,
+  }),
+  keyCol.display({
+    id: "usage",
+    header: "Usage / Quota",
+    cell: ({ row }) => (
+      <UsageBar usageKB={row.original.usageKB} quotaKB={row.original.quotaKB} />
+    ),
+  }),
+];
 
 export function AdminUserDetailContent({ user }: { user: AdminUserDetail }) {
   return (
@@ -30,9 +42,9 @@ export function AdminUserDetailContent({ user }: { user: AdminUserDetail }) {
 
       <DefinitionList
         items={[
-          { label: "User ID", value: <span className="font-mono text-sm">{user.id}</span> },
+          { label: "User ID", value: <Mono>{user.id}</Mono> },
           { label: "Joined", value: user.joined || "—" },
-          { label: "Stripe", value: <span className="font-mono text-sm">{user.stripeCustomerId || "—"}</span> },
+          { label: "Stripe", value: <Mono>{user.stripeCustomerId || "—"}</Mono> },
           { label: "Status", value: user.blocked
             ? <span className="font-medium text-destructive">Blocked</span>
             : <span>Active</span>
@@ -42,42 +54,24 @@ export function AdminUserDetailContent({ user }: { user: AdminUserDetail }) {
 
       <div className="grid grid-cols-2 gap-4">
         <MetricCard label="Usage (30 days)" value={formatKB(user.usageKB30d)} />
-        <MetricCard label="Total invoiced" value={`$${user.totalInvoiced.toFixed(2)}`} />
+        <MetricCard label="Total invoiced" value={formatCurrency(user.totalInvoiced)} />
       </div>
 
       <AdminUserForm user={user} />
 
-      {user.keys.length > 0 && (
-        <Section title={`API Keys (${user.keys.length})`}>
-          <Table>
-            <caption className="sr-only">API keys</caption>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Key ID</TableHead>
-                <TableHead>Usage / Quota</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {user.keys.map((key) => (
-                <TableRow key={key.id}>
-                  <TableCell className="font-mono text-sm text-muted-foreground">
-                    {key.id}
-                  </TableCell>
-                  <TableCell>
-                    <UsageBar usageKB={key.usageKB} quotaKB={key.quotaKB} />
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </Section>
-      )}
+      <Section title={`API Keys (${user.keys.length})`}>
+        <DataTable
+          columns={adminKeyColumns}
+          data={user.keys}
+          caption="API keys"
+          emptyMessage="No API keys."
+          getRowId={(row) => row.id}
+        />
+      </Section>
 
-      {user.recentJobs.length > 0 && (
-        <Section title={`Recent jobs (${user.recentJobs.length})`}>
-          <RequestTable requests={user.recentJobs} />
-        </Section>
-      )}
+      <Section title={`Recent jobs (${user.recentJobs.length})`}>
+        <RequestTable requests={user.recentJobs} />
+      </Section>
     </div>
   );
 }

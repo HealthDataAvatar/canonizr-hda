@@ -132,6 +132,7 @@ async def create_job(
             "estimated_seconds": result.estimated_seconds,
             "input_bytes": result.input_bytes,
             "billable_units": result.billable_units,
+            "retention_seconds": result.retention_seconds,
         },
         headers={
             "Location": f"/v1/jobs/{result.job_id}",

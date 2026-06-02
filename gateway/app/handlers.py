@@ -33,6 +33,7 @@ class AcceptResult:
     job_id: str
     estimated_seconds: int
     input_bytes: int = 0
+    retention_seconds: int = DEFAULT_RETENTION_SECONDS
 
     @property
     def billable_units(self) -> int:
