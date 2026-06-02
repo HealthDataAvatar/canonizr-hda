@@ -61,6 +61,7 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const AllStates: Story = {
+  args: { columns: [], data: [] },
   render: () => (
     <Showcase items={[
       {
@@ -111,6 +112,17 @@ export const AllStates: Story = {
                 <p>Joined: {row.joined}</p>
               </div>
             )}
+          />
+        ),
+      },
+      {
+        label: "With actions toolbar",
+        children: (
+          <DataTable
+            columns={columns}
+            data={fewRows}
+            getRowId={(r) => r.id}
+            actions={<button className="text-sm text-muted-foreground hover:text-foreground">Export CSV</button>}
           />
         ),
       },

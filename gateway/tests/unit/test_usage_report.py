@@ -1,7 +1,7 @@
 """Unit tests for usage_report — mocks Azure and Stripe APIs."""
 
 from datetime import UTC, datetime, timedelta
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -22,12 +22,11 @@ def make_record(sub_id="sub1", doc_hash="hash1", size=100_000):
 def make_config(
     log_analytics_workspace_id: str = "ws-123",
     stripe_secret_key: str = "sk_test_xxx",
-    table_storage_connection_string: str = "DefaultEndpointsProtocol=https;AccountName=test",
 ) -> ReporterConfig:
     return ReporterConfig(
         log_analytics_workspace_id=log_analytics_workspace_id,
         stripe_secret_key=stripe_secret_key,
-        table_storage_connection_string=table_storage_connection_string,
+        table_service=MagicMock(),
     )
 
 
@@ -37,11 +36,11 @@ def make_config(
 
 
 class TestReporterConfig:
-    def test_from_env_with_all_vars(self):
+    @patch("app.usage_report.get_table_service", return_value=MagicMock())
+    def test_from_env_with_all_vars(self, _mock_ts):
         env = {
             "LOG_ANALYTICS_WORKSPACE_ID": "ws-1",
             "STRIPE_SECRET_KEY": "sk_test_1",
-            "TABLE_STORAGE_CONNECTION_STRING": "conn",
         }
         with patch.dict("os.environ", env, clear=False):
             cfg = ReporterConfig.from_env()
@@ -60,7 +59,6 @@ class TestReporterConfig:
             msg = str(exc_info.value)
             assert "LOG_ANALYTICS_WORKSPACE_ID" in msg
             assert "STRIPE_SECRET_KEY" in msg
-            assert "TABLE_STORAGE_CONNECTION_STRING" in msg
 
 
 # ---------------------------------------------------------------------------

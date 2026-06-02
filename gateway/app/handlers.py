@@ -223,6 +223,9 @@ async def poll_result(job_id: str, svc: Services) -> PollResult:
         md_filename = meta.original_filename + ".md"
         headers["Content-Disposition"] = f'attachment; filename="{md_filename}"'
 
+    if meta and meta.retention_expires:
+        payload["expires_at"] = meta.retention_expires
+
     return PollResult(status="ok", status_code=200, body=payload, headers=headers)
 
 

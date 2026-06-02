@@ -206,6 +206,7 @@ class TestPollResult:
         assert poll.status_code == 200
         assert poll.body is not None
         assert poll.body["markdown"] == "# Hello"
+        assert poll.body["expires_at"] == meta.retention_expires
 
     @pytest.mark.asyncio
     async def test_deleted_job_returns_410(self):

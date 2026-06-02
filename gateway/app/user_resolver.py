@@ -3,9 +3,6 @@
 Lookup chain:
   sub_id → user_id (Redis cache, then Table Storage)
   user_id → encryption key (Redis cache, then Table Storage)
-
-Production: uses DefaultAzureCredential (managed identity) with endpoint URL.
-Tests (Azurite): uses connection string.
 """
 
 import logging
@@ -26,10 +23,9 @@ BLOCKED_CACHE_TTL = 300  # 5 minutes — blocks take effect quickly
 class TableUserResolver:
     """UserResolver backed by Azure Table Storage with Redis caching."""
 
-    def __init__(self, r: aioredis.Redis, *, endpoint: str = "", connection_string: str = ""):
+    def __init__(self, r: aioredis.Redis, table_service: TableServiceClient):
         self._r = r
-        self._endpoint = endpoint
-        self._conn_str = connection_string
+        self._ts = table_service
 
     async def resolve(self, sub_id: str) -> UserContext | None | str:
         """Resolve a subscription to a user context.
@@ -100,10 +96,7 @@ class TableUserResolver:
     def _get_latest_permission(self, user_id: str, field: str):
         """Read a field from the latest UserPermissions row (append-only, newest first)."""
         try:
-            service = self._get_table_service()
-            if not service:
-                return None
-            table = service.get_table_client(Table.USER_PERMISSIONS)
+            table = self._ts.get_table_client(Table.USER_PERMISSIONS)
             for entity in table.query_entities(f"PartitionKey eq '{user_id}'"):
                 return entity.get(field)
             return None
@@ -111,32 +104,9 @@ class TableUserResolver:
             logger.warning("UserPermissions lookup failed for %s: %s", user_id, e)
             return None
 
-    def _get_table_service(self) -> TableServiceClient | None:
-        if self._endpoint:
-            from .azure_auth import get_credential
-
-            credential = get_credential()
-            if credential is None:
-                return None
-            return TableServiceClient(self._endpoint, credential=credential)
-        elif self._conn_str:
-            return TableServiceClient.from_connection_string(self._conn_str)
-        return None
-
     def _table_lookup(self, table_name: str, partition: str, row: str, field: str) -> str | None:
-        if not self._endpoint and not self._conn_str:
-            return None
         try:
-            if self._endpoint:
-                from .azure_auth import get_credential
-
-                credential = get_credential()
-                if credential is None:
-                    return None
-                service = TableServiceClient(self._endpoint, credential=credential)
-            else:
-                service = TableServiceClient.from_connection_string(self._conn_str)
-            table = service.get_table_client(table_name)
+            table = self._ts.get_table_client(table_name)
             entity = table.get_entity(partition, row)
             return entity.get(field)
         except Exception as e:

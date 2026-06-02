@@ -26,8 +26,11 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 import stripe
+from azure.data.tables import TableServiceClient
 from azure.identity import DefaultAzureCredential
 from azure.monitor.query import LogsQueryClient, LogsQueryStatus  # pyright: ignore[reportPrivateImportUsage]
+
+from .azure_clients import get_table_service
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +48,7 @@ class ReporterConfig:
 
     log_analytics_workspace_id: str
     stripe_secret_key: str
-    table_storage_connection_string: str
+    table_service: TableServiceClient
     ingestion_delay_minutes: int = 10
     max_window_hours: int = 24
 
@@ -53,22 +56,19 @@ class ReporterConfig:
     def from_env(cls) -> "ReporterConfig":
         workspace = os.environ.get("LOG_ANALYTICS_WORKSPACE_ID", "")
         stripe_key = os.environ.get("STRIPE_SECRET_KEY", "")
-        table_conn = os.environ.get("TABLE_STORAGE_CONNECTION_STRING", "")
 
         missing = []
         if not workspace:
             missing.append("LOG_ANALYTICS_WORKSPACE_ID")
         if not stripe_key:
             missing.append("STRIPE_SECRET_KEY")
-        if not table_conn:
-            missing.append("TABLE_STORAGE_CONNECTION_STRING")
         if missing:
             raise ConfigError(f"Missing required env vars: {', '.join(missing)}")
 
         return cls(
             log_analytics_workspace_id=workspace,
             stripe_secret_key=stripe_key,
-            table_storage_connection_string=table_conn,
+            table_service=get_table_service(),
         )
 
 
@@ -179,12 +179,9 @@ def query_usage(workspace_id: str, start: datetime, end: datetime) -> list[Usage
 # ---------------------------------------------------------------------------
 
 
-def load_subscription_map(connection_string: str) -> dict[str, str]:
+def load_subscription_map(ts: TableServiceClient) -> dict[str, str]:
     """Load APIM subscription ID → Stripe customer ID mapping from Table Storage."""
-    from azure.data.tables import TableServiceClient
-
-    service = TableServiceClient.from_connection_string(connection_string)
-    table = service.get_table_client("users")
+    table = ts.get_table_client("users")
 
     mapping: dict[str, str] = {}
     try:
@@ -205,18 +202,15 @@ def load_subscription_map(connection_string: str) -> dict[str, str]:
 # ---------------------------------------------------------------------------
 
 
-def _get_table_client(connection_string: str, table_name: str):
+def _get_table_client(ts: TableServiceClient, table_name: str):
     """Get a Table Storage client, creating the table if needed."""
-    from azure.data.tables import TableServiceClient
-
-    service = TableServiceClient.from_connection_string(connection_string)
-    service.create_table_if_not_exists(table_name)
-    return service.get_table_client(table_name)
+    ts.create_table_if_not_exists(table_name)
+    return ts.get_table_client(table_name)
 
 
-def get_watermark(connection_string: str) -> datetime | None:
+def get_watermark(ts: TableServiceClient) -> datetime | None:
     """Read the last successfully reported timestamp."""
-    table = _get_table_client(connection_string, "usagereporter")
+    table = _get_table_client(ts, "usagereporter")
     try:
         entity = table.get_entity("watermark", "last_reported")
         iso = entity.get("last_reported_utc", "")
@@ -227,9 +221,9 @@ def get_watermark(connection_string: str) -> datetime | None:
     return None
 
 
-def set_watermark(connection_string: str, timestamp: datetime) -> None:
+def set_watermark(ts: TableServiceClient, timestamp: datetime) -> None:
     """Write the last successfully reported timestamp."""
-    table = _get_table_client(connection_string, "usagereporter")
+    table = _get_table_client(ts, "usagereporter")
     table.upsert_entity(
         {
             "PartitionKey": "watermark",
@@ -244,9 +238,9 @@ def set_watermark(connection_string: str, timestamp: datetime) -> None:
 # ---------------------------------------------------------------------------
 
 
-def write_audit_log(connection_string: str, result: RunResult) -> None:
+def write_audit_log(ts: TableServiceClient, result: RunResult) -> None:
     """Write a row to the audit table recording this run's outcome."""
-    table = _get_table_client(connection_string, "usagereporteraudit")
+    table = _get_table_client(ts, "usagereporteraudit")
 
     # RowKey is inverted timestamp so newest rows sort first in Table Storage
     inverted = str(99999999999 - int(datetime.now(UTC).timestamp()))
@@ -349,7 +343,7 @@ def run(cfg: ReporterConfig) -> RunResult:
     t0 = time.monotonic()
     now = datetime.now(UTC)
 
-    watermark = get_watermark(cfg.table_storage_connection_string)
+    watermark = get_watermark(cfg.table_service)
     start, end = compute_window(watermark, now, cfg.ingestion_delay_minutes, cfg.max_window_hours)
 
     if start >= end:
@@ -370,12 +364,12 @@ def run(cfg: ReporterConfig) -> RunResult:
     )
 
     if records:
-        sub_map = load_subscription_map(cfg.table_storage_connection_string)
+        sub_map = load_subscription_map(cfg.table_service)
         logger.info("Loaded %d subscription mappings", len(sub_map))
         result.pushed, result.skipped = push_meter_events(records, sub_map)
         logger.info("Pushed %d, skipped %d", result.pushed, result.skipped)
 
-    set_watermark(cfg.table_storage_connection_string, end)
+    set_watermark(cfg.table_service, end)
     result.duration_seconds = time.monotonic() - t0
     logger.info("Watermark advanced to %s", end.isoformat())
     return result
@@ -399,14 +393,14 @@ def main():
 
     try:
         result = run(cfg)
-        write_audit_log(cfg.table_storage_connection_string, result)
+        write_audit_log(cfg.table_service, result)
         logger.info("Finished: %s (%d pushed, %d skipped)", result.status, result.pushed, result.skipped)
     except Exception as e:
         logger.exception("Usage reporter failed")
         try:
             now = datetime.now(UTC)
             write_audit_log(
-                cfg.table_storage_connection_string,
+                cfg.table_service,
                 RunResult(window_start=now, window_end=now, status="error", error=str(e)),
             )
         except Exception:

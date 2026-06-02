@@ -1,5 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
-import { InvoiceTable } from "./invoice-table";
+import { Showcase } from "@/.storybook/common";
+import { toCSV } from "@/lib/pure/table-export";
+import { InvoiceTable, invoiceExportRows } from "./invoice-table";
 
 const meta = {
   title: "Components/InvoiceTable",
@@ -39,4 +41,24 @@ export const Paginated30Months: Story = {
 
 export const Empty: Story = {
   args: { invoices: [] },
+};
+
+export const CSVPreview: Story = {
+  args: { invoices: [] },
+  render: () => {
+    const invoices = [
+      { id: "inv-1", date: "2026-05-01T00:00:00Z", processedKB: 220000, amount: 5.10, status: "open", url: "#" },
+      { id: "inv-2", date: "2026-04-01T00:00:00Z", processedKB: 72000, amount: 2.34, status: "paid", url: "#" },
+      { id: "inv-3", date: "2026-03-01T00:00:00Z", processedKB: 48200, amount: 0, status: "paid", url: null },
+    ];
+    const { headers, rows } = invoiceExportRows(invoices);
+    return (
+      <Showcase items={[
+        {
+          label: "CSV export preview",
+          children: <pre className="text-xs bg-muted p-3 rounded-md overflow-x-auto">{toCSV(headers, rows)}</pre>,
+        },
+      ]} />
+    );
+  },
 };

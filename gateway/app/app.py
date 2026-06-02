@@ -14,6 +14,7 @@ from fastapi import FastAPI, File, Header, HTTPException, Query, Request, Upload
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 
+from .azure_clients import get_blob_service, get_table_service
 from .blob_azure import AzureBlobStore
 from .context import Services
 from .handlers import Rejected, accept_job, delete_result, download_artifact, poll_result
@@ -34,18 +35,16 @@ async def lifespan(app: FastAPI):
     if r is None:
         raise RuntimeError("REDIS_URL is required")
 
-    blob_url = os.environ.get("BLOB_STORAGE_URL", "")
-    blob_conn = os.environ.get("BLOB_STORAGE_CONNECTION_STRING", "")
-    table_url = os.environ.get("TABLE_STORAGE_URL", "")
-    table_conn = os.environ.get("TABLE_STORAGE_CONNECTION_STRING", "")
+    table_svc = get_table_service()
+    blob_svc = get_blob_service()
 
     queue = RedisQueue(r)
     _svc = Services(
-        blobs=AzureBlobStore(account_url=blob_url, connection_string=blob_conn),
-        jobs=TableJobStore(endpoint=table_url, connection_string=table_conn),
-        users=TableUserResolver(r, endpoint=table_url, connection_string=table_conn),
+        blobs=AzureBlobStore(blob_svc),
+        jobs=TableJobStore(table_svc),
+        users=TableUserResolver(r, table_svc),
         queue=queue,
-        quota=QuotaService(r, endpoint=table_url, connection_string=table_conn),
+        quota=QuotaService(r, table_service=table_svc),
         telemetry=PostHogEmitter(),
     )
     await queue.ensure_group()

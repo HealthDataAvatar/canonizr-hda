@@ -8,11 +8,11 @@ Scans GwJobs for jobs that are:
 
 import asyncio
 import logging
-import os
 import sys
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
+from .azure_clients import get_blob_service, get_table_service
 from .blob_azure import AzureBlobStore
 from .jobs_table import TableJobStore
 from .protocols import BlobStore, JobMeta, JobStatus, JobStore
@@ -72,13 +72,8 @@ def main():
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     logging.getLogger("azure").setLevel(logging.WARNING)
 
-    blob_url = os.environ.get("BLOB_STORAGE_URL", "")
-    blob_conn = os.environ.get("BLOB_STORAGE_CONNECTION_STRING", "")
-    table_url = os.environ.get("TABLE_STORAGE_URL", "")
-    table_conn = os.environ.get("TABLE_STORAGE_CONNECTION_STRING", "")
-
-    blobs = AzureBlobStore(account_url=blob_url, connection_string=blob_conn)
-    jobs = TableJobStore(endpoint=table_url, connection_string=table_conn)
+    blobs = AzureBlobStore(get_blob_service())
+    jobs = TableJobStore(get_table_service())
     emitter = PostHogEmitter()
 
     status = "ok"

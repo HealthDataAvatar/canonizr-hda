@@ -60,15 +60,13 @@ class QuotaService:
         max_rejected: int = 50,
         billing_period_ttl: int = 2_678_400,
         *,
-        endpoint: str = "",
-        connection_string: str = "",
+        table_service: TableServiceClient | None = None,
     ):
         self._r = r
         self._rejected_ttl = rejected_ttl
         self._max_rejected = max_rejected
         self._billing_period_ttl = billing_period_ttl
-        self._endpoint = endpoint
-        self._conn_str = connection_string
+        self._ts = table_service
 
     async def check(self, sub_id: str, content_length: int) -> str | None:
         """Check if a subscription has remaining quota.
@@ -134,19 +132,10 @@ class QuotaService:
         """Read quota_bytes from GwSubscriptions in Table Storage."""
         from .tables import Table
 
-        if not self._endpoint and not self._conn_str:
+        if self._ts is None:
             return None
         try:
-            if self._endpoint:
-                from .azure_auth import get_credential
-
-                credential = get_credential()
-                if credential is None:
-                    return None
-                service = TableServiceClient(self._endpoint, credential=credential)
-            else:
-                service = TableServiceClient.from_connection_string(self._conn_str)
-            table = service.get_table_client(Table.GW_SUBSCRIPTIONS)
+            table = self._ts.get_table_client(Table.GW_SUBSCRIPTIONS)
             entity = table.get_entity("subscription", sub_id)
             val = entity.get("quota_bytes")
             if val is None or int(val) < 0:

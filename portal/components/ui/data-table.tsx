@@ -88,6 +88,10 @@ export interface DataTableProps<T> {
   /** Empty state message when data is empty. */
   emptyMessage?: string;
 
+  // -- Actions --
+  /** Toolbar rendered above the table (hidden when data is empty). */
+  actions?: ReactNode;
+
   // -- Sorting --
   /** Enable sorting. Columns opt in via enableSorting on each column def. */
   sortable?: boolean;
@@ -120,6 +124,7 @@ export function DataTable<T>({
   data,
   caption,
   emptyMessage = "No data.",
+  actions,
   sortable = false,
   defaultSort = [],
   pageSize = 0,
@@ -206,22 +211,31 @@ export function DataTable<T>({
     </Table>
   );
 
+  const actionsBar = actions ? (
+    <div className="flex justify-end">{actions}</div>
+  ) : null;
+
   if (!mobile) {
     return (
       <div className="space-y-4">
+        {actionsBar}
         {desktopTable}
         {pageSize > 0 && <Pagination table={table} />}
       </div>
     );
   }
 
-  const bpClass = `@[${mobile.breakpoint ?? "640px"}]`;
+  const bp = mobile.breakpoint ?? "640px";
+  // Static class names so Tailwind JIT can detect them at build time.
+  const show = bp === "480px" ? "hidden @[480px]:block" : "hidden @[640px]:block";
+  const hide = bp === "480px" ? "@[480px]:hidden" : "@[640px]:hidden";
   return (
     <div className="@container space-y-4">
-      <div className={`hidden ${bpClass}:block`}>
+      {actionsBar}
+      <div className={show}>
         {desktopTable}
       </div>
-      <div className={`${bpClass}:hidden`}>
+      <div className={hide}>
         <MobileTable
           columns={mobile.columns}
           data={pageRows}

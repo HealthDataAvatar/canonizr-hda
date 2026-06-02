@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { createColumnHelper } from "@tanstack/react-table";
 import { Download, TimerOff, Trash2, Loader, Check, TriangleAlert } from "lucide-react";
 import { timeAgo } from "@/lib/pure/time";
@@ -8,6 +9,7 @@ import { ActionGroup } from "@/components/ui/action-group";
 import { IconButton } from "@/components/ui/icon-button";
 import { IconHint } from "@/components/ui/icon-hint";
 import { IconLink } from "@/components/ui/icon-link";
+import { Mono } from "@/components/ui/mono";
 import { CopyButton } from "@/components/ui/copy-button";
 import { DataTable } from "@/components/ui/data-table";
 import { TableExport } from "@/components/ui/table-export";
@@ -97,14 +99,17 @@ function DeleteButton({ row, onDelete }: { row: RequestRow; onDelete: (id: strin
 // Expanded detail panel
 // ---------------------------------------------------------------------------
 
+function hasJobDetail(row: RequestRow): boolean {
+  return !!(row.detail || row.steps || row.originalFilename || row.mimeType);
+}
+
 function JobDetailPanel({ row }: { row: RequestRow }) {
   let steps: { service: string; duration_ms?: number; error?: string }[] = [];
   try {
     if (row.steps) steps = JSON.parse(row.steps);
   } catch {}
 
-  const hasDetail = row.detail || steps.length > 0 || row.originalFilename || row.mimeType;
-  if (!hasDetail) return null;
+  if (!hasJobDetail(row)) return null;
 
   return (
     <div className="space-y-2 text-sm">
@@ -168,7 +173,7 @@ function buildColumns(onDelete?: (id: string) => void) {
         const ts = getValue();
         return (
           <div className="flex flex-col">
-            <span className="font-mono text-sm">{new Date(ts).toLocaleString()}</span>
+            <Mono>{new Date(ts).toLocaleString()}</Mono>
             <span className="text-sm text-muted-foreground">{timeAgo(ts)}</span>
           </div>
         );
@@ -177,9 +182,7 @@ function buildColumns(onDelete?: (id: string) => void) {
     col.accessor("keyName", {
       header: "Key",
       enableSorting: true,
-      cell: ({ getValue }) => (
-        <span className="font-mono text-sm text-muted-foreground">{getValue()}</span>
-      ),
+      cell: ({ getValue }) => <Mono muted>{getValue()}</Mono>,
     }),
     col.accessor("id", {
       header: "Job",
@@ -191,10 +194,10 @@ function buildColumns(onDelete?: (id: string) => void) {
           ? `Job: ${r.id}\nHash: ${r.fileHash}`
           : `Job: ${r.id}`;
         return (
-          <span className="inline-flex items-center gap-1 font-mono text-sm text-muted-foreground" title={title}>
+          <Mono muted className="inline-flex items-center gap-1" title={title}>
             {r.id.slice(0, 8)}
             <CopyButton value={r.id} />
-          </span>
+          </Mono>
         );
       },
     }),
@@ -202,9 +205,7 @@ function buildColumns(onDelete?: (id: string) => void) {
       header: "Size",
       size: 90,
       enableSorting: true,
-      cell: ({ getValue }) => (
-        <span className="font-mono text-sm">{formatKB(getValue())}</span>
-      ),
+      cell: ({ getValue }) => <Mono>{formatKB(getValue())}</Mono>,
     }),
     col.accessor("status", {
       header: "Status",
@@ -245,16 +246,12 @@ const mobileColumns = [
   col.accessor("timestamp", {
     header: "Time",
     enableSorting: true,
-    cell: ({ getValue }) => (
-      <span className="font-mono text-sm">{timeAgo(getValue())}</span>
-    ),
+    cell: ({ getValue }) => <Mono>{timeAgo(getValue())}</Mono>,
   }),
   col.accessor("billableKB", {
     header: "Size",
     enableSorting: true,
-    cell: ({ getValue }) => (
-      <span className="font-mono text-sm">{formatKB(getValue())}</span>
-    ),
+    cell: ({ getValue }) => <Mono>{formatKB(getValue())}</Mono>,
   }),
   col.accessor("status", {
     header: "",
@@ -300,7 +297,7 @@ function MobileDetailPanel({ row, onDelete }: { row: RequestRow; onDelete?: (id:
 // Public component
 // ---------------------------------------------------------------------------
 
-function requestExportRows(requests: RequestRow[]): { headers: string[]; rows: string[][] } {
+export function requestExportRows(requests: RequestRow[]): { headers: string[]; rows: string[][] } {
   const headers = ["Time", "Key", "Job ID", "Size", "Status", "File", "Type"];
   const rows = requests.map((r) => [
     new Date(r.timestamp).toLocaleString(),
@@ -321,30 +318,25 @@ export function RequestTable({
   requests: RequestRow[];
   onDelete?: (id: string) => void;
 }) {
+  const columns = useMemo(() => buildColumns(onDelete), [onDelete]);
   const { headers, rows } = requestExportRows(requests);
   return (
-    <div className="space-y-2">
-      {requests.length > 0 && (
-        <div className="flex justify-end">
-          <TableExport headers={headers} rows={rows} filenameBase="requests" />
-        </div>
-      )}
-      <DataTable
-        columns={buildColumns(onDelete)}
-        data={requests}
-        caption="Job history"
-        emptyMessage="No requests yet."
-        sortable
-        defaultSort={[{ id: "timestamp", desc: true }]}
-        pageSize={20}
-        getRowId={(row) => row.id}
-        expandedContent={(row) => <JobDetailPanel row={row} />}
-        mobile={{
-          columns: mobileColumns,
-          expandedContent: (row) => <MobileDetailPanel row={row} onDelete={onDelete} />,
-        }}
-        tableClassName="table-fixed"
-      />
-    </div>
+    <DataTable
+      columns={columns}
+      data={requests}
+      caption="Job history"
+      emptyMessage="No requests yet."
+      actions={<TableExport headers={headers} rows={rows} filenameBase="requests" />}
+      sortable
+      defaultSort={[{ id: "timestamp", desc: true }]}
+      pageSize={20}
+      getRowId={(row) => row.id}
+      expandedContent={(row) => hasJobDetail(row) ? <JobDetailPanel row={row} /> : null}
+      mobile={{
+        columns: mobileColumns,
+        expandedContent: (row) => <MobileDetailPanel row={row} onDelete={onDelete} />,
+      }}
+      tableClassName="table-fixed"
+    />
   );
 }

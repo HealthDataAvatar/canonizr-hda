@@ -2,10 +2,12 @@
 
 import { createColumnHelper } from "@tanstack/react-table";
 import { ExternalLink, Check, Circle } from "lucide-react";
-import { formatKB } from "@/lib/pure/format";
+import { formatKB, formatCurrency } from "@/lib/pure/format";
 import { IconHint } from "@/components/ui/icon-hint";
 import { IconLink } from "@/components/ui/icon-link";
+import { Mono } from "@/components/ui/mono";
 import { DataTable } from "@/components/ui/data-table";
+import { TableExport } from "@/components/ui/table-export";
 
 export interface InvoiceRow {
   id: string;
@@ -50,11 +52,11 @@ const columns = [
   }),
   col.accessor("processedKB", {
     header: "Processed",
-    cell: ({ getValue }) => <span className="font-mono text-sm">{formatKB(getValue())}</span>,
+    cell: ({ getValue }) => <Mono>{formatKB(getValue())}</Mono>,
   }),
   col.accessor("amount", {
     header: "Amount",
-    cell: ({ getValue }) => <span className="font-mono text-sm">${getValue().toFixed(2)}</span>,
+    cell: ({ getValue }) => <Mono>{formatCurrency(getValue())}</Mono>,
   }),
   col.accessor("status", {
     header: "Status",
@@ -74,7 +76,7 @@ const mobileInvoiceColumns = [
   }),
   col.accessor("amount", {
     header: "Amount",
-    cell: ({ getValue }) => <span className="font-mono text-sm">${getValue().toFixed(2)}</span>,
+    cell: ({ getValue }) => <Mono>{formatCurrency(getValue())}</Mono>,
   }),
   col.accessor("status", {
     header: "",
@@ -86,19 +88,32 @@ const mobileInvoiceColumns = [
 function MobileInvoiceDetail({ row }: { row: InvoiceRow }) {
   return (
     <div className="flex items-center gap-4 text-sm">
-      <span className="text-muted-foreground">Processed: <span className="font-mono">{formatKB(row.processedKB)}</span></span>
+      <span className="text-muted-foreground">Processed: <Mono>{formatKB(row.processedKB)}</Mono></span>
       <InvoiceLink url={row.url} />
     </div>
   );
 }
 
+export function invoiceExportRows(invoices: InvoiceRow[]): { headers: string[]; rows: string[][] } {
+  const headers = ["Period", "Processed", "Amount", "Status"];
+  const rows = invoices.map((inv) => [
+    formatMonth(inv.date),
+    formatKB(inv.processedKB),
+    formatCurrency(inv.amount),
+    inv.status,
+  ]);
+  return { headers, rows };
+}
+
 export function InvoiceTable({ invoices }: { invoices: InvoiceRow[] }) {
+  const { headers, rows } = invoiceExportRows(invoices);
   return (
     <DataTable
       columns={columns}
       data={invoices}
       caption="Invoice history"
       emptyMessage="No invoices yet."
+      actions={<TableExport headers={headers} rows={rows} filenameBase="invoices" />}
       pageSize={12}
       getRowId={(row) => row.id}
       mobile={{

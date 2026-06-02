@@ -6,8 +6,8 @@ No business logic here.
 
 import asyncio
 import logging
-import os
 
+from .azure_clients import get_blob_service, get_table_service
 from .blob_azure import AzureBlobStore
 from .context import Services
 from .jobs_table import TableJobStore
@@ -29,18 +29,16 @@ async def run():
     if r is None:
         raise RuntimeError("REDIS_URL is required for the worker")
 
-    blob_url = os.environ.get("BLOB_STORAGE_URL", "")
-    blob_conn = os.environ.get("BLOB_STORAGE_CONNECTION_STRING", "")
-    table_url = os.environ.get("TABLE_STORAGE_URL", "")
-    table_conn = os.environ.get("TABLE_STORAGE_CONNECTION_STRING", "")
+    table_svc = get_table_service()
+    blob_svc = get_blob_service()
 
     queue = RedisQueue(r)
     svc = Services(
-        blobs=AzureBlobStore(account_url=blob_url, connection_string=blob_conn),
-        jobs=TableJobStore(endpoint=table_url, connection_string=table_conn),
-        users=TableUserResolver(r, endpoint=table_url, connection_string=table_conn),
+        blobs=AzureBlobStore(blob_svc),
+        jobs=TableJobStore(table_svc),
+        users=TableUserResolver(r, table_svc),
         queue=queue,
-        quota=QuotaService(r, endpoint=table_url, connection_string=table_conn),
+        quota=QuotaService(r, table_service=table_svc),
         telemetry=PostHogEmitter(),
     )
     await queue.ensure_group()

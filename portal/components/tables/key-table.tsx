@@ -6,7 +6,8 @@ import { QuotaEditor } from "@/components/quota-editor";
 import { DataTable } from "@/components/ui/data-table";
 import { TableExport } from "@/components/ui/table-export";
 import { formatKB } from "@/lib/pure/format";
-import { APIKeySpan } from "../ui/api-key-span";
+import { Mono } from "@/components/ui/mono";
+import { APIKeySpan } from "@/components/ui/api-key-span";
 
 export interface KeyRow {
   id: string;
@@ -28,10 +29,10 @@ const columns = [
     header: "Key",
     size: 200,
     cell: ({ row }) => (
-      <span className="font-mono text-sm text-muted-foreground flex gap-2">
+      <Mono muted className="flex gap-2">
         •••• {row.original.value.slice(-4)}
         <KeyActionsBar keyId={row.original.id} keyValue={row.original.value} />
-      </span>
+      </Mono>
     ),
   }),
   col.display({
@@ -59,9 +60,7 @@ function MobileKeyDetail({ row }: { row: KeyRow }) {
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2">
-        <span className="font-mono text-sm text-muted-foreground">
-          •••• {row.value.slice(-4)}
-        </span>
+        <Mono muted>•••• {row.value.slice(-4)}</Mono>
         <KeyActionsBar keyId={row.id} keyValue={row.value} />
       </div>
       <QuotaEditor keyId={row.id} usageKB={row.usageKB} quotaKB={row.quotaKB} />
@@ -69,7 +68,7 @@ function MobileKeyDetail({ row }: { row: KeyRow }) {
   );
 }
 
-function keyExportRows(keys: KeyRow[]): { headers: string[]; rows: string[][] } {
+export function keyExportRows(keys: KeyRow[]): { headers: string[]; rows: string[][] } {
   const headers = ["Name", "Usage", "Quota"];
   const rows = keys.map((k) => [
     k.displayName,
@@ -82,24 +81,18 @@ function keyExportRows(keys: KeyRow[]): { headers: string[]; rows: string[][] } 
 export function KeyTable({ keys }: { keys: KeyRow[] }) {
   const { headers, rows } = keyExportRows(keys);
   return (
-    <div className="space-y-2">
-      {keys.length > 0 && (
-        <div className="flex justify-end">
-          <TableExport headers={headers} rows={rows} filenameBase="api-keys" />
-        </div>
-      )}
-      <DataTable
-        columns={columns}
-        data={keys}
-        caption="API keys"
-        emptyMessage="No API keys yet. Name your first key above to get started."
-        getRowId={(row) => row.id}
-        mobile={{
-          columns: mobileKeyColumns,
-          expandedContent: (row) => <MobileKeyDetail row={row} />,
-        }}
-        tableClassName="table-fixed"
-      />
-    </div>
+    <DataTable
+      columns={columns}
+      data={keys}
+      caption="API keys"
+      emptyMessage="No API keys yet. Name your first key above to get started."
+      actions={<TableExport headers={headers} rows={rows} filenameBase="api-keys" />}
+      getRowId={(row) => row.id}
+      mobile={{
+        columns: mobileKeyColumns,
+        expandedContent: (row) => <MobileKeyDetail row={row} />,
+      }}
+      tableClassName="table-fixed"
+    />
   );
 }

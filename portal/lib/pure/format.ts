@@ -5,6 +5,11 @@ export function formatKB(kb: number): string {
   return `${kb} KB`;
 }
 
+/** Format a number as USD currency (e.g. 5.1 -> "$5.10"). */
+export function formatCurrency(amount: number): string {
+  return `$${amount.toFixed(2)}`;
+}
+
 /** Convert raw bytes to billable KB (rounded up to nearest 100 KB, minimum 100 KB). */
 export function toBillableKB(bytes: number): number {
   return Math.max(100, Math.ceil(bytes / (100 * 1000)) * 100);
