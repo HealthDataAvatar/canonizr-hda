@@ -10,40 +10,11 @@ Redis keys:
 """
 
 import logging
-import os
 from typing import Any
 
-import redis.asyncio as redis
 from azure.data.tables import TableServiceClient
 
 logger = logging.getLogger(__name__)
-
-REDIS_URL = os.environ.get("REDIS_URL", "")
-
-_pool: redis.Redis | None = None
-
-
-async def get_redis() -> redis.Redis | None:
-    """Return a shared Redis connection, or None if not configured.
-
-    Azure Managed Redis uses clustering even on the smallest tier (B0).
-    Detect by port 10000 (Azure convention) and use RedisCluster.
-    Local dev uses standard Redis on port 6379.
-    """
-    global _pool
-    if not REDIS_URL:
-        return None
-    if _pool is None:
-        _pool = redis.from_url(REDIS_URL, decode_responses=True)
-    return _pool
-
-
-async def close():
-    """Shut down the Redis connection pool."""
-    global _pool
-    if _pool is not None:
-        await _pool.aclose()
-        _pool = None
 
 
 CACHE_TTL = 3600  # 1 hour

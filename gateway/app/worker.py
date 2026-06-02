@@ -15,7 +15,8 @@ from .jobs_table import TableJobStore
 from .process import process_job
 from .protocols import JobStatus
 from .queue import RedisQueue
-from .quota import QuotaService, get_redis
+from .quota import QuotaService
+from .redis_client import get_redis
 from .sweep import run_sweep_loop
 from .telemetry import JobReclaimed, JobSkippedIdempotent, PostHogEmitter, WorkerError
 from .user_resolver import TableUserResolver

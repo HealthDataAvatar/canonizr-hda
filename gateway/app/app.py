@@ -20,7 +20,8 @@ from .context import Services
 from .handlers import Rejected, accept_job, delete_result, download_artifact, poll_result
 from .jobs_table import TableJobStore
 from .queue import RedisQueue
-from .quota import QuotaService, get_redis
+from .quota import QuotaService
+from .redis_client import get_redis
 from .telemetry import PostHogEmitter
 from .user_resolver import TableUserResolver
 
@@ -49,9 +50,9 @@ async def lifespan(app: FastAPI):
     )
     await queue.ensure_group()
     yield
-    from . import quota
+    from . import redis_client
 
-    await quota.close()
+    await redis_client.close_redis()
 
 
 app = FastAPI(lifespan=lifespan)

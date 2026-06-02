@@ -31,7 +31,7 @@ BLOCKED_CACHE_TTL = 300  # 5 minutes — blocks take effect quickly
 class TableUserResolver:
     """UserResolver backed by Azure Table Storage with Redis caching."""
 
-    def __init__(self, r: aioredis.Redis, table_service: TableServiceClient):
+    def __init__(self, r: aioredis.Redis | aioredis.RedisCluster, table_service: TableServiceClient):
         self._r = r
         self._ts = table_service
 

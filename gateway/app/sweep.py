@@ -23,7 +23,7 @@ SWEEP_LOCK_TTL = SWEEP_INTERVAL + 60  # lock expires after interval + margin
 
 async def run_sweep_loop(svc) -> None:
     """Background loop: periodically sweep for orphaned jobs."""
-    from .quota import get_redis
+    from .redis_client import get_redis
 
     r = await get_redis()
     if r is None:
