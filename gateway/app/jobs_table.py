@@ -80,6 +80,10 @@ class TableJobStore:
         )
         return [_from_entity(e) for e in entities]
 
+    def list_processing(self, older_than: str) -> list[JobMeta]:
+        entities = self._table.query_entities(f"status eq '{JobStatus.PROCESSING}' and created_at lt '{older_than}'")
+        return [_from_entity(e) for e in entities]
+
     def list_deleted(self) -> list[JobMeta]:
         entities = self._table.query_entities(f"status eq '{JobStatus.DELETED}'")
         return [_from_entity(e) for e in entities]

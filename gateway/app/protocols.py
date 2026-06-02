@@ -6,6 +6,7 @@ The type checker verifies conformance without inheritance.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import uuid
 from dataclasses import asdict, dataclass
@@ -67,6 +68,7 @@ class JobStore(Protocol):
     def mark_deleted(self, user_id: str, job_id: str) -> bool: ...
     def list_expired(self, before: str) -> list[JobMeta]: ...
     def list_deleted(self) -> list[JobMeta]: ...
+    def list_processing(self, older_than: str) -> list[JobMeta]: ...
     def strip_pii(self, user_id: str) -> int: ...
 
 
@@ -106,6 +108,7 @@ class Job:
     deadline_seconds: float
     verbose: bool = False
     accept_header: str = "application/json"
+    reclaimed: bool = False  # True if recovered via XAUTOCLAIM
 
     @staticmethod
     def create(**kwargs) -> Job:
@@ -165,6 +168,7 @@ class Queue(Protocol):
 
     # Worker operations
     async def dequeue(self, timeout: int = 5000) -> Job | None: ...
+    def heartbeat(self, job: Job) -> asyncio.Task: ...
     async def acknowledge(self, job: Job) -> None: ...
     async def store_result(self, job_id: str, result: JobResult) -> None: ...
 

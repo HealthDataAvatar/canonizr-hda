@@ -6,6 +6,7 @@ Type checker verifies they satisfy the protocols.
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 from app.protocols import Job, JobMeta, JobResult, JobStatus, UserContext
@@ -21,10 +22,13 @@ class FakeRedis:
     async def get(self, key: str) -> str | None:
         return self._data.get(key)
 
-    async def set(self, key: str, value: str, ex: int | None = None) -> None:
+    async def set(self, key: str, value: str, ex: int | None = None, nx: bool = False) -> bool | None:
+        if nx and key in self._data:
+            return False
         self._data[key] = str(value)
         if ex:
             self._ttls[key] = ex
+        return True
 
     async def incr(self, key: str) -> int:
         val = int(self._data.get(key, "0")) + 1
@@ -124,6 +128,9 @@ class FakeJobStore:
             if m.status != JobStatus.DELETED and m.retention_expires and m.retention_expires < before
         ]
 
+    def list_processing(self, older_than: str) -> list[JobMeta]:
+        return [m for m in self._jobs.values() if m.status == JobStatus.PROCESSING and m.created_at < older_than]
+
     def list_deleted(self) -> list[JobMeta]:
         return [m for m in self._jobs.values() if m.status == JobStatus.DELETED]
 
@@ -153,6 +160,12 @@ class FakeQueue:
 
     async def dequeue(self, timeout: int = 5000) -> Job | None:
         return self._jobs.pop(0) if self._jobs else None
+
+    def heartbeat(self, job: Job) -> asyncio.Task:
+        async def _noop():
+            await asyncio.sleep(1e9)
+
+        return asyncio.create_task(_noop())
 
     async def acknowledge(self, job: Job) -> None:
         pass

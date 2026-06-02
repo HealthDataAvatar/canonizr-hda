@@ -6,7 +6,7 @@ TAG         ?= latest
 TF_DIR      ?= infra/terraform
 DEPLOY_TIME ?= $(shell date -u +%Y%m%dT%H%M%SZ)
 
-.PHONY: build gateway-push deploy test test-unit test-gateway-integration test-portal-integration test-integration test-smoke test-focus check-uv fmt lint check install-hooks setup-secrets gen-key gateway-logs worker-logs portal-dev portal-build portal-push portal-logs set-admin
+.PHONY: build gateway-push deploy test test-unit test-gateway-unit test-portal-unit test-gateway-integration test-portal-integration test-integration test-smoke test-focus check-uv fmt lint check install-hooks setup-secrets gen-key gateway-logs worker-logs portal-dev portal-build portal-push portal-logs set-admin
 
 # ---------------------------------------------------------------------------
 # Prerequisites
@@ -33,8 +33,13 @@ fmt: check-uv
 lint: check-uv
 	cd gateway && uv sync --extra lint && uv run ruff format --check app/ tests/ && uv run ruff check app/ tests/ && uv run pyright app/ tests/
 
-test-unit: check-uv
-	cd gateway && uv sync --extra test && uv run pytest tests/unit -q --cov=app --cov-report=term-missing
+test-gateway-unit: check-uv
+	cd gateway && uv sync --extra test && uv run pytest tests/unit --cov=app --cov-report=term-missing
+
+test-portal-unit:
+	cd portal && npx vitest run --project unit
+
+test-unit: test-gateway-unit test-portal-unit
 
 test-gateway-integration:
 	docker compose -f docker-compose.test.yml up --build --abort-on-container-exit --exit-code-from tests

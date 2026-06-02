@@ -29,6 +29,9 @@ class EventName(StrEnum):
     JOB_COMPLETED = "canonizr:job_completed"
     UPSTREAM_REQUEST = "canonizr:upstream_request"
     CLEANUP_COMPLETED = "canonizr:cleanup_completed"
+    JOB_RECOVERED = "canonizr:job_recovered"
+    JOB_RECLAIMED = "canonizr:job_reclaimed"
+    JOB_SKIPPED_IDEMPOTENT = "canonizr:job_skipped_idempotent"
 
 
 # ---------------------------------------------------------------------------
@@ -101,6 +104,38 @@ class CleanupCompleted:
     marked_deleted: int = 0
     already_clean: int = 0
     errors: int = 0
+
+
+@dataclass
+class JobRecovered:
+    """Emitted by sweep when an orphaned job is re-enqueued."""
+
+    event_name: str = field(default=EventName.JOB_RECOVERED, init=False)
+
+    job_id: str = ""
+    user_id: str = ""
+    age_seconds: float = 0.0
+    original_status: str = ""
+
+
+@dataclass
+class JobReclaimed:
+    """Emitted when XAUTOCLAIM reclaims a stale pending message."""
+
+    event_name: str = field(default=EventName.JOB_RECLAIMED, init=False)
+
+    job_id: str = ""
+    idle_ms: int = 0
+
+
+@dataclass
+class JobSkippedIdempotent:
+    """Emitted when worker skips a job already in a terminal state."""
+
+    event_name: str = field(default=EventName.JOB_SKIPPED_IDEMPOTENT, init=False)
+
+    job_id: str = ""
+    current_status: str = ""
 
 
 # ---------------------------------------------------------------------------

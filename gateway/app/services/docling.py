@@ -58,6 +58,16 @@ async def _convert_single(
     return md_content, pictures
 
 
+def merge_chunks(results: list[tuple[int, str, list[dict]]]) -> tuple[str, list[dict]]:
+    """Merge indexed chunk results into a single (markdown, pictures) pair."""
+    results.sort(key=lambda r: r[0])
+    md = "\n\n".join(r[1] for r in results)
+    pictures = []
+    for r in results:
+        pictures.extend(r[2])
+    return md, pictures
+
+
 async def convert(file_bytes: bytes, mime_type: str, deadline: float, parent: Span | None = None) -> ConvertResult:
     """Extract a PDF via Docling, then caption non-decorative figures.
 
@@ -85,12 +95,7 @@ async def convert(file_bytes: bytes, mime_type: str, deadline: float, parent: Sp
 
         tasks = [_limited(i, chunk) for i, chunk in enumerate(chunks)]
         results = await asyncio.gather(*tasks)
-        results.sort(key=lambda r: r[0])
-
-        md_content = "\n\n".join(r[1] for r in results)
-        pictures = []
-        for r in results:
-            pictures.extend(r[2])
+        md_content, pictures = merge_chunks(list(results))
 
     if parent:
         parent.set(md_length=len(md_content), pictures_count=len(pictures))

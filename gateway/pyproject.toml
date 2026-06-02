@@ -67,4 +67,10 @@ asyncio_mode = "auto"
 markers = [
     "focus: only run this test when FOCUS_TESTS=1 is set",
     "integration: requires docker-compose services",
+    "smoke: requires live external services (captioning, Azure OpenAI)",
+]
+addopts = "--durations=2"
+filterwarnings = [
+    "ignore:builtin type Swig:DeprecationWarning",
+    "ignore:builtin type swig:DeprecationWarning",
 ]

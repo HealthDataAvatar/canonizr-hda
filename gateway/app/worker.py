@@ -12,9 +12,11 @@ from .blob_azure import AzureBlobStore
 from .context import Services
 from .jobs_table import TableJobStore
 from .process import process_job
+from .protocols import JobStatus
 from .queue import RedisQueue
 from .quota import QuotaService, get_redis
-from .telemetry import PostHogEmitter
+from .sweep import run_sweep_loop
+from .telemetry import JobReclaimed, JobSkippedIdempotent, PostHogEmitter
 from .user_resolver import TableUserResolver
 
 logger = logging.getLogger(__name__)
@@ -42,6 +44,7 @@ async def run():
         telemetry=PostHogEmitter(),
     )
     await queue.ensure_group()
+    asyncio.create_task(run_sweep_loop(svc))
     logger.info("Worker ready, waiting for jobs")
 
     while True:
@@ -49,7 +52,19 @@ async def run():
         if job is None:
             continue
 
+        if job.reclaimed:
+            logger.info("Reclaimed stale job %s via XAUTOCLAIM", job.job_id)
+            svc.telemetry.emit(JobReclaimed(job_id=job.job_id))
+
         logger.info("Processing job %s (%s, %s)", job.job_id, job.mime_type, job.filename)
+
+        # Idempotency guard: skip jobs already in a terminal state
+        meta = svc.jobs.get_by_job_id(job.job_id)
+        if meta and meta.status in (JobStatus.OK, JobStatus.DELETED):
+            logger.info("Job %s already %s — skipping", job.job_id, meta.status)
+            svc.telemetry.emit(JobSkippedIdempotent(job_id=job.job_id, current_status=meta.status))
+            await svc.queue.acknowledge(job)
+            continue
 
         user = await svc.users.resolve(job.sub_id)
         if user is None or isinstance(user, str):
@@ -57,7 +72,11 @@ async def run():
             await svc.queue.acknowledge(job)
             continue
 
-        proc = await process_job(job, user, svc)
+        beat = svc.queue.heartbeat(job)
+        try:
+            proc = await process_job(job, user, svc)
+        finally:
+            beat.cancel()
         await svc.queue.store_result(job.job_id, proc.job_result)
         await svc.queue.acknowledge(job)
 

@@ -19,7 +19,8 @@ from .protocols import Job, JobResult
 STREAM_KEY = "stream:convert"
 GROUP_NAME = "workers"
 CONSUMER_NAME = os.environ.get("HOSTNAME", f"worker-{uuid.uuid4().hex[:8]}")
-CLAIM_MIN_IDLE_MS = int(os.environ.get("QUEUE_CLAIM_IDLE_MS", "60000"))
+CLAIM_MIN_IDLE_MS = int(os.environ.get("QUEUE_CLAIM_IDLE_MS", "90000"))
+HEARTBEAT_INTERVAL = int(os.environ.get("QUEUE_HEARTBEAT_SECONDS", "30"))
 RESULT_TTL = 86_400  # 24 hours
 
 
@@ -65,7 +66,9 @@ class RedisQueue:
             )
             if stale and stale[1]:
                 stream_id, fields = stale[1][0]
-                return Job.from_fields(stream_id, fields)
+                job = Job.from_fields(stream_id, fields)
+                job.reclaimed = True
+                return job
 
             # 2. Non-blocking read for new messages
             results = await self._r.xreadgroup(
@@ -83,6 +86,28 @@ class RedisQueue:
             if asyncio.get_event_loop().time() >= deadline:
                 return None
             await asyncio.sleep(poll_interval)
+
+    def heartbeat(self, job: Job) -> asyncio.Task:
+        """Start a background heartbeat that re-claims the message to reset idle time.
+
+        Cancel the returned task when processing is done.
+        """
+
+        async def _beat():
+            while True:
+                await asyncio.sleep(HEARTBEAT_INTERVAL)
+                try:
+                    await self._r.xclaim(
+                        STREAM_KEY,
+                        GROUP_NAME,
+                        CONSUMER_NAME,
+                        min_idle_time=0,
+                        message_ids=[job.stream_id],
+                    )
+                except Exception:
+                    pass  # best-effort; next beat will retry
+
+        return asyncio.create_task(_beat())
 
     async def acknowledge(self, job: Job) -> None:
         await self._r.xack(STREAM_KEY, GROUP_NAME, job.stream_id)

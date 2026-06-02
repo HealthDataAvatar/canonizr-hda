@@ -60,3 +60,8 @@ def job_result(*, job_id: str) -> str:
 def dedupe(*, sub_id: str, doc_hash: str) -> str:
     """Mapping: identical file → existing job_id."""
     return f"dedupe:{sub_id}:{doc_hash}"
+
+
+def sweep_lock() -> str:
+    """Lock: prevents concurrent sweep runs across workers."""
+    return "sweep:lock"
