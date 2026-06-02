@@ -164,7 +164,7 @@ class PostHogEmitter:
     def __init__(self, api_key: str | None = None):
         key = api_key or os.environ.get("POSTHOG_API_KEY", "")
         if key:
-            self._client: Posthog | None = Posthog(key, host="https://us.i.posthog.com")
+            self._client: Posthog | None = Posthog(key, host="https://eu.i.posthog.com")
         else:
             self._client = None
             logger.warning("POSTHOG_API_KEY not set — telemetry will only be logged")

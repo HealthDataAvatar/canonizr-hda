@@ -202,7 +202,7 @@ resource "azurerm_container_app" "worker" {
       image   = "${azurerm_container_registry.this.login_server}/canonizr-gateway:latest"
       cpu     = var.gateway_cpu
       memory  = var.gateway_memory
-      command = ["python", "-m", "app.worker"]
+      command = ["uv", "run", "--no-project", "python", "-m", "app.worker"]
 
       env {
         name        = "REDIS_URL"
