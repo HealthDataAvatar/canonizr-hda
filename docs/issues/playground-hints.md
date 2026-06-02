@@ -1,0 +1,1 @@
+The playground is slow and async. We should have information appear that loops through the messages, explaining that this is a job queue, and what the user can have trigger when it's complete.

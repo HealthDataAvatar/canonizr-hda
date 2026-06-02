@@ -10,7 +10,15 @@ import logging
 import redis.asyncio as aioredis
 from azure.data.tables import TableServiceClient
 
-from .keys import encryption_key_cache, key_name_cache, user_blocked, user_id_cache
+from .keys import (
+    billing_status as billing_status_key,
+)
+from .keys import (
+    encryption_key_cache,
+    key_name_cache,
+    user_blocked,
+    user_id_cache,
+)
 from .protocols import UserContext
 from .tables import Table
 
@@ -40,6 +48,11 @@ class TableUserResolver:
             logger.warning("Blocked user %s attempted request", uid)
             return "Account is blocked"
 
+        billing_err = await self._check_billing_status(uid)
+        if billing_err:
+            logger.warning("Billing block for user %s: %s", uid, billing_err)
+            return billing_err
+
         key_hex = await self._get_user_key(uid)
         if not key_hex:
             logger.error("User %s has no encryption key", uid)
@@ -59,6 +72,23 @@ class TableUserResolver:
         is_blocked = blocked is True or blocked == "true"
         await self._r.set(ck, "1" if is_blocked else "0", ex=BLOCKED_CACHE_TTL)
         return is_blocked
+
+    _BILLING_ERRORS: dict[str, str] = {
+        "past_due": "BILLING:Payment failed — update your payment method at the billing portal",
+        "canceled": "BILLING:Subscription canceled — please resubscribe to continue",
+        "free_exhausted": "BILLING:Free tier exhausted — add a payment method to continue",
+    }
+
+    async def _check_billing_status(self, user_id: str) -> str | None:
+        ck = billing_status_key(user_id=user_id)
+        cached = await self._r.get(ck)
+        if cached is not None:
+            status = cached
+        else:
+            status = self._get_latest_permission(user_id, "billingStatus") or ""
+            await self._r.set(ck, status, ex=BLOCKED_CACHE_TTL)
+
+        return self._BILLING_ERRORS.get(status)
 
     async def _get_user_id(self, sub_id: str) -> str | None:
         ck = user_id_cache(sub_id=sub_id)

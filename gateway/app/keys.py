@@ -49,6 +49,11 @@ def user_blocked(*, user_id: str) -> str:
     return f"user:{user_id}:blocked"
 
 
+def billing_status(*, user_id: str) -> str:
+    """Cache: user billing status (short TTL)."""
+    return f"user:{user_id}:billing_status"
+
+
 # -- Job queue --
 
 

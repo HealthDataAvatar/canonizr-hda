@@ -58,6 +58,16 @@ class PollResult:
     headers: dict[str, str] | None = None
 
 
+BILLING_PREFIX = "BILLING:"
+
+
+def _reject_resolved(msg: str) -> Rejected:
+    """Turn a resolver error string into the right Rejected status code."""
+    if msg.startswith(BILLING_PREFIX):
+        return Rejected(402, msg.removeprefix(BILLING_PREFIX))
+    return Rejected(403, msg)
+
+
 # ---------------------------------------------------------------------------
 # POST /convert
 # ---------------------------------------------------------------------------
@@ -78,7 +88,7 @@ async def accept_job(
     if resolved is None:
         raise Rejected(403, "Unknown subscription — no user mapping found")
     if isinstance(resolved, str):
-        raise Rejected(403, resolved)
+        raise _reject_resolved(resolved)
     user = resolved
 
     if is_archive_type(mime_type):
@@ -244,7 +254,7 @@ async def delete_result(job_id: str, sub_id: str, svc: Services) -> bool:
     if resolved is None:
         raise Rejected(403, "Unknown subscription")
     if isinstance(resolved, str):
-        raise Rejected(403, resolved)
+        raise _reject_resolved(resolved)
     user = resolved
 
     meta = svc.jobs.get_by_job_id(job_id)
@@ -290,7 +300,7 @@ async def download_artifact(
     if resolved is None:
         raise Rejected(403, "Unknown subscription")
     if isinstance(resolved, str):
-        raise Rejected(403, resolved)
+        raise _reject_resolved(resolved)
     user = resolved
 
     meta = svc.jobs.get_by_job_id(job_id)
