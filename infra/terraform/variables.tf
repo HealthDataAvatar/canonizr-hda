@@ -79,14 +79,14 @@ variable "deploy_time" {
 }
 
 variable "openai_model" {
-  description = "Azure OpenAI model deployment name for captioning"
+  description = "Azure OpenAI model for captioning"
   type        = string
-  default     = "gpt-4o"
+  default     = "gpt-5.4-nano"
 }
 
 variable "openai_model_version" {
   type    = string
-  default = "2024-11-20"
+  default = "2026-03-17"
 }
 
 variable "posthog_api_key" {

@@ -14,7 +14,7 @@ resource "azurerm_cognitive_account" "openai" {
 }
 
 resource "azurerm_cognitive_deployment" "captioning" {
-  name                 = "captioning"
+  name                 = "captioning-global-gpt-5.4-nano"
   cognitive_account_id = azurerm_cognitive_account.openai.id
 
   model {
@@ -24,7 +24,7 @@ resource "azurerm_cognitive_deployment" "captioning" {
   }
 
   sku {
-    name     = "DataZoneStandard"
+    name     = "GlobalStandard"
     capacity = 10 # TPM in thousands
   }
 }
