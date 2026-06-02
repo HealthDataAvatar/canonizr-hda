@@ -117,4 +117,13 @@ export class StripeBillingStore implements BillingStore {
     });
     return session.url;
   }
+
+  async hasPaymentMethod(customerId: string): Promise<boolean> {
+    return cached(`billing:${customerId}:has_pm`, async () => {
+      const stripe = getStripe();
+      const customer = await stripe.customers.retrieve(customerId);
+      if (customer.deleted) return false;
+      return !!(customer.invoice_settings?.default_payment_method || customer.default_source);
+    });
+  }
 }

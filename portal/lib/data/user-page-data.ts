@@ -7,9 +7,10 @@
 
 import { requireUser } from "@/lib/auth/session";
 import { getServices, type Invoice } from "@/lib/services";
-import { getCurrentConfig, getCurrentPermissions } from "@/lib/data/tables";
+import { getCurrentConfig, getCurrentPermissions, appendPermissions, type BillingStatus } from "@/lib/data/tables";
 import { getJobsForUser } from "./jobs";
 import { calculateBilling } from "@/lib/pure/billing-calc";
+import { getRedis } from "@/lib/redis";
 import type { RequestRow } from "@/components/tables/request-table";
 import type { KeyRow } from "@/components/tables/key-table";
 
@@ -69,8 +70,16 @@ export interface BillingData {
   freeRemainingKB: number | null;
   freeTotalKB: number | null;
   estimatedCost: number;
+  freeUsagePercent: number;
   pricePerUnit: number;
   invoices: Invoice[];
+  billingStatus: BillingStatus;
+  hasPaymentMethod: boolean;
+}
+
+async function invalidateBillingCache(userId: string) {
+  const redis = getRedis();
+  if (redis) await redis.del(`user:${userId}:billing_status`);
 }
 
 export async function getBillingData(): Promise<BillingData> {
@@ -81,13 +90,16 @@ export async function getBillingData(): Promise<BillingData> {
   ]);
   const { billing } = getServices();
 
-  const [usage, invoices] = await Promise.all([
+  const [usage, invoices, stripeHasPM] = await Promise.all([
     perms.stripeCustomerId
       ? billing.getUsage(perms.stripeCustomerId)
       : Promise.resolve({ totalUnits: 0, periodStart: "", periodEnd: "" }),
     perms.stripeCustomerId
       ? billing.getInvoices(perms.stripeCustomerId)
       : Promise.resolve([]),
+    perms.stripeCustomerId
+      ? billing.hasPaymentMethod(perms.stripeCustomerId)
+      : Promise.resolve(false),
   ]);
 
   const calc = calculateBilling({
@@ -96,10 +108,39 @@ export async function getBillingData(): Promise<BillingData> {
     pricePerUnit: config.pricePerUnit,
   });
 
+  // Sync hasPaymentMethod if Stripe disagrees with our record
+  let hasPaymentMethod = perms.hasPaymentMethod;
+  if (stripeHasPM !== perms.hasPaymentMethod) {
+    hasPaymentMethod = stripeHasPM;
+    await appendPermissions(userId, {
+      ...perms,
+      hasPaymentMethod: stripeHasPM,
+      changedBy: "system",
+    });
+  }
+
+  // Free tier exhaustion: set or clear billingStatus
+  let billingStatus = perms.billingStatus;
+  const freeExhausted = calc.freeRemainingKB === 0;
+
+  if (freeExhausted && !hasPaymentMethod && billingStatus !== "past_due" && billingStatus !== "canceled") {
+    if (billingStatus !== "free_exhausted") {
+      billingStatus = "free_exhausted";
+      await appendPermissions(userId, { ...perms, billingStatus, hasPaymentMethod, changedBy: "system" });
+      await invalidateBillingCache(userId);
+    }
+  } else if (billingStatus === "free_exhausted" && (hasPaymentMethod || !freeExhausted)) {
+    billingStatus = "active";
+    await appendPermissions(userId, { ...perms, billingStatus, hasPaymentMethod, changedBy: "system" });
+    await invalidateBillingCache(userId);
+  }
+
   return {
     ...calc,
     pricePerUnit: config.pricePerUnit,
     invoices,
+    billingStatus,
+    hasPaymentMethod,
   };
 }
 

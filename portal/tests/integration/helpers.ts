@@ -74,6 +74,8 @@ export async function seedTestUser(user: TestUser, opts?: { isAdmin?: boolean })
     isAdmin: opts?.isAdmin ?? false,
     blocked: false,
     stripeCustomerId: user.stripeCustomerId,
+    billingStatus: "",
+    hasPaymentMethod: false,
     changedBy: "system",
   });
 

@@ -49,6 +49,8 @@ const nextAuth = NextAuth({
             isAdmin: false,
             blocked: false,
             stripeCustomerId,
+            billingStatus: "",
+            hasPaymentMethod: false,
             changedBy,
           });
         },

@@ -8,6 +8,7 @@ describe("calculateBilling", () => {
     expect(result.freeRemainingKB).toBe(40_000);
     expect(result.freeTotalKB).toBe(50_000);
     expect(result.estimatedCost).toBe(0);
+    expect(result.freeUsagePercent).toBe(20);
   });
 
   it("calculates over free tier", () => {
@@ -24,6 +25,7 @@ describe("calculateBilling", () => {
     expect(result.freeRemainingKB).toBeNull();
     expect(result.freeTotalKB).toBeNull();
     expect(result.estimatedCost).toBeCloseTo(4.50);
+    expect(result.freeUsagePercent).toBe(0);
   });
 
   it("handles zero usage", () => {
@@ -37,6 +39,12 @@ describe("calculateBilling", () => {
     const result = calculateBilling({ totalUnits: 500, freeUnits: 500, pricePerUnit: 0.003 });
     expect(result.freeRemainingKB).toBe(0);
     expect(result.estimatedCost).toBe(0);
+    expect(result.freeUsagePercent).toBe(100);
+  });
+
+  it("caps freeUsagePercent at 100", () => {
+    const result = calculateBilling({ totalUnits: 700, freeUnits: 500, pricePerUnit: 0.003 });
+    expect(result.freeUsagePercent).toBe(100);
   });
 
   it("respects custom price per unit", () => {

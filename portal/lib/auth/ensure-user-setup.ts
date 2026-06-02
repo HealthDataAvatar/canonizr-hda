@@ -42,6 +42,8 @@ export async function ensureUserSetup(userId: string): Promise<void> {
         isAdmin: false,
         blocked: false,
         stripeCustomerId: "",
+        billingStatus: "",
+        hasPaymentMethod: false,
         changedBy: "system",
       }),
     );

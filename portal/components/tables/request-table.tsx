@@ -101,7 +101,14 @@ function DeleteButton({ row, onDelete }: { row: RequestRow; onDelete: (id: strin
 // ---------------------------------------------------------------------------
 
 function hasJobDetail(row: RequestRow): boolean {
-  return !!(row.detail || row.steps || row.originalFilename || row.mimeType);
+  return !!(row.detail || row.steps || row.originalFilename || row.mimeType || row.retentionExpires);
+}
+
+function expiryLabel(retentionExpires: string): { text: string; expired: boolean } {
+  const expires = new Date(retentionExpires);
+  const now = new Date();
+  if (now > expires) return { text: `Expired ${timeAgo(expires)}`, expired: true };
+  return { text: `Expires ${timeAgo(expires)}`, expired: false };
 }
 
 function JobDetailPanel({ row }: { row: RequestRow }) {
@@ -119,6 +126,10 @@ function JobDetailPanel({ row }: { row: RequestRow }) {
           {row.originalFilename && <span>File: <span className="font-mono">{row.originalFilename}</span></span>}
           {row.mimeType && <span>Type: <span className="font-mono">{row.mimeType}</span></span>}
           {row.inputBytes != null && <span>Size: <span className="font-mono">{formatKB(Math.round(row.inputBytes / 1024))}</span></span>}
+          {row.retentionExpires && (() => {
+            const { text, expired } = expiryLabel(row.retentionExpires);
+            return <span className={expired ? "text-destructive" : ""}>{text}</span>;
+          })()}
         </div>
       )}
       {steps.length > 0 && (
@@ -275,6 +286,13 @@ function MobileDetailPanel({ row, onDelete }: { row: RequestRow; onDelete?: (id:
         </span>
         <span className="text-muted-foreground">Time</span>
         <span className="font-mono">{new Date(row.timestamp).toLocaleString()}</span>
+        {row.retentionExpires && (() => {
+          const { text, expired } = expiryLabel(row.retentionExpires);
+          return <>
+            <span className="text-muted-foreground">Expiry</span>
+            <span className={expired ? "text-destructive" : ""}>{text}</span>
+          </>;
+        })()}
       </div>
 
       <JobDetailPanel row={row} />

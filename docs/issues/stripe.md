@@ -53,88 +53,72 @@ Subscription canceled (webhook: customer.subscription.deleted)
   Block API if already over free limit
 ```
 
-## Work Packages
+## Implemented (WP1 + WP3 + WP4)
 
-### WP1: Webhook Endpoint (P0)
+### WP1: Webhook Endpoint - DONE
 
-Add a Stripe webhook handler to receive billing events and sync state back.
+Stripe webhook handler receives billing events and syncs state to UserPermissions.
 
-- New route: `portal/app/api/stripe/webhook/route.ts`
-- Verify signatures using `stripe.webhooks.constructEvent`
-- Handle events:
-  - `invoice.payment_failed` - set `billingStatus: "past_due"` on UserPermissions
-  - `invoice.paid` - clear `billingStatus` back to `"active"`
-  - `customer.subscription.updated` - sync status (active / past_due / canceled)
-  - `customer.subscription.deleted` - set `billingStatus: "canceled"`
-  - `checkout.session.completed` - mark payment method on file, clear blocks
-- Write to UserPermissions (append-only, fits existing pattern)
-- Add `STRIPE_WEBHOOK_SECRET` env var to portal deployment
-- Register webhook in Stripe dashboard / Terraform
+- `portal/app/api/stripe/webhook/route.ts` - signature-verified handler
+- Events handled: `invoice.payment_failed` (-> past_due), `invoice.paid` (-> active), `customer.subscription.deleted` (-> canceled), `payment_method.attached` (-> hasPaymentMethod)
+- `portal/lib/data/tables/user-permissions-lookup.ts` - reverse lookup stripeCustomerId -> userId (Redis-cached, 1h TTL)
+- Invalidates gateway's Redis billing status cache on every update (instant propagation)
+- `STRIPE_WEBHOOK_SECRET` env var added to `infra/terraform/portal.tf`
 
-### WP2: Payment Method Collection (P0)
+### WP3: Billing-Level Access Control - DONE
 
-Give users a way to add a payment method before they hit the wall.
+Gateway blocks requests for users with bad billing status, returning 402.
 
-- New route: `portal/app/api/billing/setup/route.ts` - creates a Stripe Checkout Session in `setup` mode (collects card, no charge)
-- New component: payment setup CTA on billing page when no payment method is on file
-- Track `hasPaymentMethod` in UserPermissions (updated by WP1 webhook)
-- Consider: should the Billing Portal link be enough, or do we need an embedded flow?
+- `portal/lib/data/tables/user-permissions.ts` - added `billingStatus` and `hasPaymentMethod` fields
+- `gateway/app/user_resolver.py` - `_check_billing_status()` reads from Redis cache (5 min TTL) or Table Storage fallback
+- `gateway/app/handlers.py` - `_reject_resolved()` routes `BILLING:`-prefixed errors to 402, others to 403
+- `gateway/app/keys.py` - `billing_status()` Redis key
+- Error messages: "Payment failed", "Subscription canceled", "Free tier exhausted"
 
-### WP3: Billing-Level Access Control (P0)
+### WP4: Free Tier Exhaustion - DONE
 
-Connect billing status to API gateway so exhausted/failed users are blocked.
+Portal detects free tier exhaustion on billing page load and sets/clears status automatically.
 
-- Add `billingStatus` field to UserPermissions (values: `active`, `past_due`, `canceled`, `free_exhausted`)
-- Portal writes billing status changes (from webhooks in WP1)
-- Gateway reads billing status from Redis (cache) or Table Storage (fallback), similar to existing blocked-user pattern
-- Return 402 with descriptive message when blocked for billing reasons
-- Distinct from per-key quota (which remains user-configured)
+- `portal/lib/data/user-page-data.ts` - `getBillingData()` syncs `hasPaymentMethod` from Stripe, auto-sets `free_exhausted` when free tier is at 0 with no payment method, auto-clears when payment method added or usage drops
+- `portal/lib/pure/billing-calc.ts` - added `freeUsagePercent` (0-100, capped)
+- `portal/components/pages/billing-page-content.tsx` - billing banners:
+  - Amber warning at 80% free tier usage (no payment method)
+  - Red error for free_exhausted, past_due, canceled
+  - "Manage billing" button on actionable states
+- `portal/lib/services/billing-stripe.ts` - `hasPaymentMethod()` checks Stripe customer for default payment method (Redis-cached 5 min)
+- `portal/lib/services/billing-table.ts` - stub returns false for local dev
 
-### WP4: Free Tier Exhaustion (P1)
+### Payment method detection
 
-Handle the transition from free to paid gracefully.
+Uses "both" approach: webhooks update eagerly (`payment_method.attached`), billing page load verifies against Stripe and corrects if they disagree.
 
-- Portal: calculate proximity to free limit in `getBillingData()`
-- Banner component at 80% / 100% thresholds
-- At 100% with no payment method: set `billingStatus: "free_exhausted"` (blocks API via WP3)
-- At 100% with payment method: no block, charges begin (usage reporter already handles this)
-- Where to enforce: portal can set the flag on billing page load, or usage reporter can check and set it hourly
+## Manual Steps Required
 
-### WP5: Retry Failed Stripe Setup (P1)
+1. **Add Key Vault secret**: `stripe-webhook-secret` — get the signing secret from Stripe after registering the webhook
+2. **Register webhook in Stripe dashboard**:
+   - URL: `https://<portal-domain>/api/stripe/webhook`
+   - Events: `invoice.payment_failed`, `invoice.paid`, `customer.subscription.deleted`, `payment_method.attached`
+3. **Deploy**: `make deploy` (Terraform will pick up the new env var)
+4. **Test locally**: `stripe listen --forward-to localhost:3000/api/stripe/webhook` with Stripe CLI
+
+## Remaining Work Packages
+
+### WP2: Payment Method Collection (P1, deferred)
+
+Currently users add payment methods via the existing "Manage billing" button (Stripe Billing Portal). Could add a more prominent dedicated CTA in future.
+
+### WP5: Retry Failed Stripe Setup (P1, deferred)
 
 Recover from transient Stripe failures at sign-up.
 
-- `ensureUserSetup` already runs on each login - extend it to retry Stripe customer creation when `stripeCustomerId` is `""`
-- Add the same returning-customer check (email lookup) to avoid duplicates
-- Log/alert when retries also fail (admin visibility)
+- Extend `ensureUserSetup` to retry when `stripeCustomerId` is `""`
+- Add returning-customer check (email lookup) to avoid duplicates
 - Consider: admin action to manually trigger setup for a user
 
-### WP6: Subscription Status Display (P2)
+### WP6: Subscription Status Display (P2, deferred)
 
-Show users their actual billing state, not just usage numbers.
+Show users their actual billing state, not just usage numbers. Partially addressed by WP4 banners, but could show more detail (active/past_due/canceled status text on billing page).
 
-- Fetch subscription status in `getBillingData()` (already querying subscriptions)
-- Display on billing page: active / past_due / canceled / no payment method
-- Past due: show warning with link to update card (Billing Portal)
-- Canceled: show "resubscribe" flow
-- No Stripe account: show "set up billing" CTA
+### WP7: Approaching-Limit Notifications (P2, deferred)
 
-### WP7: Approaching-Limit Notifications (P2)
-
-Proactive communication before users hit limits.
-
-- Email at 80% free tier usage (requires tracking, avoid spamming)
-- Portal banner (simpler - calculate on page load, no persistence needed)
-- Consider: in-API response header (`X-Free-Remaining`) so integrators can react programmatically
-
-## Dependencies
-
-```
-WP1 (webhooks) --> WP3 (access control) --> WP4 (free tier exhaustion)
-WP1 (webhooks) --> WP2 (payment collection)
-WP5 (retry) is independent
-WP6 (status display) depends loosely on WP1
-WP7 (notifications) depends on WP4
-```
-
-WP1 is the foundation - most other packages depend on having webhook-driven state sync.
+Email at 80% free tier usage (requires tracking to avoid spamming). Portal banner is already implemented (WP4). Consider `X-Free-Remaining` API response header.

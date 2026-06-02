@@ -13,6 +13,7 @@ export interface BillingCalc {
   freeRemainingKB: number | null;
   freeTotalKB: number | null;
   estimatedCost: number;
+  freeUsagePercent: number;
 }
 
 export function calculateBilling(input: BillingInput): BillingCalc {
@@ -27,5 +28,9 @@ export function calculateBilling(input: BillingInput): BillingCalc {
     freeTotalKB: freeUnits !== null ? freeUnits * KB_PER_UNIT : null,
     estimatedCost:
       Math.max(0, totalUnits - (freeUnits ?? 0)) * pricePerUnit,
+    freeUsagePercent:
+      freeUnits !== null && freeUnits > 0
+        ? Math.min(100, Math.round((totalUnits / freeUnits) * 100))
+        : 0,
   };
 }

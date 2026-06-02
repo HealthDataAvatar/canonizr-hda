@@ -44,5 +44,6 @@ export async function getJobsForUser(
     originalFilename: job.originalFilename,
     mimeType: job.mimeType,
     inputBytes: job.inputBytes,
+    retentionExpires: job.retentionExpires,
   }));
 }

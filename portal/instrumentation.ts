@@ -80,6 +80,8 @@ export async function register() {
       isAdmin: true,
       blocked: false,
       stripeCustomerId: "",
+      billingStatus: "",
+      hasPaymentMethod: false,
       changedBy: "system",
     });
 

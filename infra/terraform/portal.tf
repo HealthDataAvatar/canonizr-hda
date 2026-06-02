@@ -229,6 +229,11 @@ resource "azurerm_container_app" "portal" {
       }
 
       env {
+        name        = "STRIPE_WEBHOOK_SECRET"
+        secret_name = "stripe-webhook-secret"
+      }
+
+      env {
         name        = "COMMS_CONNECTION_STRING"
         secret_name = "comms-connection-string"
       }
