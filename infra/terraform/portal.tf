@@ -83,6 +83,14 @@ resource "azurerm_key_vault_secret" "portal_stripe_secret_key" {
   lifecycle { ignore_changes = [value] }
 }
 
+resource "azurerm_key_vault_secret" "portal_stripe_webhook_secret" {
+  name         = "stripe-webhook-secret"
+  value        = "whsec-initial-rotate-me"
+  key_vault_id = azurerm_key_vault.portal.id
+  depends_on   = [azurerm_key_vault_access_policy.portal_terraform]
+  lifecycle { ignore_changes = [value] }
+}
+
 resource "azurerm_key_vault_secret" "portal_email_from" {
   name         = "email-from"
   value        = "DoNotReply@${azurerm_email_communication_service_domain.azure_managed.from_sender_domain}"
@@ -144,6 +152,12 @@ resource "azurerm_container_app" "portal" {
   secret {
     name                = "stripe-secret-key"
     key_vault_secret_id = azurerm_key_vault_secret.portal_stripe_secret_key.versionless_id
+    identity            = azurerm_user_assigned_identity.portal.id
+  }
+
+  secret {
+    name                = "stripe-webhook-secret"
+    key_vault_secret_id = azurerm_key_vault_secret.portal_stripe_webhook_secret.versionless_id
     identity            = azurerm_user_assigned_identity.portal.id
   }
 
