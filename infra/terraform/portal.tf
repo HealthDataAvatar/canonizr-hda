@@ -99,6 +99,17 @@ resource "azurerm_key_vault_secret" "portal_table_storage" {
 }
 
 # ---------------------------------------------------------------------------
+# Application Insights (OpenTelemetry traces + metrics)
+# ---------------------------------------------------------------------------
+resource "azurerm_application_insights" "portal" {
+  name                = "appi-portal-${local.prefix}"
+  location            = azurerm_resource_group.this.location
+  resource_group_name = azurerm_resource_group.this.name
+  workspace_id        = azurerm_log_analytics_workspace.this.id
+  application_type    = "Node.JS"
+}
+
+# ---------------------------------------------------------------------------
 # Portal Container App
 # ---------------------------------------------------------------------------
 resource "azurerm_container_app" "portal" {
@@ -200,6 +211,11 @@ resource "azurerm_container_app" "portal" {
       env {
         name  = "DEPLOY_TIME"
         value = var.deploy_time
+      }
+
+      env {
+        name  = "APPLICATIONINSIGHTS_CONNECTION_STRING"
+        value = azurerm_application_insights.portal.connection_string
       }
 
       # --- Secrets injected from Key Vault ---

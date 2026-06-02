@@ -6,6 +6,26 @@
 
 export async function register() {
   if (process.env.NEXT_RUNTIME === "edge") return;
+
+  if (process.env.APPLICATIONINSIGHTS_CONNECTION_STRING) {
+    const { NodeSDK } = await import("@opentelemetry/sdk-node");
+    const { getNodeAutoInstrumentations } = await import(
+      "@opentelemetry/auto-instrumentations-node"
+    );
+    const { AzureMonitorTraceExporter } = await import(
+      "@azure/monitor-opentelemetry-exporter"
+    );
+
+    const sdk = new NodeSDK({
+      traceExporter: new AzureMonitorTraceExporter({
+        connectionString: process.env.APPLICATIONINSIGHTS_CONNECTION_STRING,
+      }),
+      instrumentations: [getNodeAutoInstrumentations()],
+    });
+    sdk.start();
+    console.log("OpenTelemetry started (Azure Monitor).");
+  }
+
   if (!process.env.TABLE_STORAGE_CONNECTION_STRING) return;
 
   const { ensureAllTables } = await import("@/lib/data/ensure-tables");
