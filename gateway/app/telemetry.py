@@ -117,6 +117,7 @@ class UpstreamRequest:
     error: str | None = None
     job_id: str = ""
     user_id: str = ""
+    mime_type: str = ""
 
 
 @dataclass
@@ -217,13 +218,15 @@ _current_emitter: contextvars.ContextVar[TelemetryEmitter | None] = contextvars.
 )
 _current_job_id: contextvars.ContextVar[str] = contextvars.ContextVar("_current_job_id", default="")
 _current_user_id: contextvars.ContextVar[str] = contextvars.ContextVar("_current_user_id", default="")
+_current_mime_type: contextvars.ContextVar[str] = contextvars.ContextVar("_current_mime_type", default="")
 
 
-def set_telemetry_context(emitter: TelemetryEmitter, job_id: str, user_id: str) -> None:
+def set_telemetry_context(emitter: TelemetryEmitter, job_id: str, user_id: str, *, mime_type: str = "") -> None:
     _current_emitter.set(emitter)
     _current_job_id.set(job_id)
     _current_user_id.set(user_id)
+    _current_mime_type.set(mime_type)
 
 
-def get_telemetry_context() -> tuple[TelemetryEmitter | None, str, str]:
-    return _current_emitter.get(), _current_job_id.get(), _current_user_id.get()
+def get_telemetry_context() -> tuple[TelemetryEmitter | None, str, str, str]:
+    return _current_emitter.get(), _current_job_id.get(), _current_user_id.get(), _current_mime_type.get()

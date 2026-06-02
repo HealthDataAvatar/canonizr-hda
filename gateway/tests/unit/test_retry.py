@@ -7,7 +7,8 @@ import httpx
 import pytest
 from fastapi import HTTPException
 
-from app.services.retry import Attempt, _should_keep_trying, backoff_delay, request_with_retry
+from app.services.retry import Attempt, _observe, _should_keep_trying, backoff_delay, request_with_retry
+from app.telemetry import LoggingEmitter, get_telemetry_context, set_telemetry_context
 from app.tracing import Span
 
 
@@ -297,3 +298,55 @@ def test_backoff_delay_exponential_fallback():
     assert 1.0 <= delay <= 2.0
     delay = backoff_delay(2, None)
     assert 4.0 <= delay <= 5.0
+
+
+# ---------------------------------------------------------------------------
+# Telemetry context — mime_type round-trips
+# ---------------------------------------------------------------------------
+
+
+def test_telemetry_context_includes_mime_type():
+    emitter = LoggingEmitter()
+    set_telemetry_context(emitter, "job-1", "user-1", mime_type="application/pdf")
+    _, _, _, mime_type = get_telemetry_context()
+    assert mime_type == "application/pdf"
+
+
+def test_telemetry_context_mime_type_defaults_empty():
+    emitter = LoggingEmitter()
+    set_telemetry_context(emitter, "job-1", "user-1")
+    _, _, _, mime_type = get_telemetry_context()
+    assert mime_type == ""
+
+
+# ---------------------------------------------------------------------------
+# _observe emits UpstreamRequest with mime_type from context
+# ---------------------------------------------------------------------------
+
+
+class _CapturingEmitter:
+    def __init__(self):
+        self.captured = []
+
+    def emit(self, event):
+        self.captured.append(event)
+
+    def shutdown(self):
+        pass
+
+
+def test_observe_includes_mime_type():
+    emitter = _CapturingEmitter()
+    set_telemetry_context(emitter, "j1", "u1", mime_type="image/png")
+    att = _make_attempt(200)
+    _observe(att, "docling", "POST", span=Span("test"), retrying=False)
+    assert len(emitter.captured) == 1
+    assert emitter.captured[0].mime_type == "image/png"
+
+
+def test_observe_mime_type_empty_when_not_set():
+    emitter = _CapturingEmitter()
+    set_telemetry_context(emitter, "j1", "u1")
+    att = _make_attempt(200)
+    _observe(att, "docling", "POST", span=Span("test"), retrying=False)
+    assert emitter.captured[0].mime_type == ""

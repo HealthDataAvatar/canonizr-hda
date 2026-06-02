@@ -34,7 +34,7 @@ class ProcessResult:
 async def process_job(job: Job, user: UserContext, svc: Services) -> ProcessResult:
     """Process a single job. Pure function — all dependencies via svc and user."""
     processing_start = time.monotonic()
-    set_telemetry_context(svc.telemetry, job.job_id, user.user_id)
+    set_telemetry_context(svc.telemetry, job.job_id, user.user_id, mime_type=job.mime_type)
     blob_prefix = f"{user.user_id}/{job.job_id}"
 
     # Read and decrypt input

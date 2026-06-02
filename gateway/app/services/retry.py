@@ -85,7 +85,7 @@ def _should_keep_trying(att: Attempt, max_retries: int, deadline: float) -> floa
 def _observe(att: Attempt, service_name: str, method: str, span: Span, retrying: bool) -> None:
     """Emit telemetry and update span after an attempt."""
     # Telemetry
-    emitter, job_id, user_id = get_telemetry_context()
+    emitter, job_id, user_id, mime_type = get_telemetry_context()
     if emitter is not None:
         emitter.emit(
             UpstreamRequest(
@@ -99,6 +99,7 @@ def _observe(att: Attempt, service_name: str, method: str, span: Span, retrying:
                 error=att.error,
                 job_id=job_id,
                 user_id=user_id,
+                mime_type=mime_type,
             )
         )
 
