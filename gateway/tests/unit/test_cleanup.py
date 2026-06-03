@@ -37,7 +37,9 @@ class TestCleanup:
         assert result.scanned == 2  # pass 1: expired, pass 2: now deleted
         assert result.blobs_deleted == 2
         assert result.marked_deleted == 1
-        assert jobs.get("u1", "j1").status == JobStatus.DELETED
+        j1 = jobs.get("u1", "j1")
+        assert j1 is not None
+        assert j1.status == JobStatus.DELETED
         assert await blobs.get("u1/j1/input.bin") is None
         assert await blobs.get("u1/j1/output.bin") is None
 
@@ -53,7 +55,9 @@ class TestCleanup:
         result = await run_cleanup(jobs, blobs)
 
         assert result.scanned == 0
-        assert jobs.get("u1", "j1").status == JobStatus.OK
+        j1 = jobs.get("u1", "j1")
+        assert j1 is not None
+        assert j1.status == JobStatus.OK
 
     @pytest.mark.asyncio
     async def test_cleans_blobs_for_already_deleted_jobs(self):
@@ -101,6 +105,10 @@ class TestCleanup:
         result = await run_cleanup(jobs, blobs)
 
         assert result.marked_deleted == 1
-        assert jobs.get("u1", "j1").status == JobStatus.DELETED
-        assert jobs.get("u1", "j2").status == JobStatus.OK
+        j1 = jobs.get("u1", "j1")
+        j2 = jobs.get("u1", "j2")
+        assert j1 is not None
+        assert j2 is not None
+        assert j1.status == JobStatus.DELETED
+        assert j2.status == JobStatus.OK
         assert await blobs.get("u1/j2/output.bin") == b"current"

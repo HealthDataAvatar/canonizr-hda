@@ -15,7 +15,7 @@ from .context import Services
 from .crypto import decrypt, encrypt
 from .estimates import estimate_seconds
 from .hash import document_hash
-from .protocols import Job, JobMeta, JobStatus, UserContext
+from .protocols import Job, JobMeta, JobStatus, ResolveMisconfigured, ResolveRejected, UserContext
 from .sanitize import content_disposition, is_archive_type, is_known_mime_type, sanitize_filename
 from .telemetry import JobAccepted
 
@@ -59,14 +59,15 @@ class PollResult:
     headers: dict[str, str] | None = None
 
 
-BILLING_PREFIX = "BILLING:"
-
-
-def _reject_resolved(msg: str) -> Rejected:
-    """Turn a resolver error string into the right Rejected status code."""
-    if msg.startswith(BILLING_PREFIX):
-        return Rejected(402, msg.removeprefix(BILLING_PREFIX))
-    return Rejected(403, msg)
+def _require_user(resolved) -> UserContext:
+    """Extract UserContext from a ResolveResult, or raise Rejected / RuntimeError."""
+    if resolved is None:
+        raise Rejected(403, "Unknown subscription — no user mapping found")
+    if isinstance(resolved, ResolveRejected):
+        raise Rejected(resolved.status, resolved.reason)
+    if isinstance(resolved, ResolveMisconfigured):
+        raise RuntimeError(f"Account misconfigured: {resolved.reason}")
+    return resolved
 
 
 # ---------------------------------------------------------------------------
@@ -85,12 +86,7 @@ async def accept_job(
 
     Raises Rejected on auth failure, unknown user, or quota exceeded.
     """
-    resolved = await svc.users.resolve(sub_id)
-    if resolved is None:
-        raise Rejected(403, "Unknown subscription — no user mapping found")
-    if isinstance(resolved, str):
-        raise _reject_resolved(resolved)
-    user = resolved
+    user = _require_user(await svc.users.resolve(sub_id))
 
     if is_archive_type(mime_type):
         raise Rejected(
@@ -262,12 +258,7 @@ async def delete_result(job_id: str, sub_id: str, svc: Services) -> bool:
 
     Raises Rejected if the job doesn't belong to the requesting user.
     """
-    resolved = await svc.users.resolve(sub_id)
-    if resolved is None:
-        raise Rejected(403, "Unknown subscription")
-    if isinstance(resolved, str):
-        raise _reject_resolved(resolved)
-    user = resolved
+    user = _require_user(await svc.users.resolve(sub_id))
 
     meta = svc.jobs.get_by_job_id(job_id)
     if meta is None:
@@ -308,12 +299,7 @@ async def download_artifact(
 
     Raises Rejected on auth failure, wrong user, expired, or missing blob.
     """
-    resolved = await svc.users.resolve(sub_id)
-    if resolved is None:
-        raise Rejected(403, "Unknown subscription")
-    if isinstance(resolved, str):
-        raise _reject_resolved(resolved)
-    user = resolved
+    user = _require_user(await svc.users.resolve(sub_id))
 
     meta = svc.jobs.get_by_job_id(job_id)
     if meta is None:

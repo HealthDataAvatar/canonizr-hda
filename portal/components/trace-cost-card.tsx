@@ -1,21 +1,21 @@
-import { estimateInfraCost, type InfraCostEstimate } from "@/lib/pure/infra-cost";
+import { estimateInfraCost } from "@/lib/pure/infra-cost";
 import { colorForService, type SpanNode } from "@/lib/pure/trace";
 import { toBillableKB } from "@/lib/pure/format";
 
-const STANDARD_PRICE_PER_UNIT = 0.003;
 const KB_PER_UNIT = 100;
 
 interface TraceCostCardProps {
   trace: SpanNode;
+  pricePerUnit: number;
   className?: string;
 }
 
-export function TraceCostCard({ trace, className }: TraceCostCardProps) {
+export function TraceCostCard({ trace, pricePerUnit, className }: TraceCostCardProps) {
   const est = estimateInfraCost(trace);
   const inputBytes = Number(trace.attributes?.file_size_bytes ?? 0);
   const billableKB = toBillableKB(inputBytes);
   const units = billableKB / KB_PER_UNIT;
-  const revenue = units * STANDARD_PRICE_PER_UNIT;
+  const revenue = units * pricePerUnit;
   const margin = revenue > 0 ? ((revenue - est.totalCost) / revenue) * 100 : 0;
 
   return (
@@ -46,37 +46,29 @@ export function TraceCostCard({ trace, className }: TraceCostCardProps) {
           </span>
         </div>
 
-        {est.breakdown.length > 0 && (
+        {est.items.length > 0 && (
           <table className="w-full text-xs">
             <thead>
               <tr className="text-muted-foreground text-left">
                 <th className="pb-1 font-medium">Service</th>
-                <th className="pb-1 font-medium text-right">Duration</th>
-                <th className="pb-1 font-medium text-right">Compute</th>
-                <th className="pb-1 font-medium text-right">Tokens</th>
-                <th className="pb-1 font-medium text-right">Total</th>
+                <th className="pb-1 font-medium">Item</th>
+                <th className="pb-1 font-medium text-right">Quantity</th>
+                <th className="pb-1 font-medium text-right">Cost</th>
               </tr>
             </thead>
             <tbody>
-              {est.breakdown.map((b, i) => (
+              {est.items.map((item, i) => (
                 <tr key={i} className="border-t border-border/50">
                   <td className="py-1 flex items-center gap-1.5">
                     <span
                       className="inline-block h-2 w-2 rounded-sm"
-                      style={{ background: colorForService(b.service) }}
+                      style={{ background: colorForService(item.service) }}
                     />
-                    {b.service}
+                    {item.service}
                   </td>
-                  <td className="py-1 text-right text-muted-foreground">
-                    {formatDuration(b.durationMs)}
-                  </td>
-                  <td className="py-1 text-right">${b.computeCost.toFixed(5)}</td>
-                  <td className="py-1 text-right">
-                    {b.tokenCost > 0 ? `$${b.tokenCost.toFixed(5)}` : "—"}
-                  </td>
-                  <td className="py-1 text-right font-medium">
-                    ${b.totalCost.toFixed(5)}
-                  </td>
+                  <td className="py-1 text-muted-foreground">{item.item}</td>
+                  <td className="py-1 text-right text-muted-foreground">{item.quantity}</td>
+                  <td className="py-1 text-right font-medium">${item.cost.toFixed(5)}</td>
                 </tr>
               ))}
             </tbody>

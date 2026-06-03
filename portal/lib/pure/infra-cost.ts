@@ -9,26 +9,25 @@ import type { SpanNode } from "./trace";
 // Cost constants (Azure pricing, approximate)
 // ---------------------------------------------------------------------------
 
-/** Worker Container App: 2 vCPU, cost per vCPU-second. */
-const WORKER_VCPUS = 2;
+/** Cost per vCPU-second (Azure Container Apps consumption). */
 const VCPU_SECOND_COST = 0.000024;
 
-/** Gotenberg Container App: 1 vCPU. Separate container, billed independently. */
-const GOTENBERG_VCPUS = 1;
+/** Services with their own dedicated containers and vCPU allocations. */
+const EXTERNAL_SERVICE_VCPUS: Record<string, number> = {
+  docling: 2,
+  gotenberg: 1,
+};
 
-/** Docling Container App: 2 vCPU. Separate container, billed independently. */
-const DOCLING_VCPUS = 2;
+/** Worker Container App: 2 vCPU. */
+const WORKER_VCPUS = 2;
 
 /** Services that run inside the worker (no separate compute cost). */
 const WORKER_INTERNAL_SERVICES = new Set([
   "captioning", "markitdown", "passthrough", "extract_pages", "libreoffice",
 ]);
 
-/** Services with their own dedicated containers. */
-const EXTERNAL_SERVICE_VCPUS: Record<string, number> = {
-  docling: DOCLING_VCPUS,
-  gotenberg: GOTENBERG_VCPUS,
-};
+/** Azure Communication Services email: $0.00025/email. */
+const EMAIL_COST_PER_SEND = 0.00025;
 
 /** Per-1K-token pricing by model. Input/output per 1M → divide by 1000 for per-1K. */
 const MODEL_TOKEN_PRICING: Record<string, { prompt: number; completion: number }> = {
@@ -41,18 +40,17 @@ const DEFAULT_MODEL = "gpt-5.4-nano";
 // Types
 // ---------------------------------------------------------------------------
 
-export interface CostBreakdown {
+export interface CostLineItem {
   service: string;
-  computeCost: number;
-  tokenCost: number;
-  durationMs: number;
-  totalCost: number;
+  item: string;
+  quantity: string;
+  cost: number;
 }
 
 export interface InfraCostEstimate {
   totalCost: number;
   totalDurationMs: number;
-  breakdown: CostBreakdown[];
+  items: CostLineItem[];
   totalPromptTokens: number;
   totalCompletionTokens: number;
   totalRetries: number;
@@ -60,29 +58,35 @@ export interface InfraCostEstimate {
 }
 
 // ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function fmtDuration(ms: number): string {
+  if (ms >= 1000) return `${(ms / 1000).toFixed(1)}s`;
+  return `${Math.round(ms)}ms`;
+}
+
+// ---------------------------------------------------------------------------
 // Estimation
 // ---------------------------------------------------------------------------
 
 export function estimateInfraCost(root: SpanNode): InfraCostEstimate {
-  const breakdown: CostBreakdown[] = [];
+  const items: CostLineItem[] = [];
   let totalPromptTokens = 0;
   let totalCompletionTokens = 0;
   let totalRetries = 0;
   let totalRetryDelayMs = 0;
 
-  // Worker compute: the entire root duration, since the worker container
-  // is running for the full job regardless of which service is active.
+  // Worker compute: the entire root duration
   const workerDurationMs = root.duration_ms ?? 0;
-  const workerComputeCost = (workerDurationMs / 1000) * WORKER_VCPUS * VCPU_SECOND_COST;
-  breakdown.push({
+  const workerCost = (workerDurationMs / 1000) * WORKER_VCPUS * VCPU_SECOND_COST;
+  items.push({
     service: "worker",
-    computeCost: workerComputeCost,
-    tokenCost: 0,
-    durationMs: workerDurationMs,
-    totalCost: workerComputeCost,
+    item: `compute (${WORKER_VCPUS} vCPU)`,
+    quantity: fmtDuration(workerDurationMs),
+    cost: workerCost,
   });
 
-  // Walk the tree for external service compute + token costs
   function walk(node: SpanNode) {
     const attrs = node.attributes ?? {};
 
@@ -91,12 +95,17 @@ export function estimateInfraCost(root: SpanNode): InfraCostEstimate {
     if (externalVcpus !== undefined) {
       const durationMs = node.duration_ms ?? 0;
       const computeCost = (durationMs / 1000) * externalVcpus * VCPU_SECOND_COST;
-      breakdown.push({
+      items.push({
         service: node.name,
-        computeCost,
-        tokenCost: 0,
-        durationMs,
-        totalCost: computeCost,
+        item: `compute (${externalVcpus} vCPU)`,
+        quantity: fmtDuration(durationMs),
+        cost: computeCost,
+      });
+      items.push({
+        service: node.name,
+        item: `cold start (${externalVcpus} vCPU)`,
+        quantity: "150s amortized",
+        cost: 150 * externalVcpus * VCPU_SECOND_COST,
       });
     }
 
@@ -112,14 +121,12 @@ export function estimateInfraCost(root: SpanNode): InfraCostEstimate {
       totalPromptTokens += promptTokens;
       totalCompletionTokens += completionTokens;
 
-      // Only add a separate captioning row if it's not already an external service
       if (WORKER_INTERNAL_SERVICES.has(node.name)) {
-        breakdown.push({
-          service: `${node.name} (tokens)`,
-          computeCost: 0,
-          tokenCost,
-          durationMs: node.duration_ms ?? 0,
-          totalCost: tokenCost,
+        items.push({
+          service: node.name,
+          item: `${model} tokens`,
+          quantity: `${promptTokens} + ${completionTokens}`,
+          cost: tokenCost,
         });
       }
     }
@@ -133,12 +140,20 @@ export function estimateInfraCost(root: SpanNode): InfraCostEstimate {
 
   walk(root);
 
-  const totalCost = breakdown.reduce((sum, b) => sum + b.totalCost, 0);
+  // Email authentication (one confirmation email per job)
+  items.push({
+    service: "email",
+    item: "authentication send",
+    quantity: "1",
+    cost: EMAIL_COST_PER_SEND,
+  });
+
+  const totalCost = items.reduce((sum, i) => sum + i.cost, 0);
 
   return {
     totalCost,
     totalDurationMs: workerDurationMs,
-    breakdown,
+    items,
     totalPromptTokens,
     totalCompletionTokens,
     totalRetries,

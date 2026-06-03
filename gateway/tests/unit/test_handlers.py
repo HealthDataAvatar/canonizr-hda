@@ -26,7 +26,7 @@ from tests.fakes import (
 
 def _make_user(user_id="user_1", sub_id="sub_1"):
     key = os.urandom(32)
-    return sub_id, UserContext(user_id=user_id, encryption_key=key, key_name="test-key")
+    return sub_id, UserContext(user_id=user_id, encryption_key=key, price_per_unit=0.003, key_name="test-key")
 
 
 def _make_svc(sub_id="sub_1", user_id="user_1"):
@@ -280,7 +280,7 @@ class TestDeleteResult:
         from tests.fakes import FakeUserResolver
 
         assert isinstance(svc.users, FakeUserResolver)
-        svc.users.add("sub_other", UserContext(user_id="user_other", encryption_key=other_key))
+        svc.users.add("sub_other", UserContext(user_id="user_other", encryption_key=other_key, price_per_unit=0.003))
 
         result = await accept_job(b"hello", "test.txt", "text/plain", "sub_1", svc)
 

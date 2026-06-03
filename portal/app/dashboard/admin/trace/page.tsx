@@ -1,10 +1,11 @@
 import { JobTraceViewer } from "@/components/job-trace-viewer";
+import { DEFAULTS } from "@/lib/data/tables/user-config";
 
 export default function TracePage() {
   return (
     <div className="space-y-6">
       <h1>Job Trace</h1>
-      <JobTraceViewer />
+      <JobTraceViewer pricePerUnit={DEFAULTS.pricePerUnit} />
     </div>
   );
 }

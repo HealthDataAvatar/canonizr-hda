@@ -16,6 +16,23 @@ import redis.asyncio as aioredis
 from .keys import job_result
 from .protocols import Job, JobResult
 
+_StreamEntry = tuple[str, dict[str, str]]
+
+
+def _unpack_stream(raw: object) -> _StreamEntry | None:
+    """Unpack first entry from xreadgroup/xautoclaim results.
+
+    Redis stubs use an imprecise union; runtime shapes are:
+      xreadgroup: [(stream, [(id, fields), ...])]
+      xautoclaim: (cursor, [(id, fields), ...], ...)
+    Callers pass the list that contains [(id, fields), ...].
+    """
+    if not raw:
+        return None
+    e = raw[0]  # type: ignore[index]
+    return str(e[0]), dict(e[1])  # type: ignore[index]
+
+
 STREAM_KEY = "stream:convert"
 GROUP_NAME = "workers"
 CONSUMER_NAME = os.environ.get("HOSTNAME", f"worker-{uuid.uuid4().hex[:8]}")
@@ -40,7 +57,7 @@ class RedisQueue:
         data = await self._r.get(job_result(job_id=job_id))
         if data is None:
             return None
-        return JobResult.deserialize(data)
+        return JobResult.deserialize(str(data))
 
     # -- Worker operations --
 
@@ -64,8 +81,9 @@ class RedisQueue:
                 start_id="0-0",
                 count=1,
             )
-            if stale and stale[1]:
-                stream_id, fields = stale[1][0]
+            claimed = _unpack_stream(stale[1] if stale else None)  # type: ignore[index]
+            if claimed:
+                stream_id, fields = claimed
                 job = Job.from_fields(stream_id, fields)
                 job.reclaimed = True
                 return job
@@ -78,9 +96,9 @@ class RedisQueue:
                 count=1,
                 block=None,
             )
-            if results:
-                stream_id, fields = results[0][1][0]
-                return Job.from_fields(stream_id, fields)
+            entry = _unpack_stream(results[0][1] if results else None)  # type: ignore[index]
+            if entry:
+                return Job.from_fields(entry[0], entry[1])
 
             # 3. No messages — sleep and retry until timeout
             if asyncio.get_event_loop().time() >= deadline:

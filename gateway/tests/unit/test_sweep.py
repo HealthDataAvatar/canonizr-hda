@@ -24,21 +24,25 @@ from tests.fakes import (
 
 def _make_svc():
     sub_id = "sub_1"
-    user = UserContext(user_id="user_1", encryption_key=os.urandom(32), key_name="test-key")
+    user = UserContext(user_id="user_1", encryption_key=os.urandom(32), price_per_unit=0.003, key_name="test-key")
     redis = FakeRedis()
+    queue = FakeQueue()
+    emitter = FakeEmitter()
     return (
         Services(
             blobs=FakeBlobStore(),
             jobs=FakeJobStore(),
             users=FakeUserResolver({sub_id: user}),
-            queue=FakeQueue(),
+            queue=queue,
             quota=QuotaService(redis, max_rejected=3),
-            telemetry=FakeEmitter(),
+            telemetry=emitter,
             captioner=FakeCaptioner(),
             pdf_extractor=FakePdfExtractor(),
             office_converter=FakeOfficeConverter(),
         ),
         redis,
+        queue,
+        emitter,
     )
 
 
@@ -58,24 +62,23 @@ def _stale_meta(job_id="2025-06_abc", age_minutes=20) -> JobMeta:
 class TestSweep:
     @pytest.mark.asyncio
     async def test_recovers_orphaned_job(self):
-        svc, redis = _make_svc()
+        svc, redis, queue, emitter = _make_svc()
         meta = _stale_meta()
         svc.jobs.create(meta)
 
         count = await _sweep_once(redis, svc)
 
         assert count == 1
-        assert len(svc.queue._jobs) == 1
-        assert svc.queue._jobs[0].job_id == meta.job_id
+        assert len(queue._jobs) == 1
+        assert queue._jobs[0].job_id == meta.job_id
 
-        events = svc.telemetry.events
-        assert len(events) == 1
-        assert events[0].event_name == "canonizr:job_recovered"
-        assert events[0].job_id == meta.job_id
+        assert len(emitter.events) == 1
+        assert emitter.events[0].event_name == "canonizr:job_recovered"
+        assert emitter.events[0].job_id == meta.job_id
 
     @pytest.mark.asyncio
     async def test_skips_completed_jobs(self):
-        svc, redis = _make_svc()
+        svc, redis, queue, _ = _make_svc()
         meta = _stale_meta()
         meta.status = JobStatus.OK
         svc.jobs.create(meta)
@@ -83,11 +86,11 @@ class TestSweep:
         count = await _sweep_once(redis, svc)
 
         assert count == 0
-        assert len(svc.queue._jobs) == 0
+        assert len(queue._jobs) == 0
 
     @pytest.mark.asyncio
     async def test_skips_recent_processing_jobs(self):
-        svc, redis = _make_svc()
+        svc, redis, *_ = _make_svc()
         meta = _stale_meta(age_minutes=2)  # Too recent for default 10min threshold
         svc.jobs.create(meta)
 
@@ -97,7 +100,7 @@ class TestSweep:
 
     @pytest.mark.asyncio
     async def test_lock_prevents_concurrent_sweeps(self):
-        svc, redis = _make_svc()
+        svc, redis, *_ = _make_svc()
         meta = _stale_meta()
         svc.jobs.create(meta)
 
@@ -120,7 +123,7 @@ class TestIdempotencyGuard:
 
     @pytest.mark.asyncio
     async def test_completed_job_is_skipped(self):
-        svc, _ = _make_svc()
+        svc, *_ = _make_svc()
         meta = JobMeta(
             user_id="user_1",
             job_id="2025-06_done",
@@ -136,7 +139,7 @@ class TestIdempotencyGuard:
 
     @pytest.mark.asyncio
     async def test_processing_job_is_not_skipped(self):
-        svc, _ = _make_svc()
+        svc, *_ = _make_svc()
         meta = JobMeta(
             user_id="user_1",
             job_id="2025-06_pending",
@@ -151,7 +154,7 @@ class TestIdempotencyGuard:
 
     @pytest.mark.asyncio
     async def test_error_job_is_not_skipped(self):
-        svc, _ = _make_svc()
+        svc, *_ = _make_svc()
         meta = JobMeta(
             user_id="user_1",
             job_id="2025-06_err",

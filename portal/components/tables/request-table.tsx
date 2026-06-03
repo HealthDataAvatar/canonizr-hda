@@ -1,11 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { createColumnHelper } from "@tanstack/react-table";
 import { Download, TimerOff, Trash2, Loader, Check, TriangleAlert } from "lucide-react";
 import { timeAgo } from "@/lib/pure/time";
 import { formatKB } from "@/lib/pure/format";
-import { ActionGroup } from "@/components/ui/action-group";
 import { IconButton } from "@/components/ui/icon-button";
 import { IconHint } from "@/components/ui/icon-hint";
 import { IconLink } from "@/components/ui/icon-link";
@@ -15,6 +14,7 @@ import { DataTable } from "@/components/ui/data-table";
 import { TableExport } from "@/components/ui/table-export";
 import { TraceFlame } from "@/components/trace-flame";
 import { TraceCostCard } from "@/components/trace-cost-card";
+import { estimateInfraCost } from "@/lib/pure/infra-cost";
 import type { SpanNode } from "@/lib/pure/trace";
 
 // ---------------------------------------------------------------------------
@@ -146,8 +146,7 @@ function parseTraceTree(raw?: string): SpanNode | null {
   }
 }
 
-function JobDetailPanel({ row }: { row: RequestRow }) {
-  const [showTrace, setShowTrace] = useState(false);
+function JobDetailPanel({ row, pricePerUnit }: { row: RequestRow; pricePerUnit?: number }) {
   const steps = parseSteps(row.steps);
   const traceTree = parseTraceTree(row.steps);
 
@@ -166,44 +165,10 @@ function JobDetailPanel({ row }: { row: RequestRow }) {
           })()}
         </div>
       )}
-      {steps.length > 0 && (
-        <div className="space-y-0.5">
-          <div className="flex items-center gap-3">
-            <span className="text-muted-foreground">Pipeline:</span>
-            {traceTree && (
-              <button
-                onClick={() => setShowTrace((v) => !v)}
-                className="text-xs text-accent hover:underline"
-              >
-                {showTrace ? "Hide trace" : "View trace"}
-              </button>
-            )}
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {steps.map((s, i) => (
-              <span
-                key={i}
-                className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 font-mono text-sm ${
-                  s.error
-                    ? "bg-destructive/10 text-destructive"
-                    : "bg-muted text-muted-foreground"
-                }`}
-              >
-                {s.service}
-                {s.duration_ms != null && (
-                  <span className="text-[0.6875rem] opacity-60">
-                    {s.duration_ms >= 1000 ? `${(s.duration_ms / 1000).toFixed(1)}s` : `${s.duration_ms}ms`}
-                  </span>
-                )}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-      {showTrace && traceTree && (
+      {traceTree && (
         <div className="mt-3 space-y-4">
           <TraceFlame trace={traceTree} />
-          <TraceCostCard trace={traceTree} />
+          {pricePerUnit != null && <TraceCostCard trace={traceTree} pricePerUnit={pricePerUnit} />}
         </div>
       )}
       {row.detail && (
@@ -269,6 +234,26 @@ function buildColumns(onDelete?: (id: string) => void) {
       enableSorting: true,
       cell: ({ getValue }) => <Mono>{formatKB(getValue())}</Mono>,
     }),
+    col.display({
+      id: "cost",
+      header: "Cost",
+      size: 80,
+      cell: ({ row }) => {
+        const traceTree = parseTraceTree(row.original.steps);
+        if (!traceTree) return <span className="text-sm text-muted-foreground">—</span>;
+        const est = estimateInfraCost(traceTree);
+        return <Mono>${est.totalCost.toFixed(4)}</Mono>;
+      },
+    }),
+    col.accessor("mimeType", {
+      header: "Type",
+      size: 120,
+      enableSorting: true,
+      cell: ({ getValue }) => {
+        const v = getValue();
+        return v ? <Mono muted>{v}</Mono> : <span className="text-sm truncate">—</span>;
+      },
+    }),
     col.accessor("status", {
       header: "Status",
       size: 60,
@@ -323,7 +308,7 @@ const mobileColumns = [
   }),
 ];
 
-function MobileDetailPanel({ row, onDelete }: { row: RequestRow; onDelete?: (id: string) => void }) {
+function MobileDetailPanel({ row, onDelete, pricePerUnit }: { row: RequestRow; onDelete?: (id: string) => void; pricePerUnit?: number }) {
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-y-2 gap-x-4 text-sm">
@@ -345,7 +330,7 @@ function MobileDetailPanel({ row, onDelete }: { row: RequestRow; onDelete?: (id:
         })()}
       </div>
 
-      <JobDetailPanel row={row} />
+      <JobDetailPanel row={row} pricePerUnit={pricePerUnit} />
 
       <div className="flex items-center gap-4 border-t border-border pt-3">
         <div className="flex items-center gap-2">
@@ -383,9 +368,11 @@ export function requestExportRows(requests: RequestRow[]): { headers: string[]; 
 export function RequestTable({
   requests,
   onDelete,
+  pricePerUnit,
 }: {
   requests: RequestRow[];
   onDelete?: (id: string) => void;
+  pricePerUnit?: number;
 }) {
   const columns = useMemo(() => buildColumns(onDelete), [onDelete]);
   const { headers, rows } = requestExportRows(requests);
@@ -400,10 +387,10 @@ export function RequestTable({
       defaultSort={[{ id: "timestamp", desc: true }]}
       pageSize={20}
       getRowId={(row) => row.id}
-      expandedContent={(row) => hasJobDetail(row) ? <JobDetailPanel row={row} /> : null}
+      expandedContent={(row) => hasJobDetail(row) ? <JobDetailPanel row={row} pricePerUnit={pricePerUnit} /> : null}
       mobile={{
         columns: mobileColumns,
-        expandedContent: (row) => <MobileDetailPanel row={row} onDelete={onDelete} />,
+        expandedContent: (row) => <MobileDetailPanel row={row} onDelete={onDelete} pricePerUnit={pricePerUnit} />,
       }}
       tableClassName="table-fixed"
     />

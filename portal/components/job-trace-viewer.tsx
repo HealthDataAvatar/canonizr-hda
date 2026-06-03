@@ -5,7 +5,7 @@ import { TraceFlame } from "@/components/trace-flame";
 import { TraceCostCard } from "@/components/trace-cost-card";
 import type { SpanNode } from "@/lib/pure/trace";
 
-export function JobTraceViewer({ initialTrace }: { initialTrace?: string }) {
+export function JobTraceViewer({ initialTrace, pricePerUnit }: { initialTrace?: string; pricePerUnit?: number }) {
   const [raw, setRaw] = useState(initialTrace ?? "");
   const [trace, setTrace] = useState<SpanNode | null>(() => tryParse(initialTrace));
   const [error, setError] = useState<string | null>(null);
@@ -76,7 +76,7 @@ export function JobTraceViewer({ initialTrace }: { initialTrace?: string }) {
       {trace && (
         <div className="space-y-6">
           <TraceFlame trace={trace} />
-          <TraceCostCard trace={trace} />
+          {pricePerUnit != null && <TraceCostCard trace={trace} pricePerUnit={pricePerUnit} />}
         </div>
       )}
     </div>

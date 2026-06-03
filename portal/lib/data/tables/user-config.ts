@@ -1,4 +1,5 @@
 /** UserConfig table — append-only billing/quota settings. */
+import "server-only";
 
 import { getTableClient } from "@/lib/data/table-client";
 import { TableName } from "@/lib/data/table-names";
@@ -13,10 +14,17 @@ export interface UserConfigRecord {
   timestamp: string;
 }
 
+function requireEnvNumber(name: string): number {
+  const raw = process.env[name];
+  const n = Number(raw);
+  if (!raw || Number.isNaN(n)) throw new Error(`Missing or invalid env var: ${name}`);
+  return n;
+}
+
 export const DEFAULTS: Omit<UserConfigRecord, "changedBy" | "timestamp"> = {
-  freeUnits: Number(process.env.DEFAULT_FREE_UNITS) || 500,
+  freeUnits: requireEnvNumber("DEFAULT_FREE_UNITS"),
   maxKeys: 100,
-  pricePerUnit: Number(process.env.DEFAULT_PRICE_PER_UNIT) || 0.003,
+  pricePerUnit: requireEnvNumber("DEFAULT_PRICE_PER_UNIT"),
   spendCapKB: null,
 };
 

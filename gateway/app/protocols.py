@@ -86,12 +86,53 @@ class UserContext:
 
     user_id: str
     encryption_key: bytes  # 32-byte AES-256 key
+    price_per_unit: float
     key_name: str = ""
-    price_per_unit: float = 0.003
+
+
+@dataclass
+class ResolveRejected:
+    """User was found but the request should be rejected."""
+
+    reason: str
+    status: int  # HTTP status code (402 billing, 403 blocked)
+
+
+@dataclass
+class ResolveMisconfigured:
+    """User was found but their account is broken (missing key, config, etc)."""
+
+    reason: str
+
+
+ResolveResult = UserContext | ResolveRejected | ResolveMisconfigured | None
 
 
 class UserResolver(Protocol):
-    async def resolve(self, sub_id: str) -> UserContext | None | str: ...
+    async def resolve(self, sub_id: str) -> ResolveResult: ...
+
+
+# ---------------------------------------------------------------------------
+# Redis
+# ---------------------------------------------------------------------------
+
+
+class RedisKVCache(Protocol):
+    """Async Redis client — get/set only (decode_responses=True)."""
+
+    async def get(self, key: str) -> str | None: ...
+    async def set(self, key: str, value: str, ex: int | None = None, nx: bool = False) -> bool | None: ...
+
+
+class RedisQuotaCache(Protocol):
+    """Async Redis client — get/set plus counters and expiry."""
+
+    async def get(self, key: str) -> str | None: ...
+    async def set(self, key: str, value: str, ex: int | None = None, nx: bool = False) -> bool | None: ...
+    async def incr(self, key: str) -> int: ...
+    async def incrby(self, key: str, amount: int) -> int: ...
+    async def decrby(self, key: str, amount: int) -> int: ...
+    async def expire(self, key: str, ttl: int) -> None: ...
 
 
 # ---------------------------------------------------------------------------

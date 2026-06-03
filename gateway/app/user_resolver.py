@@ -7,7 +7,6 @@ Lookup chain:
 
 import logging
 
-import redis.asyncio as aioredis
 from azure.data.tables import TableServiceClient
 
 from .keys import (
@@ -16,10 +15,11 @@ from .keys import (
 from .keys import (
     encryption_key_cache,
     key_name_cache,
+    price_per_unit_cache,
     user_blocked,
     user_id_cache,
 )
-from .protocols import UserContext
+from .protocols import RedisKVCache, ResolveMisconfigured, ResolveRejected, ResolveResult, UserContext
 from .tables import Table
 
 logger = logging.getLogger(__name__)
@@ -31,14 +31,15 @@ BLOCKED_CACHE_TTL = 300  # 5 minutes — blocks take effect quickly
 class TableUserResolver:
     """UserResolver backed by Azure Table Storage with Redis caching."""
 
-    def __init__(self, r: aioredis.Redis | aioredis.RedisCluster, table_service: TableServiceClient):
+    def __init__(self, r: RedisKVCache, table_service: TableServiceClient):
         self._r = r
         self._ts = table_service
 
-    async def resolve(self, sub_id: str) -> UserContext | None | str:
+    async def resolve(self, sub_id: str) -> ResolveResult:
         """Resolve a subscription to a user context.
 
-        Returns UserContext on success, None if unknown, or an error string if blocked/misconfigured.
+        Returns UserContext on success, None if unknown, ResolveRejected if
+        blocked/billing, or ResolveMisconfigured if account is broken.
         """
         uid = await self._get_user_id(sub_id)
         if not uid:
@@ -46,21 +47,25 @@ class TableUserResolver:
 
         if await self._is_blocked(uid):
             logger.warning("Blocked user %s attempted request", uid)
-            return "Account is blocked"
+            return ResolveRejected("Account is blocked", 403)
 
         billing_err = await self._check_billing_status(uid)
         if billing_err:
             logger.warning("Billing block for user %s: %s", uid, billing_err)
-            return billing_err
+            return ResolveRejected(billing_err, 402)
 
         key_hex = await self._get_user_key(uid)
         if not key_hex:
             logger.error("User %s has no encryption key", uid)
-            return "Account configuration error — please contact support"
+            return ResolveMisconfigured("No encryption key")
 
         kname = await self._get_key_name(sub_id)
+        ppu = await self._get_price_per_unit(uid)
+        if ppu is None:
+            logger.error("User %s has no price_per_unit in UserConfig", uid)
+            return ResolveMisconfigured("No price_per_unit in UserConfig")
 
-        return UserContext(user_id=uid, encryption_key=bytes.fromhex(key_hex), key_name=kname)
+        return UserContext(user_id=uid, encryption_key=bytes.fromhex(key_hex), key_name=kname, price_per_unit=ppu)
 
     async def _is_blocked(self, user_id: str) -> bool:
         ck = user_blocked(user_id=user_id)
@@ -122,6 +127,28 @@ class TableUserResolver:
         if val:
             await self._r.set(ck, val, ex=CACHE_TTL)
         return val or ""
+
+    async def _get_price_per_unit(self, user_id: str) -> float:
+        ck = price_per_unit_cache(user_id=user_id)
+        cached = await self._r.get(ck)
+        if cached is not None:
+            return float(cached)
+
+        val = self._get_latest_config(user_id, "pricePerUnit")
+        ppu = float(val) if val is not None else 0.003
+        await self._r.set(ck, str(ppu), ex=CACHE_TTL)
+        return ppu
+
+    def _get_latest_config(self, user_id: str, field: str):
+        """Read a field from the latest UserConfig row (append-only, newest first)."""
+        try:
+            table = self._ts.get_table_client(Table.USER_CONFIG)
+            for entity in table.query_entities(f"PartitionKey eq '{user_id}'"):
+                return entity.get(field)
+            return None
+        except Exception as e:
+            logger.warning("UserConfig lookup failed for %s: %s", user_id, e)
+            return None
 
     def _get_latest_permission(self, user_id: str, field: str):
         """Read a field from the latest UserPermissions row (append-only, newest first)."""

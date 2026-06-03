@@ -72,7 +72,7 @@ export function AdminUserDetailContent({ user }: { user: AdminUserDetail }) {
       </Section>
 
       <Section title={`Recent jobs (${user.recentJobs.length})`}>
-        <RequestTable requests={user.recentJobs} />
+        <RequestTable requests={user.recentJobs} pricePerUnit={user.pricePerUnit} />
       </Section>
     </div>
   );

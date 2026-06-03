@@ -32,35 +32,56 @@ describe("estimateInfraCost", () => {
     expect(est.totalCost).toBeGreaterThan(0);
 
     // Worker: 5s * 2 vCPU * $0.000024/vCPU-s = $0.000240
-    const worker = est.breakdown.find((b) => b.service === "worker")!;
+    const worker = est.items.find((i) => i.service === "worker")!;
     expect(worker).toBeDefined();
-    expect(worker.computeCost).toBeCloseTo(0.000240, 6);
+    expect(worker.item).toBe("compute (2 vCPU)");
+    expect(worker.cost).toBeCloseTo(0.000240, 6);
 
     // Docling (external container): 4s * 2 vCPU * $0.000024 = $0.000192
-    const docling = est.breakdown.find((b) => b.service === "docling")!;
-    expect(docling.computeCost).toBeCloseTo(0.000192, 6);
-    expect(docling.tokenCost).toBe(0);
+    const docling = est.items.find((i) => i.service === "docling")!;
+    expect(docling.item).toBe("compute (2 vCPU)");
+    expect(docling.cost).toBeCloseTo(0.000192, 6);
 
-    // Captioning: no compute (runs inside worker), only token cost
-    const cap = est.breakdown.find((b) => b.service === "captioning (tokens)")!;
-    expect(cap.computeCost).toBe(0);
-    expect(cap.tokenCost).toBeCloseTo(0.000825, 6); // (1000/1000)*0.0002 + (500/1000)*0.00125
+    // Captioning: token cost only, defaults to gpt-5.4-nano
+    const cap = est.items.find((i) => i.service === "captioning")!;
+    expect(cap.item).toBe("gpt-5.4-nano tokens");
+    expect(cap.quantity).toBe("1000 + 500");
+    expect(cap.cost).toBeCloseTo(0.000825, 6); // (1000/1000)*0.0002 + (500/1000)*0.00125
+  });
+
+  it("uses model from span attributes for pricing", () => {
+    const trace: SpanNode = {
+      name: "worker",
+      duration_ms: 1000,
+      children: [
+        {
+          name: "captioning",
+          duration_ms: 500,
+          attributes: { prompt_tokens: 1000, completion_tokens: 500, model: "gpt-4o" },
+        },
+      ],
+    };
+    const est = estimateInfraCost(trace);
+    const cap = est.items.find((i) => i.service === "captioning")!;
+    expect(cap.item).toBe("gpt-4o tokens");
+    expect(cap.cost).toBeCloseTo(0.0125, 4); // (1000/1000)*0.005 + (500/1000)*0.015
   });
 
   it("handles simple passthrough trace", () => {
     const est = estimateInfraCost(TRACE_SIMPLE);
-    // worker + no external services
-    const worker = est.breakdown.find((b) => b.service === "worker")!;
+    const worker = est.items.find((i) => i.service === "worker")!;
     expect(worker).toBeDefined();
     expect(est.totalPromptTokens).toBe(0);
     expect(est.totalCost).toBeGreaterThan(0);
     expect(est.totalCost).toBeLessThan(0.001);
   });
 
-  it("includes worker cost even with no recognized services", () => {
+  it("includes email and worker cost with no recognized services", () => {
     const est = estimateInfraCost({ name: "worker", duration_ms: 1000 });
-    expect(est.breakdown).toHaveLength(1);
-    expect(est.breakdown[0].service).toBe("worker");
+    expect(est.items).toHaveLength(2);
+    expect(est.items[0].service).toBe("worker");
+    expect(est.items[1].service).toBe("email");
+    expect(est.items[1].item).toBe("authentication send");
     expect(est.totalCost).toBeGreaterThan(0);
   });
 });

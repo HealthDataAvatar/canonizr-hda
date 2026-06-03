@@ -96,7 +96,7 @@ export function TraceFlame({ trace, className }: TraceFlameProps) {
       {/* Flame graph */}
       <div
         ref={containerRef}
-        className="overflow-x-auto rounded border border-border bg-surface"
+        className="overflow-auto max-h-[400px] rounded border border-border bg-surface"
       >
         <svg
           width="100%"

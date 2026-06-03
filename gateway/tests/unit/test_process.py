@@ -26,7 +26,7 @@ from tests.fakes import (
 
 def _make_svc():
     key = os.urandom(32)
-    user = UserContext(user_id="user_1", encryption_key=key, key_name="test")
+    user = UserContext(user_id="user_1", encryption_key=key, price_per_unit=0.003, key_name="test")
     quota_redis = FakeRedis()
     emitter = FakeEmitter()
     svc = Services(

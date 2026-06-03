@@ -10,9 +10,10 @@ Redis keys:
 """
 
 import logging
-from typing import Any
 
 from azure.data.tables import TableServiceClient
+
+from .protocols import RedisQuotaCache
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +27,7 @@ class QuotaService:
 
     def __init__(
         self,
-        r: "redis.Redis | Any",  # noqa: F821 — accepts FakeRedis in tests
+        r: RedisQuotaCache,
         rejected_ttl: int = 3600,
         max_rejected: int = 50,
         billing_period_ttl: int = 2_678_400,

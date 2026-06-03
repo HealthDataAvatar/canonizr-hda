@@ -47,9 +47,9 @@ async def lifespan(app: FastAPI):
     _svc = Services(
         blobs=AzureBlobStore(blob_svc),
         jobs=TableJobStore(table_svc),
-        users=TableUserResolver(r, table_svc),
+        users=TableUserResolver(r, table_svc),  # type: ignore[arg-type]  # redis stubs return bytes|str; we use decode_responses=True
         queue=queue,
-        quota=QuotaService(r, table_service=table_svc),
+        quota=QuotaService(r, table_service=table_svc),  # type: ignore[arg-type]
         telemetry=PostHogEmitter(),
         captioner=OpenAICaptioner(),
         pdf_extractor=HttpPdfExtractor(),

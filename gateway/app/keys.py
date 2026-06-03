@@ -54,6 +54,11 @@ def billing_status(*, user_id: str) -> str:
     return f"user:{user_id}:billing_status"
 
 
+def price_per_unit_cache(*, user_id: str) -> str:
+    """Cache: user price per unit (long TTL, admin-changed)."""
+    return f"user:{user_id}:price_per_unit"
+
+
 # -- Job queue --
 
 

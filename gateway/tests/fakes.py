@@ -184,7 +184,7 @@ class FakeUserResolver:
     def __init__(self, mappings: dict[str, UserContext] | None = None):
         self._mappings = mappings or {}
 
-    async def resolve(self, sub_id: str) -> UserContext | None | str:
+    async def resolve(self, sub_id: str):
         return self._mappings.get(sub_id)
 
     def add(self, sub_id: str, ctx: UserContext) -> None:
