@@ -9,7 +9,8 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from app.protocols import Job, JobMeta, JobResult, JobStatus, UserContext
+from app.protocols import Job, JobMeta, JobResult, JobStatus, UserContext, VisionResult
+from app.response import ConvertResult
 
 
 class FakeRedis:
@@ -201,3 +202,65 @@ class FakeEmitter:
 
     def shutdown(self) -> None:
         pass
+
+
+class FakeCaptioner:
+    """Injectable captioning service. Responses can be VisionResult, ConvertResult, or Exception."""
+
+    def __init__(self, responses: list | None = None, available: bool = True):
+        self._responses = list(responses or [])
+        self._available = available
+        self.calls: list[tuple[str, str]] = []
+
+    def _next(self):
+        r = self._responses.pop(0)
+        if isinstance(r, Exception):
+            raise r
+        return r
+
+    def is_available(self) -> bool:
+        return self._available
+
+    async def describe(self, image_b64: str, mime_type: str, deadline: float, parent) -> VisionResult:
+        self.calls.append(("describe", mime_type))
+        return self._next()
+
+    async def describe_file(self, image_bytes: bytes, mime_type: str, deadline: float, parent) -> ConvertResult:
+        self.calls.append(("describe_file", mime_type))
+        return self._next()
+
+
+class FakePdfExtractor:
+    """Injectable PDF extractor. Responses are (markdown, pictures) tuples or Exceptions."""
+
+    def __init__(self, responses: list | None = None):
+        self._responses = list(responses or [])
+        self.calls: list[int] = []
+
+    async def convert(self, file_bytes: bytes, mime_type: str, deadline: float, parent) -> tuple[str, list[dict]]:
+        self.calls.append(len(file_bytes))
+        r = self._responses.pop(0)
+        if isinstance(r, Exception):
+            raise r
+        return r
+
+
+class FakeOfficeConverter:
+    """Injectable office converter. Responses are (pdf_bytes, mime) tuples or Exceptions."""
+
+    def __init__(self, responses: list | None = None, available: bool = True):
+        self._responses = list(responses or [])
+        self._available = available
+        self.calls: list[tuple[str, str]] = []
+
+    def is_available(self) -> bool:
+        return self._available
+
+    async def convert(
+        self, file_bytes: bytes, mime_type: str, filename: str, deadline: float, parent
+    ) -> tuple[bytes, str]:
+        self.calls.append(("convert", mime_type))
+        r = self._responses.pop(0)
+        if isinstance(r, Exception):
+            raise r
+        return r

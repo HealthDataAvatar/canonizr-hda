@@ -58,7 +58,7 @@ async def process_job(job: Job, user: UserContext, svc: Services) -> ProcessResu
     trace = Trace("worker", file_size_bytes=file_size, mime_type=job.mime_type, filename=job.filename)
 
     try:
-        result = await convert(file_bytes, job.mime_type, job.filename, deadline, trace)
+        result = await convert(file_bytes, job.mime_type, job.filename, deadline, trace, svc)
         trace.finish()
         steps = trace.to_steps()
         result.detected_type = job.mime_type
@@ -85,7 +85,7 @@ async def process_job(job: Job, user: UserContext, svc: Services) -> ProcessResu
         return proc
 
     except UnsupportedFormat as e:
-        _mark_error(svc, user.user_id, job.job_id, str(e), "permanent")
+        _mark_error(svc, user.user_id, job.job_id, str(e), "permanent", trace)
         proc = ProcessResult(
             JobResult(job_id=job.job_id, status="error", detail=str(e), status_code=400),
             file_size,
@@ -96,7 +96,7 @@ async def process_job(job: Job, user: UserContext, svc: Services) -> ProcessResu
         return proc
 
     except ServiceNotConfigured as e:
-        _mark_error(svc, user.user_id, job.job_id, str(e), "permanent")
+        _mark_error(svc, user.user_id, job.job_id, str(e), "permanent", trace)
         proc = ProcessResult(
             JobResult(job_id=job.job_id, status="error", detail=str(e), status_code=422),
             file_size,
@@ -109,8 +109,7 @@ async def process_job(job: Job, user: UserContext, svc: Services) -> ProcessResu
     except Exception as e:
         category = _error_category(e)
         logger.error("Job %s failed (%s): %s", job.job_id, category, e)
-        _mark_error(svc, user.user_id, job.job_id, str(e), category)
-        trace.finish()
+        _mark_error(svc, user.user_id, job.job_id, str(e), category, trace)
         steps = trace.to_steps()
         proc = ProcessResult(
             JobResult(job_id=job.job_id, status="error", detail=str(e), status_code=500),
@@ -199,11 +198,16 @@ def _error_category(e: Exception) -> str:
     return "internal"
 
 
-def _mark_error(svc: Services, user_id: str, job_id: str, detail: str, category: str) -> None:
+def _mark_error(
+    svc: Services, user_id: str, job_id: str, detail: str, category: str, trace: Trace | None = None
+) -> None:
     """Update job metadata to error status."""
     meta = svc.jobs.get(user_id, job_id)
     if meta:
         meta.status = JobStatus.ERROR
         meta.detail = f"[{category}] {detail}"
         meta.completed_at = datetime.now(UTC).isoformat()
+        if trace:
+            trace.finish()
+            meta.steps = json.dumps(trace.to_dict())
         svc.jobs.update(meta)

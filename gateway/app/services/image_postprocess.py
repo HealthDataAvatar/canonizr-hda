@@ -11,8 +11,8 @@ from io import BytesIO
 from PIL import Image
 
 from ..imageconv import prepare_image_for_vlm
+from ..protocols import Captioner
 from ..tracing import Span
-from . import captioning
 
 logger = logging.getLogger(__name__)
 
@@ -184,6 +184,7 @@ async def caption_images(
     pictures: list[dict],
     deadline: float,
     parent: Span,
+    captioner: Captioner,
 ) -> CaptionResult:
     """Replace base64 images in markdown with captions. Raises CaptioningUpstreamError on failure."""
     entries = _classify_images(md_content, pictures)
@@ -218,7 +219,7 @@ async def caption_images(
         )
 
         async with semaphore:
-            return await captioning.describe(image_b64, mime_type, deadline, parent=img_span)
+            return await captioner.describe(image_b64, mime_type, deadline, parent=img_span)
 
     for entry in entries:
         if entry["outcome"] == ImageOutcome.NEEDS_CAPTION:

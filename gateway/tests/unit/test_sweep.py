@@ -9,7 +9,17 @@ from app.context import Services
 from app.protocols import JobMeta, JobStatus, UserContext
 from app.quota import QuotaService
 from app.sweep import _sweep_once
-from tests.fakes import FakeBlobStore, FakeEmitter, FakeJobStore, FakeQueue, FakeRedis, FakeUserResolver
+from tests.fakes import (
+    FakeBlobStore,
+    FakeCaptioner,
+    FakeEmitter,
+    FakeJobStore,
+    FakeOfficeConverter,
+    FakePdfExtractor,
+    FakeQueue,
+    FakeRedis,
+    FakeUserResolver,
+)
 
 
 def _make_svc():
@@ -24,6 +34,9 @@ def _make_svc():
             queue=FakeQueue(),
             quota=QuotaService(redis, max_rejected=3),
             telemetry=FakeEmitter(),
+            captioner=FakeCaptioner(),
+            pdf_extractor=FakePdfExtractor(),
+            office_converter=FakeOfficeConverter(),
         ),
         redis,
     )

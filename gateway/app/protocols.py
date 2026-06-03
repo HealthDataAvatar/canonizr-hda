@@ -14,6 +14,9 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Protocol
 
+from .response import ConvertResult
+from .tracing import Span
+
 # ---------------------------------------------------------------------------
 # Blob storage
 # ---------------------------------------------------------------------------
@@ -174,3 +177,44 @@ class Queue(Protocol):
 
     # Startup
     async def ensure_group(self) -> None: ...
+
+
+# ---------------------------------------------------------------------------
+# Upstream service results
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class VisionResult:
+    """Result from a single image captioning call."""
+
+    text: str
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    elapsed_ms: float = 0.0
+
+
+# ---------------------------------------------------------------------------
+# Upstream services (Docling, Captioning, Gotenberg)
+# ---------------------------------------------------------------------------
+
+
+class Captioner(Protocol):
+    def is_available(self) -> bool: ...
+    async def describe(self, image_b64: str, mime_type: str, deadline: float, parent: Span) -> VisionResult: ...
+    async def describe_file(
+        self, image_bytes: bytes, mime_type: str, deadline: float, parent: Span
+    ) -> ConvertResult: ...
+
+
+class PdfExtractor(Protocol):
+    async def convert(
+        self, file_bytes: bytes, mime_type: str, deadline: float, parent: Span
+    ) -> tuple[str, list[dict]]: ...
+
+
+class OfficeConverter(Protocol):
+    def is_available(self) -> bool: ...
+    async def convert(
+        self, file_bytes: bytes, mime_type: str, filename: str, deadline: float, parent: Span
+    ) -> tuple[bytes, str]: ...

@@ -7,10 +7,7 @@ from io import BytesIO
 import httpx
 
 from ..pdfsplit import split as split_pdf
-from ..response import ConvertResult
 from ..tracing import Span
-from . import captioning
-from .image_postprocess import IMAGE_RE, CaptionResult, caption_images, label_images
 from .retry import request_with_retry
 
 logger = logging.getLogger(__name__)
@@ -63,11 +60,8 @@ def merge_chunks(results: list[tuple[int, str, list[dict]]]) -> tuple[str, list[
     return md, pictures
 
 
-async def convert(file_bytes: bytes, mime_type: str, deadline: float, parent: Span) -> ConvertResult:
-    """Extract a PDF via Docling, then caption non-decorative figures.
-
-    Large PDFs are split into chunks and processed in parallel.
-    """
+async def extract(file_bytes: bytes, mime_type: str, deadline: float, parent: Span) -> tuple[str, list[dict]]:
+    """Extract PDF to (markdown, pictures). No captioning — pure extraction."""
     chunks = split_pdf(file_bytes, CHUNK_PAGES)
 
     if len(chunks) == 1:
@@ -90,26 +84,11 @@ async def convert(file_bytes: bytes, mime_type: str, deadline: float, parent: Sp
         md_content, pictures = merge_chunks(list(results))
 
     parent.set(md_length=len(md_content), pictures_count=len(pictures))
+    return md_content, pictures
 
-    actions = ["docling"]
-    cap = CaptionResult(markdown=md_content)
-    image_count = len(list(IMAGE_RE.finditer(md_content)))
 
-    if image_count > 0:
-        if captioning.is_available():
-            cap = await caption_images(md_content, pictures, deadline, parent)
-            actions.append("captioning")
-        else:
-            cap = label_images(md_content, pictures)
-            actions.append("labelling")
+class HttpPdfExtractor:
+    """PdfExtractor implementation backed by a Docling HTTP service."""
 
-    return ConvertResult(
-        markdown=cap.markdown,
-        detected_type=mime_type,
-        actions=actions,
-        images_captioned=cap.captioned,
-        images_skipped=cap.skipped,
-        images_errored=cap.errored,
-        captioning_prompt_tokens=cap.prompt_tokens,
-        captioning_completion_tokens=cap.completion_tokens,
-    )
+    async def convert(self, file_bytes: bytes, mime_type: str, deadline: float, parent: Span) -> tuple[str, list[dict]]:
+        return await extract(file_bytes, mime_type, deadline, parent)

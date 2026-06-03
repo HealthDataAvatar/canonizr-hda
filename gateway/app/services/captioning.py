@@ -3,12 +3,12 @@ import json
 import logging
 import os
 import time
-from dataclasses import dataclass
 
 import httpx
 
 from ..imageconv import prepare_image_for_vlm
 from ..prompts import IMAGE
+from ..protocols import VisionResult
 from ..response import ConvertResult
 from ..tracing import Span
 from .retry import request_with_retry
@@ -33,14 +33,6 @@ def get_config() -> dict:
         "api_key": f"set ({len(API_KEY)} chars)" if API_KEY else "not set",
         "model": API_MODEL or "not set",
     }
-
-
-@dataclass
-class VisionResult:
-    text: str
-    prompt_tokens: int = 0
-    completion_tokens: int = 0
-    elapsed_ms: float = 0.0
 
 
 async def _call(image_b64: str, mime_type: str, deadline: float, parent: Span) -> VisionResult:
@@ -130,3 +122,16 @@ async def describe_file(image_bytes: bytes, mime_type: str, deadline: float, par
         captioning_prompt_tokens=result.prompt_tokens,
         captioning_completion_tokens=result.completion_tokens,
     )
+
+
+class HttpCaptioner:
+    """Captioner implementation backed by an OpenAI-compatible vision API."""
+
+    def is_available(self) -> bool:
+        return is_available()
+
+    async def describe(self, image_b64: str, mime_type: str, deadline: float, parent: Span) -> VisionResult:
+        return await _call(image_b64, mime_type, deadline, parent)
+
+    async def describe_file(self, image_bytes: bytes, mime_type: str, deadline: float, parent: Span) -> ConvertResult:
+        return await describe_file(image_bytes, mime_type, deadline, parent)

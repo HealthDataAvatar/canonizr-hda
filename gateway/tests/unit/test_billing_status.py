@@ -8,7 +8,17 @@ from app.context import Services
 from app.handlers import Rejected, accept_job
 from app.protocols import UserContext
 from app.quota import QuotaService
-from tests.fakes import FakeBlobStore, FakeEmitter, FakeJobStore, FakeQueue, FakeRedis, FakeUserResolver
+from tests.fakes import (
+    FakeBlobStore,
+    FakeCaptioner,
+    FakeEmitter,
+    FakeJobStore,
+    FakeOfficeConverter,
+    FakePdfExtractor,
+    FakeQueue,
+    FakeRedis,
+    FakeUserResolver,
+)
 
 
 def _make_svc(resolver_result):
@@ -20,6 +30,9 @@ def _make_svc(resolver_result):
         queue=FakeQueue(),
         quota=QuotaService(FakeRedis(), max_rejected=3),
         telemetry=FakeEmitter(),
+        captioner=FakeCaptioner(),
+        pdf_extractor=FakePdfExtractor(),
+        office_converter=FakeOfficeConverter(),
     )
 
 

@@ -52,3 +52,15 @@ async def convert(file_bytes: bytes, mime_type: str, filename: str, deadline: fl
     http_span._end = time.monotonic()
 
     return response.content, "application/pdf"
+
+
+class HttpOfficeConverter:
+    """OfficeConverter implementation backed by Gotenberg's LibreOffice endpoint."""
+
+    def is_available(self) -> bool:
+        return is_available()
+
+    async def convert(
+        self, file_bytes: bytes, mime_type: str, filename: str, deadline: float, parent: Span
+    ) -> tuple[bytes, str]:
+        return await convert(file_bytes, mime_type, filename, deadline, parent)

@@ -36,7 +36,7 @@ export default async function DashboardLayout({
       </a>
       {/* Desktop sidebar */}
       <aside
-        className="hidden sm:flex w-[220px] shrink-0 flex-col border-r border-border px-5 py-6"
+        className="hidden sm:flex w-[220px] shrink-0 flex-col border-r border-border px-5 py-6 sticky top-0 h-screen overflow-y-auto"
         aria-label="Sidebar"
       >
         <Link
