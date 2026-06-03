@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 URL = os.environ.get("DOCLING_ENDPOINT") or "http://docling:5001/v1/convert/file"
 CHUNK_PAGES = int(os.environ.get("DOCLING_CHUNK_PAGES", "10"))
-CHUNK_CONCURRENCY = int(os.environ.get("DOCLING_CHUNK_CONCURRENCY", "3"))
+CHUNK_CONCURRENCY = int(os.environ.get("DOCLING_CHUNK_CONCURRENCY", "2"))
 
 
 async def _convert_single(file_bytes: bytes, mime_type: str, deadline: float, parent: Span) -> tuple[str, list[dict]]:
