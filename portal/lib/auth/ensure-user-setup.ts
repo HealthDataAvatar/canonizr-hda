@@ -7,7 +7,7 @@
  * are intentional (user deleted them).
  */
 
-import { getCurrentConfig, appendConfig } from "@/lib/data/tables/user-config";
+import { getCurrentConfig, appendConfig, DEFAULTS } from "@/lib/data/tables/user-config";
 import { getCurrentPermissions, appendPermissions } from "@/lib/data/tables/user-permissions";
 import { getServices } from "@/lib/services";
 
@@ -27,10 +27,7 @@ export async function ensureUserSetup(userId: string, email: string): Promise<vo
   if (isFirstSetup) {
     tasks.push(
       appendConfig(userId, {
-        freeUnits: 500,
-        maxKeys: 100,
-        pricePerUnit: 0.003,
-        spendCapKB: null,
+        ...DEFAULTS,
         changedBy: "system",
       }),
     );

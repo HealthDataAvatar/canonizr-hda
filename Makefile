@@ -1,12 +1,12 @@
 ACR_NAME    ?= acrcanonizrprod
 ACR_SERVER  ?= $(ACR_NAME).azurecr.io
-IMAGE_NAME  ?= canonizr-gateway
-PORTAL_IMAGE ?= canonizr-portal
+GATEWAY_IMAGE      ?= canonizr-gateway
+PORTAL_IMAGE    ?= canonizr-portal
 TAG         ?= latest
 TF_DIR      ?= infra/terraform
 DEPLOY_TIME ?= $(shell date -u +%Y%m%dT%H%M%SZ)
 
-.PHONY: build gateway-push deploy test test-unit test-gateway-unit test-portal-unit test-gateway-integration test-portal-integration test-integration test-smoke test-focus check-uv fmt lint check install-hooks setup-secrets gen-key gateway-logs worker-logs portal-dev portal-build portal-push portal-logs set-admin
+.PHONY: build gateway-push deploy test test-unit test-gateway-unit test-portal-unit test-gateway-integration test-portal-integration test-integration test-smoke test-focus check-uv fmt lint check install-hooks setup-secrets gen-key gateway-logs worker-logs portal-dev portal-build portal-push portal-logs florence-build florence-push florence-logs set-admin
 
 # ---------------------------------------------------------------------------
 # Prerequisites
@@ -104,12 +104,12 @@ setup-secrets:
 # ---------------------------------------------------------------------------
 build:
 	docker build --platform linux/amd64 \
-		-t $(ACR_SERVER)/$(IMAGE_NAME):$(TAG) \
+		-t $(ACR_SERVER)/$(GATEWAY_IMAGE):$(TAG) \
 		-f gateway/gateway.dockerfile gateway/
 
 gateway-push: build
 	az acr login --name $(ACR_NAME)
-	docker push $(ACR_SERVER)/$(IMAGE_NAME):$(TAG)
+	docker push $(ACR_SERVER)/$(GATEWAY_IMAGE):$(TAG)
 
 deploy: test gateway-push portal-push
 	tofu -chdir=$(TF_DIR) apply -var="deploy_time=$(DEPLOY_TIME)"

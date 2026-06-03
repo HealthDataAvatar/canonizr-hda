@@ -17,7 +17,7 @@ from .protocols import Job, JobStatus
 from .queue import RedisQueue
 from .quota import QuotaService
 from .redis_client import get_redis
-from .services.captioning import HttpCaptioner
+from .services.captioning import OpenAICaptioner
 from .services.docling import HttpPdfExtractor
 from .services.libreoffice import HttpOfficeConverter
 from .sweep import run_sweep_loop
@@ -53,7 +53,7 @@ async def run():
         queue=queue,
         quota=QuotaService(r, table_service=table_svc),
         telemetry=PostHogEmitter(),
-        captioner=HttpCaptioner(),
+        captioner=OpenAICaptioner(),
         pdf_extractor=HttpPdfExtractor(),
         office_converter=HttpOfficeConverter(),
     )

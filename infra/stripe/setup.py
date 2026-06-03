@@ -20,8 +20,8 @@ if not stripe.api_key:
 METER_EVENT_NAME = "conversion_bytes"
 PRODUCT_LOOKUP_KEY = "canonizr_api"
 PRICE_LOOKUP_KEY = "canonizr_per_100kb"
-PRICE_PER_UNIT = 0.003  # $0.003 per 100KB
-FREE_UNITS = 500  # 500 × 100KB = 50MB free/month
+PRICE_PER_UNIT = float(os.environ.get("DEFAULT_PRICE_PER_UNIT", "0.003"))
+FREE_UNITS = int(os.environ.get("DEFAULT_FREE_UNITS", "500"))
 
 
 def ensure_meter() -> stripe.billing.Meter:

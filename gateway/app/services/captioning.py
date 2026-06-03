@@ -66,7 +66,7 @@ async def _call(image_b64: str, mime_type: str, deadline: float, parent: Span) -
 
     payload_bytes = len(json.dumps(payload))
 
-    http_span = Span(name="http_request", attributes={"payload_bytes": payload_bytes})
+    http_span = Span(name="http_request", attributes={"payload_bytes": payload_bytes, "model": API_MODEL or "unknown"})
     http_span._start = time.monotonic()
     parent.children.append(http_span)
 
@@ -124,8 +124,8 @@ async def describe_file(image_bytes: bytes, mime_type: str, deadline: float, par
     )
 
 
-class HttpCaptioner:
-    """Captioner implementation backed by an OpenAI-compatible vision API."""
+class OpenAICaptioner:
+    """Captioner backed by an OpenAI-compatible vision API (Azure OpenAI, llama.cpp, etc.)."""
 
     def is_available(self) -> bool:
         return is_available()

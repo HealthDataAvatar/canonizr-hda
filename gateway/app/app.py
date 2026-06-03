@@ -23,7 +23,7 @@ from .queue import RedisQueue
 from .quota import QuotaService
 from .redis_client import get_redis
 from .sanitize import content_disposition
-from .services.captioning import HttpCaptioner
+from .services.captioning import OpenAICaptioner
 from .services.docling import HttpPdfExtractor
 from .services.libreoffice import HttpOfficeConverter
 from .telemetry import PostHogEmitter
@@ -51,7 +51,7 @@ async def lifespan(app: FastAPI):
         queue=queue,
         quota=QuotaService(r, table_service=table_svc),
         telemetry=PostHogEmitter(),
-        captioner=HttpCaptioner(),
+        captioner=OpenAICaptioner(),
         pdf_extractor=HttpPdfExtractor(),
         office_converter=HttpOfficeConverter(),
     )

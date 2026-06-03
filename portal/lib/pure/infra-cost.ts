@@ -30,9 +30,12 @@ const EXTERNAL_SERVICE_VCPUS: Record<string, number> = {
   gotenberg: GOTENBERG_VCPUS,
 };
 
-/** Azure OpenAI GPT-4o pricing per 1K tokens. */
-const PROMPT_TOKEN_COST_PER_1K = 0.005;
-const COMPLETION_TOKEN_COST_PER_1K = 0.015;
+/** Per-1K-token pricing by model. Input/output per 1M → divide by 1000 for per-1K. */
+const MODEL_TOKEN_PRICING: Record<string, { prompt: number; completion: number }> = {
+  "gpt-5.4-nano": { prompt: 0.0002, completion: 0.00125 },   // $0.20 / $1.25 per 1M
+  "gpt-4o":       { prompt: 0.005,  completion: 0.015 },      // $5.00 / $15.00 per 1M
+};
+const DEFAULT_MODEL = "gpt-5.4-nano";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -101,9 +104,11 @@ export function estimateInfraCost(root: SpanNode): InfraCostEstimate {
     const promptTokens = Number(attrs.prompt_tokens ?? 0);
     const completionTokens = Number(attrs.completion_tokens ?? 0);
     if (promptTokens > 0 || completionTokens > 0) {
+      const model = String(attrs.model ?? DEFAULT_MODEL);
+      const pricing = MODEL_TOKEN_PRICING[model] ?? MODEL_TOKEN_PRICING[DEFAULT_MODEL];
       const tokenCost =
-        (promptTokens / 1000) * PROMPT_TOKEN_COST_PER_1K +
-        (completionTokens / 1000) * COMPLETION_TOKEN_COST_PER_1K;
+        (promptTokens / 1000) * pricing.prompt +
+        (completionTokens / 1000) * pricing.completion;
       totalPromptTokens += promptTokens;
       totalCompletionTokens += completionTokens;
 

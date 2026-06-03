@@ -89,6 +89,18 @@ variable "openai_model_version" {
   default = "2026-03-17"
 }
 
+variable "default_price_per_unit" {
+  description = "Default price per 100KB unit (USD) for new users"
+  type        = number
+  default     = 0.003
+}
+
+variable "default_free_units" {
+  description = "Default free 100KB units per month for new users"
+  type        = number
+  default     = 500
+}
+
 variable "posthog_api_key" {
   description = "PostHog project API key (write-only, safe to be public)"
   type        = string

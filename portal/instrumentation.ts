@@ -40,7 +40,7 @@ export async function register() {
   if (connStr && connStr.includes("http://")) {
     const { getTableClient } = await import("@/lib/data/table-client");
     const { TableName } = await import("@/lib/data/table-names");
-    const { appendConfig } = await import("@/lib/data/tables/user-config");
+    const { appendConfig, DEFAULTS } = await import("@/lib/data/tables/user-config");
     const { appendPermissions } = await import("@/lib/data/tables/user-permissions");
 
     const users = getTableClient(TableName.USERS);
@@ -71,10 +71,7 @@ export async function register() {
     });
 
     await appendConfig(adminId, {
-      freeUnits: 500,
-      maxKeys: 100,
-      pricePerUnit: 0.003,
-      spendCapKB: null,
+      ...DEFAULTS,
       changedBy: "system",
     });
 

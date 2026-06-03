@@ -44,7 +44,7 @@ describe("estimateInfraCost", () => {
     // Captioning: no compute (runs inside worker), only token cost
     const cap = est.breakdown.find((b) => b.service === "captioning (tokens)")!;
     expect(cap.computeCost).toBe(0);
-    expect(cap.tokenCost).toBeCloseTo(0.0125, 4); // (1000/1000)*0.005 + (500/1000)*0.015
+    expect(cap.tokenCost).toBeCloseTo(0.000825, 6); // (1000/1000)*0.0002 + (500/1000)*0.00125
   });
 
   it("handles simple passthrough trace", () => {

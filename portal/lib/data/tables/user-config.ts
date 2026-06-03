@@ -13,10 +13,10 @@ export interface UserConfigRecord {
   timestamp: string;
 }
 
-const DEFAULTS: Omit<UserConfigRecord, "changedBy" | "timestamp"> = {
-  freeUnits: 500,
+export const DEFAULTS: Omit<UserConfigRecord, "changedBy" | "timestamp"> = {
+  freeUnits: Number(process.env.DEFAULT_FREE_UNITS) || 500,
   maxKeys: 100,
-  pricePerUnit: 0.003,
+  pricePerUnit: Number(process.env.DEFAULT_PRICE_PER_UNIT) || 0.003,
   spendCapKB: null,
 };
 

@@ -262,6 +262,16 @@ resource "azurerm_container_app" "portal" {
         secret_name = "redis-connection-string"
       }
 
+      env {
+        name  = "DEFAULT_PRICE_PER_UNIT"
+        value = tostring(var.default_price_per_unit)
+      }
+
+      env {
+        name  = "DEFAULT_FREE_UNITS"
+        value = tostring(var.default_free_units)
+      }
+
       liveness_probe {
         transport = "HTTP"
         path      = "/api/health"
