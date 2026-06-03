@@ -92,7 +92,7 @@ variable "openai_model_version" {
 variable "default_price_per_unit" {
   description = "Default price per 100KB unit (USD) for new users"
   type        = number
-  default     = 0.003
+  default     = 0.015
 }
 
 variable "default_free_units" {
