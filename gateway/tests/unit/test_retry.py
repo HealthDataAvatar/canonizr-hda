@@ -5,9 +5,15 @@ from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
-from fastapi import HTTPException
 
-from app.services.retry import Attempt, _observe, _should_keep_trying, backoff_delay, request_with_retry
+from app.services.retry import (
+    Attempt,
+    TransientUpstreamError,
+    _observe,
+    _should_keep_trying,
+    backoff_delay,
+    request_with_retry,
+)
 from app.telemetry import LoggingEmitter, get_telemetry_context, set_telemetry_context
 from app.tracing import Span
 
@@ -27,6 +33,44 @@ class _MockTransport(httpx.AsyncBaseTransport):
         idx = min(self._calls, len(self._responses) - 1)
         self._calls += 1
         return self._responses[idx]
+
+    @property
+    def call_count(self):
+        return self._calls
+
+
+class _TimeoutTransport(httpx.AsyncBaseTransport):
+    """Raises TimeoutException on first N calls, then delegates to inner transport."""
+
+    def __init__(self, fail_count: int, then: httpx.AsyncBaseTransport):
+        self._fail_count = fail_count
+        self._then = then
+        self._calls = 0
+
+    async def handle_async_request(self, request):
+        self._calls += 1
+        if self._calls <= self._fail_count:
+            raise httpx.ReadTimeout("read timed out")
+        return await self._then.handle_async_request(request)
+
+    @property
+    def call_count(self):
+        return self._calls
+
+
+class _ConnectErrorTransport(httpx.AsyncBaseTransport):
+    """Raises ConnectError on first N calls, then delegates."""
+
+    def __init__(self, fail_count: int, then: httpx.AsyncBaseTransport):
+        self._fail_count = fail_count
+        self._then = then
+        self._calls = 0
+
+    async def handle_async_request(self, request):
+        self._calls += 1
+        if self._calls <= self._fail_count:
+            raise httpx.ConnectError("connection refused")
+        return await self._then.handle_async_request(request)
 
     @property
     def call_count(self):
@@ -95,11 +139,11 @@ async def test_retry_on_503_then_success(_sleep):
 
 @pytest.mark.asyncio
 @_no_sleep
-async def test_exhausted_retries_429_raises_429(_sleep):
+async def test_exhausted_retries_429_raises_transient(_sleep):
     """429s retry until deadline — with mocked sleep, deadline never advances so it retries the safety bound."""
     transport = _MockTransport([_response(429)] * 5)
     async with httpx.AsyncClient(transport=transport) as client:
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(TransientUpstreamError) as exc_info:
             await request_with_retry(
                 client,
                 "POST",
@@ -112,10 +156,10 @@ async def test_exhausted_retries_429_raises_429(_sleep):
 
 @pytest.mark.asyncio
 @_no_sleep
-async def test_exhausted_retries_502_raises_502(_sleep):
+async def test_exhausted_retries_502_raises_transient(_sleep):
     transport = _MockTransport([_response(502)] * 5)
     async with httpx.AsyncClient(transport=transport) as client:
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(TransientUpstreamError) as exc_info:
             await request_with_retry(
                 client,
                 "POST",
@@ -136,7 +180,7 @@ async def test_deadline_exceeded_stops_retries():
         ]
     )
     async with httpx.AsyncClient(transport=transport) as client:
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(TransientUpstreamError) as exc_info:
             await request_with_retry(
                 client,
                 "POST",
@@ -166,11 +210,12 @@ async def test_no_retry_on_4xx():
 
 
 @pytest.mark.asyncio
-async def test_zero_retries_propagates_5xx_immediately():
+@_no_sleep
+async def test_zero_retries_propagates_5xx_immediately(_sleep):
     """max_retries=0 stops 5xx retries after first attempt."""
     transport = _MockTransport([_response(500)])
     async with httpx.AsyncClient(transport=transport) as client:
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(TransientUpstreamError) as exc_info:
             await request_with_retry(
                 client,
                 "POST",
@@ -179,7 +224,7 @@ async def test_zero_retries_propagates_5xx_immediately():
                 max_retries=0,
                 span=Span("test"),
             )
-    assert exc_info.value.status_code == 502
+    assert exc_info.value.status_code == 500
     assert transport.call_count == 1
 
 
@@ -189,7 +234,7 @@ async def test_429_retries_until_deadline(_sleep):
     """429s ignore max_retries and retry until deadline expires."""
     transport = _MockTransport([_response(429)] * 10)
     async with httpx.AsyncClient(transport=transport) as client:
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(TransientUpstreamError) as exc_info:
             await request_with_retry(
                 client,
                 "POST",
@@ -200,6 +245,85 @@ async def test_429_retries_until_deadline(_sleep):
             )
     assert exc_info.value.status_code == 429
     assert transport.call_count >= 1
+
+
+# ---------------------------------------------------------------------------
+# Connection-level failures are retried
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+@_no_sleep
+async def test_timeout_retried_then_success(_sleep):
+    """Connection timeout is retried and succeeds on next attempt."""
+    inner = _MockTransport([_response(200)])
+    transport = _TimeoutTransport(fail_count=1, then=inner)
+    async with httpx.AsyncClient(transport=transport) as client:
+        resp = await request_with_retry(
+            client,
+            "POST",
+            "http://test/api",
+            deadline=_deadline(10),
+            span=Span("test"),
+        )
+    assert resp.status_code == 200
+    assert transport.call_count == 2
+
+
+@pytest.mark.asyncio
+@_no_sleep
+async def test_connect_error_retried_then_success(_sleep):
+    """Connection error is retried and succeeds on next attempt."""
+    inner = _MockTransport([_response(200)])
+    transport = _ConnectErrorTransport(fail_count=1, then=inner)
+    async with httpx.AsyncClient(transport=transport) as client:
+        resp = await request_with_retry(
+            client,
+            "POST",
+            "http://test/api",
+            deadline=_deadline(10),
+            span=Span("test"),
+        )
+    assert resp.status_code == 200
+    assert transport.call_count == 2
+
+
+@pytest.mark.asyncio
+@_no_sleep
+async def test_timeout_exhausted_raises_transient(_sleep):
+    """Timeout on every attempt raises TransientUpstreamError."""
+    transport = _TimeoutTransport(fail_count=10, then=_MockTransport([]))
+    async with httpx.AsyncClient(transport=transport) as client:
+        with pytest.raises(TransientUpstreamError) as exc_info:
+            await request_with_retry(
+                client,
+                "POST",
+                "http://test/api",
+                deadline=_deadline(10),
+                max_retries=2,
+                span=Span("test"),
+            )
+    assert exc_info.value.status_code == 504
+    assert transport.call_count == 3  # initial + 2 retries
+
+
+@pytest.mark.asyncio
+@_no_sleep
+async def test_connect_error_exhausted_raises_transient(_sleep):
+    """Connection error on every attempt raises TransientUpstreamError."""
+    transport = _ConnectErrorTransport(fail_count=10, then=_MockTransport([]))
+    async with httpx.AsyncClient(transport=transport) as client:
+        with pytest.raises(TransientUpstreamError) as exc_info:
+            await request_with_retry(
+                client,
+                "POST",
+                "http://test/api",
+                deadline=_deadline(10),
+                max_retries=2,
+                span=Span("test"),
+            )
+    assert exc_info.value.status_code == 502
+    assert transport.call_count == 3  # initial + 2 retries
 
 
 # ---------------------------------------------------------------------------

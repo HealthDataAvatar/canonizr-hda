@@ -55,7 +55,7 @@ class JobMeta:
     created_at: str = ""
     completed_at: str = ""
     retention_expires: str = ""
-    steps: str = ""  # JSON array of step dicts
+    steps: str = ""  # JSON span tree from Trace.to_dict()
     price_per_unit: float = 0.0
 
 

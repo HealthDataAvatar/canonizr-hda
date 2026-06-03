@@ -14,6 +14,8 @@ from .convert import ServiceNotConfigured, UnsupportedFormat, convert
 from .crypto import decrypt, encrypt
 from .hash import document_hash
 from .protocols import Job, JobResult, JobStatus, UserContext
+from .services.image_postprocess import CaptioningUpstreamError
+from .services.retry import PermanentUpstreamError, TransientUpstreamError
 from .telemetry import JobCompleted, ServiceStep, set_telemetry_context
 from .tracing import Step, Trace
 
@@ -29,6 +31,7 @@ class ProcessResult:
     job_result: JobResult
     file_size: int = 0
     doc_hash: str = ""
+    error_category: str = ""
 
 
 async def process_job(job: Job, user: UserContext, svc: Services) -> ProcessResult:
@@ -74,7 +77,7 @@ async def process_job(job: Job, user: UserContext, svc: Services) -> ProcessResu
             meta.status = JobStatus.OK
             meta.completed_at = now.isoformat()
             meta.retention_expires = (now + timedelta(seconds=DEFAULT_RETENTION_SECONDS)).isoformat()
-            meta.steps = json.dumps([s.to_dict() for s in steps]) if steps else ""
+            meta.steps = json.dumps(trace.to_dict())
             svc.jobs.update(meta)
 
         proc = ProcessResult(JobResult(job_id=job.job_id, status="ok", status_code=200), file_size, doc_hash_val)
@@ -82,30 +85,38 @@ async def process_job(job: Job, user: UserContext, svc: Services) -> ProcessResu
         return proc
 
     except UnsupportedFormat as e:
-        _mark_error(svc, user.user_id, job.job_id, str(e))
+        _mark_error(svc, user.user_id, job.job_id, str(e), "permanent")
         proc = ProcessResult(
-            JobResult(job_id=job.job_id, status="error", detail=str(e), status_code=400), file_size, doc_hash_val
+            JobResult(job_id=job.job_id, status="error", detail=str(e), status_code=400),
+            file_size,
+            doc_hash_val,
+            error_category="permanent",
         )
         _emit_telemetry(svc, job, user, proc, [], processing_start)
         return proc
 
     except ServiceNotConfigured as e:
-        _mark_error(svc, user.user_id, job.job_id, str(e))
+        _mark_error(svc, user.user_id, job.job_id, str(e), "permanent")
         proc = ProcessResult(
-            JobResult(job_id=job.job_id, status="error", detail=str(e), status_code=422), file_size, doc_hash_val
+            JobResult(job_id=job.job_id, status="error", detail=str(e), status_code=422),
+            file_size,
+            doc_hash_val,
+            error_category="permanent",
         )
         _emit_telemetry(svc, job, user, proc, [], processing_start)
         return proc
 
     except Exception as e:
-        logger.error("Job %s failed: %s", job.job_id, e)
-        _mark_error(svc, user.user_id, job.job_id, str(e))
+        category = _error_category(e)
+        logger.error("Job %s failed (%s): %s", job.job_id, category, e)
+        _mark_error(svc, user.user_id, job.job_id, str(e), category)
         trace.finish()
         steps = trace.to_steps()
         proc = ProcessResult(
             JobResult(job_id=job.job_id, status="error", detail=str(e), status_code=500),
             file_size,
             doc_hash_val,
+            error_category=category,
         )
         _emit_telemetry(svc, job, user, proc, steps, processing_start)
         return proc
@@ -173,11 +184,26 @@ def _emit_telemetry(
     svc.telemetry.emit(event)
 
 
-def _mark_error(svc: Services, user_id: str, job_id: str, detail: str) -> None:
+def _error_category(e: Exception) -> str:
+    """Classify an exception as transient, permanent, or internal."""
+    if isinstance(e, TransientUpstreamError):
+        return "transient"
+    if isinstance(e, PermanentUpstreamError):
+        return "permanent"
+    if isinstance(e, CaptioningUpstreamError):
+        cause = e.__cause__
+        if isinstance(cause, TransientUpstreamError):
+            return "transient"
+        if isinstance(cause, PermanentUpstreamError):
+            return "permanent"
+    return "internal"
+
+
+def _mark_error(svc: Services, user_id: str, job_id: str, detail: str, category: str) -> None:
     """Update job metadata to error status."""
     meta = svc.jobs.get(user_id, job_id)
     if meta:
         meta.status = JobStatus.ERROR
-        meta.detail = detail
+        meta.detail = f"[{category}] {detail}"
         meta.completed_at = datetime.now(UTC).isoformat()
         svc.jobs.update(meta)

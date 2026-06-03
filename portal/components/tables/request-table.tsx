@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { createColumnHelper } from "@tanstack/react-table";
 import { Download, TimerOff, Trash2, Loader, Check, TriangleAlert } from "lucide-react";
 import { timeAgo } from "@/lib/pure/time";
@@ -13,6 +13,9 @@ import { Mono } from "@/components/ui/mono";
 import { CopyButton } from "@/components/ui/copy-button";
 import { DataTable } from "@/components/ui/data-table";
 import { TableExport } from "@/components/ui/table-export";
+import { TraceFlame } from "@/components/trace-flame";
+import { TraceCostCard } from "@/components/trace-cost-card";
+import type { SpanNode } from "@/lib/pure/trace";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -111,11 +114,42 @@ function expiryLabel(retentionExpires: string): { text: string; expired: boolean
   return { text: `Expires ${timeAgo(expires)}`, expired: false };
 }
 
-function JobDetailPanel({ row }: { row: RequestRow }) {
-  let steps: { service: string; duration_ms?: number; error?: string }[] = [];
+function parseSteps(raw?: string): { service: string; duration_ms?: number; error?: string }[] {
+  if (!raw) return [];
   try {
-    if (row.steps) steps = JSON.parse(row.steps);
-  } catch {}
+    const parsed = JSON.parse(raw);
+    // New tree format: extract service-level children
+    if (parsed && typeof parsed === "object" && "children" in parsed) {
+      return (parsed.children ?? []).map((c: Record<string, unknown>) => ({
+        service: String(c.name ?? ""),
+        duration_ms: typeof c.duration_ms === "number" ? c.duration_ms : undefined,
+      }));
+    }
+    // Legacy flat array format
+    if (Array.isArray(parsed)) return parsed;
+    return [];
+  } catch {
+    return [];
+  }
+}
+
+function parseTraceTree(raw?: string): SpanNode | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === "object" && "name" in parsed && "children" in parsed) {
+      return parsed as SpanNode;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function JobDetailPanel({ row }: { row: RequestRow }) {
+  const [showTrace, setShowTrace] = useState(false);
+  const steps = parseSteps(row.steps);
+  const traceTree = parseTraceTree(row.steps);
 
   if (!hasJobDetail(row)) return null;
 
@@ -134,7 +168,17 @@ function JobDetailPanel({ row }: { row: RequestRow }) {
       )}
       {steps.length > 0 && (
         <div className="space-y-0.5">
-          <span className="text-muted-foreground">Pipeline:</span>
+          <div className="flex items-center gap-3">
+            <span className="text-muted-foreground">Pipeline:</span>
+            {traceTree && (
+              <button
+                onClick={() => setShowTrace((v) => !v)}
+                className="text-xs text-accent hover:underline"
+              >
+                {showTrace ? "Hide trace" : "View trace"}
+              </button>
+            )}
+          </div>
           <div className="flex flex-wrap gap-1.5">
             {steps.map((s, i) => (
               <span
@@ -154,6 +198,12 @@ function JobDetailPanel({ row }: { row: RequestRow }) {
               </span>
             ))}
           </div>
+        </div>
+      )}
+      {showTrace && traceTree && (
+        <div className="mt-3 space-y-4">
+          <TraceFlame trace={traceTree} />
+          <TraceCostCard trace={traceTree} />
         </div>
       )}
       {row.detail && (

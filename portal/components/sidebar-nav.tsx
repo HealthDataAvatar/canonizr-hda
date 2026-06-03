@@ -40,8 +40,11 @@ export function SidebarNav({ isAdmin = false }: { isAdmin?: boolean }) {
           {[
             { href: "/dashboard/admin", label: "Admin" },
             { href: "/dashboard/admin/users", label: "Users" },
+            { href: "/dashboard/admin/trace", label: "Job Trace" },
           ].map(({ href, label }) => {
-            const active = pathname === href || (label === "Users" && pathname.startsWith("/dashboard/admin/users"));
+            const active = href === "/dashboard/admin"
+                  ? pathname === href
+                  : pathname === href || pathname.startsWith(href + "/");
             return (
               <Link
                 key={href}

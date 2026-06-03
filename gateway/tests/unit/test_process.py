@@ -138,7 +138,7 @@ class TestProcessJob:
         # Job metadata also records the real error
         meta = svc.jobs.get(user.user_id, job.job_id)
         assert meta is not None
-        assert meta.detail == "boom"
+        assert meta.detail == "[internal] boom"
 
         # Telemetry emitted with error details
         assert len(emitter.events) == 1

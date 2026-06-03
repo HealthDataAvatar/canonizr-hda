@@ -38,7 +38,7 @@ class RetryRecord:
 
 @dataclass
 class Step:
-    """Typed output from a service span — stored in JobMeta.steps as JSON."""
+    """Typed output from a service span — used for telemetry."""
 
     service: str
     started_at: str

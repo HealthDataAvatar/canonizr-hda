@@ -12,8 +12,8 @@ from .azure_clients import get_blob_service, get_table_service
 from .blob_azure import AzureBlobStore
 from .context import Services
 from .jobs_table import TableJobStore
-from .process import process_job
-from .protocols import JobStatus
+from .process import ProcessResult, process_job
+from .protocols import Job, JobStatus
 from .queue import RedisQueue
 from .quota import QuotaService
 from .redis_client import get_redis
@@ -25,6 +25,11 @@ logger = logging.getLogger(__name__)
 
 MAX_BACKOFF = 60
 MAX_CONSECUTIVE_FAILURES = 20
+
+
+def on_job_error(job: Job, proc: ProcessResult) -> None:
+    """Hook called when a job fails. Currently logs; future: email user."""
+    logger.info("on_job_error: job %s category=%s detail=%s", job.job_id, proc.error_category, proc.job_result.detail)
 
 
 async def run():
@@ -89,10 +94,11 @@ async def run():
             await svc.queue.store_result(job.job_id, proc.job_result)
             await svc.queue.acknowledge(job)
 
-            # On failure: refund quota so user can retry
+            # On failure: refund quota and call error hook
             if proc.job_result.status == "error" and job.sub_id and proc.file_size > 0:
                 await svc.quota.refund(job.sub_id, proc.file_size)
                 logger.info("Job %s failed — refunded %d bytes", job.job_id, proc.file_size)
+                on_job_error(job, proc)
 
             logger.info("Job %s completed with status %s (acked)", job.job_id, proc.job_result.status)
             consecutive_failures = 0

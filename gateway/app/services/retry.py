@@ -1,6 +1,6 @@
 """HTTP request with retry on transient failures.
 
-429s retry until deadline. 5xx respects max_retries.
+429s retry until deadline. 5xx and connection-level errors respect max_retries.
 Telemetry emitted after every attempt. Tracing via optional span.
 """
 
@@ -12,7 +12,6 @@ import time
 from dataclasses import dataclass
 
 import httpx
-from fastapi import HTTPException
 
 from ..telemetry import UpstreamRequest, get_telemetry_context
 from ..tracing import RetryRecord, Span
@@ -24,6 +23,23 @@ DEFAULT_DEADLINE_S = 300.0  # 5 minutes
 _BACKOFF_BASE = 1.0
 _BACKOFF_MAX = 60.0
 _RETRY_STATUSES = {429, 500, 502, 503, 504}
+
+
+class UpstreamError(Exception):
+    """Base for all upstream service errors."""
+
+    def __init__(self, service: str, status_code: int, detail: str):
+        self.service = service
+        self.status_code = status_code
+        super().__init__(f"{status_code}: {detail}")
+
+
+class TransientUpstreamError(UpstreamError):
+    """Retries exhausted on a transient failure (5xx, timeout, connection error)."""
+
+
+class PermanentUpstreamError(UpstreamError):
+    """Upstream returned a non-retryable error (4xx, TLS)."""
 
 
 @dataclass
@@ -183,14 +199,6 @@ async def request_with_retry(
         att = await _try_once(client, method, url, attempt_number, deadline, **kwargs)
         last = att
 
-        # Fatal errors (timeout, connection) — no retry
-        if att.error:
-            _observe(att, service_name, method, span, retrying=False)
-            raise HTTPException(
-                status_code=att.status_code,
-                detail=f"{service_name} {'service timeout' if att.error == 'timeout' else f'request failed: {att.error}'}",
-            )
-
         # Success or non-retryable status
         if att.succeeded:
             _observe(att, service_name, method, span, retrying=False)
@@ -211,10 +219,10 @@ async def request_with_retry(
     if last is not None:
         _observe(last, service_name, method, span, retrying=False)
         if last.status_code == 429:
-            raise HTTPException(status_code=429, detail=f"{service_name} rate limit exceeded")
-        raise HTTPException(
-            status_code=502,
-            detail=f"{service_name} service error {last.status_code}: {last.response.text if last.response else ''}",
-        )
+            raise TransientUpstreamError(service_name, 429, "rate limit exceeded")
+        detail = f"service error {last.status_code}"
+        if last.response is not None and last.response.text:
+            detail += f": {last.response.text[:200]}"
+        raise TransientUpstreamError(service_name, last.status_code, detail)
 
-    raise HTTPException(status_code=504, detail=f"{service_name} request deadline exceeded")
+    raise TransientUpstreamError(service_name, 504, "request deadline exceeded")
