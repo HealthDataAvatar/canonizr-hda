@@ -1,5 +1,9 @@
 import { estimateInfraCost, type InfraCostEstimate } from "@/lib/pure/infra-cost";
 import { colorForService, type SpanNode } from "@/lib/pure/trace";
+import { toBillableKB } from "@/lib/pure/format";
+
+const STANDARD_PRICE_PER_UNIT = 0.003;
+const KB_PER_UNIT = 100;
 
 interface TraceCostCardProps {
   trace: SpanNode;
@@ -8,15 +12,35 @@ interface TraceCostCardProps {
 
 export function TraceCostCard({ trace, className }: TraceCostCardProps) {
   const est = estimateInfraCost(trace);
+  const inputBytes = Number(trace.attributes?.file_size_bytes ?? 0);
+  const billableKB = toBillableKB(inputBytes);
+  const units = billableKB / KB_PER_UNIT;
+  const revenue = units * STANDARD_PRICE_PER_UNIT;
+  const margin = revenue > 0 ? ((revenue - est.totalCost) / revenue) * 100 : 0;
 
   return (
     <div className={className}>
       <div className="rounded border border-border bg-surface p-4 font-mono text-sm">
-        <div className="flex items-baseline gap-4 mb-4">
-          <span className="text-muted-foreground">Estimated infra cost</span>
-          <span className="text-xl font-semibold">
-            ${est.totalCost.toFixed(4)}
-          </span>
+        <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2 mb-4">
+          <div>
+            <span className="text-muted-foreground">Infra cost </span>
+            <span className="text-xl font-semibold">${est.totalCost.toFixed(4)}</span>
+          </div>
+          <div>
+            <span className="text-muted-foreground">Revenue </span>
+            <span className="text-xl font-semibold">${revenue.toFixed(4)}</span>
+            {inputBytes > 0 && (
+              <span className="text-xs text-muted-foreground ml-1.5">
+                ({units} units)
+              </span>
+            )}
+          </div>
+          <div>
+            <span className="text-muted-foreground">Margin </span>
+            <span className={`text-xl font-semibold ${margin < 0 ? "text-destructive" : ""}`}>
+              {margin.toFixed(1)}%
+            </span>
+          </div>
           <span className="text-muted-foreground ml-auto">
             {formatDuration(est.totalDurationMs)} total
           </span>

@@ -96,15 +96,18 @@ class Span:
     def add_retry(self, record: RetryRecord) -> None:
         self.retries.append(record)
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self, root_start: float | None = None) -> dict[str, Any]:
+        if root_start is None:
+            root_start = self._start
         result: dict[str, Any] = {"name": self.name}
+        result["offset_ms"] = round((self._start - root_start) * 1000)
         duration = self.duration_ms
         if duration is not None:
             result["duration_ms"] = round(duration, 1)
         if self.attributes:
             result["attributes"] = self.attributes
         if self.children:
-            result["children"] = [c.to_dict() for c in self.children]
+            result["children"] = [c.to_dict(root_start) for c in self.children]
         return result
 
 
@@ -126,7 +129,7 @@ class Trace:
         self.root._end = time.monotonic()
 
     def to_dict(self) -> dict[str, Any]:
-        return self.root.to_dict()
+        return self.root.to_dict(self.root._start)
 
     def to_steps(self) -> list[Step]:
         """Flatten the span tree into a sorted list of typed Steps."""

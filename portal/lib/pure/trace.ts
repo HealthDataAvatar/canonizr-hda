@@ -5,6 +5,7 @@
 
 export interface SpanNode {
   name: string;
+  offset_ms?: number;
   duration_ms?: number;
   attributes?: Record<string, unknown>;
   children?: SpanNode[];
@@ -14,6 +15,7 @@ export interface SpanNode {
 export interface FlatSpan {
   name: string;
   depth: number;
+  row: number;
   startMs: number;
   durationMs: number;
   attributes: Record<string, unknown>;
@@ -42,31 +44,39 @@ export function colorForService(name: string): string {
  */
 export function flattenSpans(root: SpanNode): FlatSpan[] {
   const result: FlatSpan[] = [];
-  const rootStart = 0;
+  // Track end times per row to detect overlaps and assign new rows.
+  const rowEnds: number[] = [];
 
-  function walk(node: SpanNode, depth: number, parentStartMs: number) {
+  function assignRow(startMs: number, durationMs: number, minRow: number): number {
+    const endMs = startMs + durationMs;
+    for (let r = minRow; r < rowEnds.length; r++) {
+      if (rowEnds[r] <= startMs) {
+        rowEnds[r] = endMs;
+        return r;
+      }
+    }
+    rowEnds.push(endMs);
+    return rowEnds.length - 1;
+  }
+
+  function walk(node: SpanNode, minRow: number) {
+    const startMs = node.offset_ms ?? 0;
     const durationMs = node.duration_ms ?? 0;
+    const row = assignRow(startMs, durationMs, minRow);
     result.push({
       name: node.name,
-      depth,
-      startMs: parentStartMs,
+      depth: minRow,
+      row,
+      startMs,
       durationMs,
       attributes: node.attributes ?? {},
     });
 
-    if (node.children) {
-      // Children start sequentially within the parent.
-      // We don't have absolute timestamps in the tree, so we lay them out
-      // based on their durations, filling the parent's time.
-      let childOffset = parentStartMs;
-      for (const child of node.children) {
-        walk(child, depth + 1, childOffset);
-        childOffset += child.duration_ms ?? 0;
-      }
-    }
+    // Children must go on rows after this one.
+    node.children?.forEach((child) => walk(child, row + 1));
   }
 
-  walk(root, 0, rootStart);
+  walk(root, 0);
   return result;
 }
 

@@ -28,7 +28,7 @@ export function TraceFlame({ trace, className }: TraceFlameProps) {
   const spans = useMemo(() => flattenSpans(trace), [trace]);
   const rootDuration = totalDurationMs(trace);
   const services = useMemo(() => collectServices(trace), [trace]);
-  const maxDepth = useMemo(() => Math.max(...spans.map((s) => s.depth), 0), [spans]);
+  const maxRow = useMemo(() => Math.max(...spans.map((s) => s.row), 0), [spans]);
 
   const visibleDuration = zoom.endMs - zoom.startMs;
 
@@ -54,7 +54,7 @@ export function TraceFlame({ trace, className }: TraceFlameProps) {
     setZoom({ startMs: 0, endMs: rootDuration });
   }, [rootDuration]);
 
-  const svgHeight = (maxDepth + 1) * (ROW_HEIGHT + ROW_GAP) + ROW_GAP;
+  const svgHeight = (maxRow + 1) * (ROW_HEIGHT + ROW_GAP) + ROW_GAP;
 
   return (
     <div className={className}>
@@ -110,7 +110,7 @@ export function TraceFlame({ trace, className }: TraceFlameProps) {
               (span.durationMs / visibleDuration) * 1000,
               MIN_BAR_WIDTH,
             );
-            const y = span.depth * (ROW_HEIGHT + ROW_GAP) + ROW_GAP;
+            const y = span.row * (ROW_HEIGHT + ROW_GAP) + ROW_GAP;
 
             // Skip bars entirely outside the visible range
             if (x + w < 0 || x > 1000) return null;
