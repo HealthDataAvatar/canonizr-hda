@@ -21,6 +21,11 @@ resource "azurerm_container_app" "docling" {
     min_replicas = 0
     max_replicas = 3
 
+    http_scale_rule {
+      name                = "concurrent-requests"
+      concurrent_requests = "2"
+    }
+
     container {
       name   = "docling"
       image  = "ghcr.io/docling-project/docling-serve-cpu:latest"

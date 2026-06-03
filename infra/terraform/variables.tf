@@ -52,12 +52,12 @@ variable "gateway_memory" {
 
 variable "docling_cpu" {
   type    = number
-  default = 2.0
+  default = 4.0
 }
 
 variable "docling_memory" {
   type    = string
-  default = "4Gi"
+  default = "8Gi"
 }
 
 # Portal
