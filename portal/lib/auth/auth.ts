@@ -3,7 +3,7 @@ import { AzureTableStorageAdapter } from "@/lib/services/auth-adapter";
 import { sendVerificationRequest } from "./email";
 import { getServices } from "@/lib/services";
 import { onCreateUser } from "./on-create-user";
-import { appendConfig, DEFAULTS } from "@/lib/data/tables/user-config";
+import { appendConfig, getDefaults } from "@/lib/data/tables/user-config";
 import { appendPermissions } from "@/lib/data/tables/user-permissions";
 
 const nextAuth = NextAuth({
@@ -39,7 +39,7 @@ const nextAuth = NextAuth({
           await appendConfig(userId, {
             freeUnits: 500,
             maxKeys: 100,
-            pricePerUnit: DEFAULTS.pricePerUnit,
+            pricePerUnit: getDefaults().pricePerUnit,
             spendCapKB: null,
             changedBy,
           });

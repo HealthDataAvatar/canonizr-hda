@@ -1,5 +1,4 @@
 /** UserConfig table — append-only billing/quota settings. */
-import "server-only";
 
 import { getTableClient } from "@/lib/data/table-client";
 import { TableName } from "@/lib/data/table-names";
@@ -21,25 +20,32 @@ function requireEnvNumber(name: string): number {
   return n;
 }
 
-export const DEFAULTS: Omit<UserConfigRecord, "changedBy" | "timestamp"> = {
-  freeUnits: requireEnvNumber("DEFAULT_FREE_UNITS"),
-  maxKeys: 100,
-  pricePerUnit: requireEnvNumber("DEFAULT_PRICE_PER_UNIT"),
-  spendCapKB: null,
-};
+let _defaults: Omit<UserConfigRecord, "changedBy" | "timestamp"> | null = null;
+
+export function getDefaults(): Omit<UserConfigRecord, "changedBy" | "timestamp"> {
+  if (!_defaults) {
+    _defaults = {
+      freeUnits: requireEnvNumber("DEFAULT_FREE_UNITS"),
+      maxKeys: 100,
+      pricePerUnit: requireEnvNumber("DEFAULT_PRICE_PER_UNIT"),
+      spendCapKB: null,
+    };
+  }
+  return _defaults;
+}
 
 export async function getCurrentConfig(userId: string): Promise<UserConfigRecord> {
   const client = getTableClient(TableName.USER_CONFIG);
   const row = await getLatest<Record<string, unknown>>(client, userId);
 
   if (!row) {
-    return { ...DEFAULTS, changedBy: "system", timestamp: "" };
+    return { ...getDefaults(), changedBy: "system", timestamp: "" };
   }
 
   return {
-    freeUnits: (row.freeUnits as number) ?? DEFAULTS.freeUnits,
-    maxKeys: (row.maxKeys as number) ?? DEFAULTS.maxKeys,
-    pricePerUnit: (row.pricePerUnit as number) ?? DEFAULTS.pricePerUnit,
+    freeUnits: (row.freeUnits as number) ?? getDefaults().freeUnits,
+    maxKeys: (row.maxKeys as number) ?? getDefaults().maxKeys,
+    pricePerUnit: (row.pricePerUnit as number) ?? getDefaults().pricePerUnit,
     spendCapKB: (row.spendCapKB as number) ?? null,
     changedBy: (row.changedBy as string) ?? "system",
     timestamp: (row.timestamp as string) ?? "",

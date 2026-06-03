@@ -42,7 +42,7 @@ export function createTestUser(): TestUser {
 
 export async function seedTestUser(user: TestUser, opts?: { isAdmin?: boolean }) {
   await initTables();
-  const { appendConfig, DEFAULTS } = await import("@/lib/data/tables/user-config");
+  const { appendConfig, getDefaults } = await import("@/lib/data/tables/user-config");
   const { appendPermissions } = await import("@/lib/data/tables/user-permissions");
 
   // Auth identity
@@ -62,7 +62,7 @@ export async function seedTestUser(user: TestUser, opts?: { isAdmin?: boolean })
 
   // Config
   await appendConfig(user.id, {
-    ...DEFAULTS,
+    ...getDefaults(),
     changedBy: "system",
   });
 
