@@ -37,6 +37,7 @@ test-gateway-unit: check-uv
 	cd gateway && uv sync --extra test && uv run pytest tests/unit --cov=app --cov-report=term-missing
 
 test-portal-unit:
+	cd portal && npx tsc --noEmit
 	cd portal && npx vitest run --project unit
 
 test-unit: test-gateway-unit test-portal-unit

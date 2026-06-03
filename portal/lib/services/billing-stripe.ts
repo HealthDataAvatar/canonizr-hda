@@ -42,7 +42,7 @@ export class StripeBillingStore implements BillingStore {
     return cached(`billing:${customerId}:invoices`, () => this._fetchInvoices(customerId));
   }
 
-  private async _fetchUsage(customerId: string): Promise<Usage> {
+  protected async _fetchUsage(customerId: string): Promise<Usage> {
     const stripe = getStripe();
     const subs = await stripe.subscriptions.list({ customer: customerId, status: "active", limit: 1 });
     const sub = subs.data[0];
@@ -70,7 +70,7 @@ export class StripeBillingStore implements BillingStore {
     };
   }
 
-  private async _fetchInvoices(customerId: string): Promise<Invoice[]> {
+  protected async _fetchInvoices(customerId: string): Promise<Invoice[]> {
     const stripe = getStripe();
     const invoices = await stripe.invoices.list({ customer: customerId, limit: 12 });
     return invoices.data.map((inv) => {
