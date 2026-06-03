@@ -10,6 +10,22 @@ const sampleKeys: KeyOption[] = [
   { id: "3", displayName: TEST_KEY_NAMES.otter, key: TEST_KEY_VALUES.key3, usageKB: 0, quotaKB: null },
 ];
 
+const keysSlot = <KeySelector keys={sampleKeys} />;
+
+const sampleMarkdown = `# Invoice #2024-0042
+
+**Date:** 2024-03-15
+**Due:** 2024-04-14
+
+| Item | Qty | Unit Price | Total |
+|------|-----|-----------|-------|
+| Widget A | 100 | $12.50 | $1,250.00 |
+| Widget B | 50 | $8.75 | $437.50 |
+
+**Total: $1,687.50**
+
+Payment terms: Net 30. Please remit to account ending in 4821.`;
+
 const meta = {
   title: "Pages/Playground",
   component: Playground,
@@ -28,11 +44,11 @@ function KeySelectorSkeleton() {
 }
 
 export const AllStates: Story = {
-  args: { keySelectorSlot: <KeySelector keys={sampleKeys} /> },
+  args: { keySelectorSlot: keysSlot },
   render: () => (
     <Showcase
       items={[
-        { label: "With keys", children: <Playground keySelectorSlot={<KeySelector keys={sampleKeys} />} /> },
+        { label: "Idle", children: <Playground keySelectorSlot={keysSlot} /> },
         {
           label: "Single key (no quota)",
           children: (
@@ -45,7 +61,41 @@ export const AllStates: Story = {
             />
           ),
         },
-        { label: "Loading", children: <Playground keySelectorSlot={<KeySelectorSkeleton />} /> },
+        { label: "Loading keys", children: <Playground keySelectorSlot={<KeySelectorSkeleton />} /> },
+        {
+          label: "Processing",
+          children: (
+            <Playground
+              keySelectorSlot={keysSlot}
+              initialResult={{ status: "processing" }}
+            />
+          ),
+        },
+        {
+          label: "Result",
+          children: (
+            <Playground
+              keySelectorSlot={keysSlot}
+              initialResult={{
+                status: "done",
+                markdown: sampleMarkdown,
+                jobInfo: { inputBytes: 245_760, timeMs: 3_420 },
+              }}
+            />
+          ),
+        },
+        {
+          label: "Error",
+          children: (
+            <Playground
+              keySelectorSlot={keysSlot}
+              initialResult={{
+                status: "error",
+                error: "Processing failed: document is password-protected",
+              }}
+            />
+          ),
+        },
       ]}
     />
   ),

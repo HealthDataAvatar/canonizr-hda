@@ -1,11 +1,9 @@
 "use client";
 
 import { useState, useRef, useCallback, createContext, useContext, useEffect, type ReactNode } from "react";
-import Markdown from "react-markdown";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { CopyButton } from "@/components/ui/copy-button";
-import { tabVariants } from "@/components/ui/code-block";
 import { UsageBar } from "@/components/usage-bar";
 import { Upload, Loader, FileText } from "lucide-react";
 import { formatKB } from "@/lib/pure/format";
@@ -58,17 +56,27 @@ export function KeySelector({ keys }: { keys: KeyOption[] }) {
   );
 }
 
-export function Playground({ keySelectorSlot }: { keySelectorSlot: ReactNode }) {
+export interface PlaygroundProps {
+  keySelectorSlot: ReactNode;
+  /** Pre-seed result state for stories */
+  initialResult?: {
+    status: Status;
+    markdown?: string;
+    error?: string;
+    jobInfo?: { inputBytes: number; timeMs: number };
+  };
+}
+
+export function Playground({ keySelectorSlot, initialResult }: PlaygroundProps) {
   const [apiKey, setApiKey] = useState("");
   const [file, setFile] = useState<File | null>(null);
-  const [status, setStatus] = useState<Status>("idle");
-  const [markdown, setMarkdown] = useState("");
-  const [error, setError] = useState("");
-  const [jobInfo, setJobInfo] = useState<{ inputBytes: number; timeMs: number } | null>(null);
+  const [status, setStatus] = useState<Status>(initialResult?.status ?? "idle");
+  const [markdown, setMarkdown] = useState(initialResult?.markdown ?? "");
+  const [error, setError] = useState(initialResult?.error ?? "");
+  const [jobInfo, setJobInfo] = useState<{ inputBytes: number; timeMs: number } | null>(initialResult?.jobInfo ?? null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);
   const [dragOver, setDragOver] = useState(false);
-  const [resultTab, setResultTab] = useState<"rendered" | "plain">("rendered");
 
   const handleKeyChange = useCallback((key: string) => setApiKey(key), []);
 
@@ -212,34 +220,12 @@ export function Playground({ keySelectorSlot }: { keySelectorSlot: ReactNode }) 
                 {formatKB(Math.ceil(jobInfo.inputBytes / 1024))} processed in {(jobInfo.timeMs / 1000).toFixed(1)}s
               </p>
             )}
-            <div className="flex items-center justify-between border-b border-border">
-              <div className="flex">
-                <button
-                  type="button"
-                  onClick={() => setResultTab("rendered")}
-                  className={tabVariants({ active: resultTab === "rendered" })}
-                >
-                  Rendered
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setResultTab("plain")}
-                  className={tabVariants({ active: resultTab === "plain" })}
-                >
-                  Markdown
-                </button>
-              </div>
+            <div className="flex justify-end">
               <CopyButton value={markdown} />
             </div>
-            {resultTab === "rendered" ? (
-              <div className="prose prose-sm dark:prose-invert max-h-[600px] overflow-auto rounded-lg border border-border bg-card p-4">
-                <Markdown>{markdown}</Markdown>
-              </div>
-            ) : (
-              <pre className="max-h-[600px] overflow-auto rounded-lg border border-border bg-card p-4 text-sm whitespace-pre-wrap">
-                {markdown}
-              </pre>
-            )}
+            <pre className="max-h-[600px] overflow-auto rounded-lg border border-border bg-card p-4 text-sm whitespace-pre-wrap">
+              {markdown}
+            </pre>
           </div>
         )}
       </div>
