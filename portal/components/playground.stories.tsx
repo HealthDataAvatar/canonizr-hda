@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { Showcase, TEST_KEY_NAMES, TEST_KEY_VALUES } from "@/.storybook/common";
-import { Playground } from "./playground";
-import { PlaygroundSkeleton } from "./playground-skeleton";
+import { Playground, KeySelector } from "./playground";
 import type { KeyOption } from "./playground";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const sampleKeys: KeyOption[] = [
   { id: "1", displayName: TEST_KEY_NAMES.crane, key: TEST_KEY_VALUES.key1, usageKB: 3200, quotaKB: 10000 },
@@ -18,21 +18,34 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
+function KeySelectorSkeleton() {
+  return (
+    <div className="space-y-1.5">
+      <Skeleton className="h-4 w-14" />
+      <Skeleton className="h-10 w-48" />
+    </div>
+  );
+}
+
 export const AllStates: Story = {
-  args: { keys: sampleKeys },
+  args: { keySelectorSlot: <KeySelector keys={sampleKeys} /> },
   render: () => (
     <Showcase
       items={[
-        { label: "With keys", children: <Playground keys={sampleKeys} /> },
+        { label: "With keys", children: <Playground keySelectorSlot={<KeySelector keys={sampleKeys} />} /> },
         {
           label: "Single key (no quota)",
           children: (
             <Playground
-              keys={[{ id: "1", displayName: TEST_KEY_NAMES.crane, key: TEST_KEY_VALUES.key1, usageKB: 0, quotaKB: null }]}
+              keySelectorSlot={
+                <KeySelector
+                  keys={[{ id: "1", displayName: TEST_KEY_NAMES.crane, key: TEST_KEY_VALUES.key1, usageKB: 0, quotaKB: null }]}
+                />
+              }
             />
           ),
         },
-        { label: "Loading", children: <PlaygroundSkeleton /> },
+        { label: "Loading", children: <Playground keySelectorSlot={<KeySelectorSkeleton />} /> },
       ]}
     />
   ),

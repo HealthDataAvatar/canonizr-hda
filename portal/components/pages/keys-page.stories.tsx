@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { Showcase, TEST_KEY_NAMES, TEST_KEY_VALUES } from "@/.storybook/common";
-import { KeysPageContent } from "./keys-page-content";
+import { KeysPageContent, KeysDataSlots, KeysLoadingSlots } from "./keys-page-content";
 import type { KeyRow } from "@/components/tables/key-table";
 
 const sampleKeys: KeyRow[] = [
@@ -18,21 +18,25 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const AllStates: Story = {
-  args: { keys: sampleKeys },
+  args: { dataSlot: <KeysDataSlots keys={sampleKeys} /> },
   render: () => (
     <Showcase
       items={[
-        { label: "With keys", children: <KeysPageContent keys={sampleKeys} /> },
+        { label: "With keys", children: <KeysPageContent dataSlot={<KeysDataSlots keys={sampleKeys} />} /> },
         {
           label: "New user (single key)",
           children: (
             <KeysPageContent
-              keys={[{ id: "1", displayName: "my-first-key", value: TEST_KEY_VALUES.key1, usageKB: 0, quotaKB: null }]}
+              dataSlot={
+                <KeysDataSlots
+                  keys={[{ id: "1", displayName: "my-first-key", value: TEST_KEY_VALUES.key1, usageKB: 0, quotaKB: null }]}
+                />
+              }
             />
           ),
         },
-        { label: "Empty (no keys)", children: <KeysPageContent keys={[]} /> },
-        { label: "Loading", children: <KeysPageContent keys={null} /> },
+        { label: "Empty (no keys)", children: <KeysPageContent dataSlot={<KeysDataSlots keys={[]} />} /> },
+        { label: "Loading", children: <KeysPageContent dataSlot={<KeysLoadingSlots />} /> },
       ]}
     />
   ),

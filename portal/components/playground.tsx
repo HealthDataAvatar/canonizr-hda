@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, createContext, useContext, useEffect, type ReactNode } from "react";
 import Markdown from "react-markdown";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -23,8 +23,43 @@ export interface KeyOption {
 
 type Status = "idle" | "uploading" | "processing" | "done" | "error";
 
-export function Playground({ keys }: { keys: KeyOption[] }) {
+const KeyContext = createContext<{
+  onKeyChange: (key: string) => void;
+} | null>(null);
+
+export function KeySelector({ keys }: { keys: KeyOption[] }) {
+  const ctx = useContext(KeyContext);
   const [selectedKeyId, setSelectedKeyId] = useState(keys[0]?.id ?? "");
+  const selectedKey = keys.find((k) => k.id === selectedKeyId);
+
+  useEffect(() => {
+    ctx?.onKeyChange(selectedKey?.key ?? "");
+  }, [ctx, selectedKey]);
+
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor="key-select">API Key</Label>
+      <div className="flex items-center gap-4">
+        <select
+          id="key-select"
+          value={selectedKeyId}
+          onChange={(e) => setSelectedKeyId(e.target.value)}
+          className="rounded-md border border-border bg-background px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-ring"
+        >
+          {keys.map((k) => (
+            <option key={k.id} value={k.id}>{k.displayName}</option>
+          ))}
+        </select>
+        {selectedKey && (
+          <UsageBar usageKB={selectedKey.usageKB} quotaKB={selectedKey.quotaKB} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function Playground({ keySelectorSlot }: { keySelectorSlot: ReactNode }) {
+  const [apiKey, setApiKey] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState<Status>("idle");
   const [markdown, setMarkdown] = useState("");
@@ -35,8 +70,7 @@ export function Playground({ keys }: { keys: KeyOption[] }) {
   const [dragOver, setDragOver] = useState(false);
   const [resultTab, setResultTab] = useState<"rendered" | "plain">("rendered");
 
-  const selectedKey = keys.find((k) => k.id === selectedKeyId);
-  const apiKey = selectedKey?.key ?? "";
+  const handleKeyChange = useCallback((key: string) => setApiKey(key), []);
 
   const handleFile = useCallback((f: File) => {
     setFile(f);
@@ -113,117 +147,102 @@ export function Playground({ keys }: { keys: KeyOption[] }) {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Key selector */}
-      <div className="space-y-1.5">
-        <Label htmlFor="key-select">API Key</Label>
-        <div className="flex items-center gap-4">
-          <select
-            id="key-select"
-            value={selectedKeyId}
-            onChange={(e) => setSelectedKeyId(e.target.value)}
-            className="rounded-md border border-border bg-background px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-ring"
-          >
-            {keys.map((k) => (
-              <option key={k.id} value={k.id}>{k.displayName}</option>
-            ))}
-          </select>
-          {selectedKey && (
-            <UsageBar usageKB={selectedKey.usageKB} quotaKB={selectedKey.quotaKB} />
+    <KeyContext.Provider value={{ onKeyChange: handleKeyChange }}>
+      <div className="space-y-6">
+        {/* Key selector (streamed in via Suspense) */}
+        {keySelectorSlot}
+
+        {/* Drop zone */}
+        <div
+          ref={dropRef}
+          onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={handleDrop}
+          onClick={() => fileInputRef.current?.click()}
+          className={`flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed px-6 py-12 cursor-pointer transition-colors ${
+            dragOver ? "border-accent bg-accent/5" : "border-border hover:border-muted-foreground/50"
+          }`}
+        >
+          <input
+            ref={fileInputRef}
+            type="file"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) handleFile(f);
+            }}
+          />
+          {file ? (
+            <>
+              <FileText className="size-8 text-muted-foreground" />
+              <p className="font-medium">{file.name}</p>
+              <p className="text-sm text-muted-foreground">{formatKB(Math.ceil(file.size / 1024))}</p>
+            </>
+          ) : (
+            <>
+              <Upload className="size-8 text-muted-foreground" />
+              <p className="text-muted-foreground">
+                Drop a file here or click to select
+              </p>
+            </>
           )}
         </div>
-      </div>
 
-      {/* Drop zone */}
-      <div
-        ref={dropRef}
-        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-        onDragLeave={() => setDragOver(false)}
-        onDrop={handleDrop}
-        onClick={() => fileInputRef.current?.click()}
-        className={`flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed px-6 py-12 cursor-pointer transition-colors ${
-          dragOver ? "border-accent bg-accent/5" : "border-border hover:border-muted-foreground/50"
-        }`}
-      >
-        <input
-          ref={fileInputRef}
-          type="file"
-          className="hidden"
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) handleFile(f);
-          }}
-        />
-        {file ? (
-          <>
-            <FileText className="size-8 text-muted-foreground" />
-            <p className="font-medium">{file.name}</p>
-            <p className="text-sm text-muted-foreground">{formatKB(Math.ceil(file.size / 1024))}</p>
-          </>
-        ) : (
-          <>
-            <Upload className="size-8 text-muted-foreground" />
-            <p className="text-muted-foreground">
-              Drop a file here or click to select
-            </p>
-          </>
+        {/* Submit */}
+        <Button
+          onClick={handleSubmit}
+          disabled={!file || !apiKey || status === "uploading" || status === "processing"}
+          className="w-full"
+        >
+          {status === "uploading" && <><Loader className="size-4 mr-2 animate-spin" /> Uploading…</>}
+          {status === "processing" && <><Loader className="size-4 mr-2 animate-spin" /> Processing…</>}
+          {(status === "idle" || status === "done" || status === "error") && "Convert"}
+        </Button>
+
+        {/* Error */}
+        {status === "error" && (
+          <p className="text-sm text-destructive">{error}</p>
+        )}
+
+        {/* Result */}
+        {status === "done" && (
+          <div className="space-y-3">
+            {jobInfo && (
+              <p className="text-sm text-muted-foreground">
+                {formatKB(Math.ceil(jobInfo.inputBytes / 1024))} processed in {(jobInfo.timeMs / 1000).toFixed(1)}s
+              </p>
+            )}
+            <div className="flex items-center justify-between border-b border-border">
+              <div className="flex">
+                <button
+                  type="button"
+                  onClick={() => setResultTab("rendered")}
+                  className={tabVariants({ active: resultTab === "rendered" })}
+                >
+                  Rendered
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setResultTab("plain")}
+                  className={tabVariants({ active: resultTab === "plain" })}
+                >
+                  Markdown
+                </button>
+              </div>
+              <CopyButton value={markdown} />
+            </div>
+            {resultTab === "rendered" ? (
+              <div className="prose prose-sm dark:prose-invert max-h-[600px] overflow-auto rounded-lg border border-border bg-card p-4">
+                <Markdown>{markdown}</Markdown>
+              </div>
+            ) : (
+              <pre className="max-h-[600px] overflow-auto rounded-lg border border-border bg-card p-4 text-sm whitespace-pre-wrap">
+                {markdown}
+              </pre>
+            )}
+          </div>
         )}
       </div>
-
-      {/* Submit */}
-      <Button
-        onClick={handleSubmit}
-        disabled={!file || status === "uploading" || status === "processing"}
-        className="w-full"
-      >
-        {status === "uploading" && <><Loader className="size-4 mr-2 animate-spin" /> Uploading…</>}
-        {status === "processing" && <><Loader className="size-4 mr-2 animate-spin" /> Processing…</>}
-        {(status === "idle" || status === "done" || status === "error") && "Convert"}
-      </Button>
-
-      {/* Error */}
-      {status === "error" && (
-        <p className="text-sm text-destructive">{error}</p>
-      )}
-
-      {/* Result */}
-      {status === "done" && (
-        <div className="space-y-3">
-          {jobInfo && (
-            <p className="text-sm text-muted-foreground">
-              {formatKB(Math.ceil(jobInfo.inputBytes / 1024))} processed in {(jobInfo.timeMs / 1000).toFixed(1)}s
-            </p>
-          )}
-          <div className="flex items-center justify-between border-b border-border">
-            <div className="flex">
-              <button
-                type="button"
-                onClick={() => setResultTab("rendered")}
-                className={tabVariants({ active: resultTab === "rendered" })}
-              >
-                Rendered
-              </button>
-              <button
-                type="button"
-                onClick={() => setResultTab("plain")}
-                className={tabVariants({ active: resultTab === "plain" })}
-              >
-                Markdown
-              </button>
-            </div>
-            <CopyButton value={markdown} />
-          </div>
-          {resultTab === "rendered" ? (
-            <div className="prose prose-sm dark:prose-invert max-h-[600px] overflow-auto rounded-lg border border-border bg-card p-4">
-              <Markdown>{markdown}</Markdown>
-            </div>
-          ) : (
-            <pre className="max-h-[600px] overflow-auto rounded-lg border border-border bg-card p-4 text-sm whitespace-pre-wrap">
-              {markdown}
-            </pre>
-          )}
-        </div>
-      )}
-    </div>
+    </KeyContext.Provider>
   );
 }

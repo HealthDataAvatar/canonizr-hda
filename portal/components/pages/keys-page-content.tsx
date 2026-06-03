@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { CreateKeyForm } from "@/components/create-key-form";
 import { KeyTable } from "@/components/tables/key-table";
@@ -43,16 +44,21 @@ function KeyTableSkeleton() {
   );
 }
 
-export function KeysPageContent({ keys }: { keys: KeyRow[] | null }) {
+export function KeysLoadingSlots() {
   return (
-    <div className="space-y-8">
-      <h1 className="">API Keys</h1>
+    <>
+      <CreateFormSkeleton />
+      <KeyTableSkeleton />
+    </>
+  );
+}
 
-      {keys === null ? <CreateFormSkeleton /> : <CreateKeyForm existingNames={keys.map((k) => k.displayName)} />}
-
-      {keys === null ? <KeyTableSkeleton /> : <KeyTable keys={keys} />}
-
-      {keys !== null && keys.length > 0 && (
+export function KeysDataSlots({ keys }: { keys: KeyRow[] }) {
+  return (
+    <>
+      <CreateKeyForm existingNames={keys.map((k) => k.displayName)} />
+      <KeyTable keys={keys} />
+      {keys.length > 0 && (
         <Card>
           <CardContent className="flex items-center justify-between">
             <div>
@@ -70,6 +76,16 @@ export function KeysPageContent({ keys }: { keys: KeyRow[] | null }) {
           </CardContent>
         </Card>
       )}
+    </>
+  );
+}
+
+export function KeysPageContent({ dataSlot }: { dataSlot: ReactNode }) {
+  return (
+    <div className="space-y-8">
+      <h1>API Keys</h1>
+
+      {dataSlot}
 
       <div>
         <h2 className="mb-4">Quick start</h2>
