@@ -34,7 +34,7 @@ lint: check-uv
 	cd gateway && uv sync --extra lint && uv run ruff format --check app/ tests/ && uv run ruff check app/ tests/ && uv run pyright app/ tests/
 
 test-gateway-unit: check-uv
-	cd gateway && uv sync --extra test && uv run pytest tests/unit --cov=app --cov-report=term-missing
+	cd gateway && uv sync --extra test --extra lint && uv run pyright app/ tests/ && uv run pytest tests/unit --cov=app --cov-report=term-missing
 
 test-portal-unit:
 	cd portal && npx tsc --noEmit
