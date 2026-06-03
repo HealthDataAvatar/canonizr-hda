@@ -24,6 +24,7 @@ PASSTHROUGH_TYPES = {
     "application/json",
     "application/xml",
     "text/xml",
+    "image/svg+xml",
 }
 
 # Formats MarkItDown handles natively
