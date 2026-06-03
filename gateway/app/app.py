@@ -22,6 +22,7 @@ from .jobs_table import TableJobStore
 from .queue import RedisQueue
 from .quota import QuotaService
 from .redis_client import get_redis
+from .sanitize import content_disposition
 from .telemetry import PostHogEmitter
 from .user_resolver import TableUserResolver
 
@@ -197,7 +198,7 @@ async def get_artifact(request: Request, job_id: str, artifact: str):
     return Response(
         content=result.data,
         media_type=result.content_type,
-        headers={"Content-Disposition": f'attachment; filename="{result.filename}"'},
+        headers={"Content-Disposition": content_disposition(result.filename)},
     )
 
 

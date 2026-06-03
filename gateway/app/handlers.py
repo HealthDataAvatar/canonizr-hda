@@ -16,7 +16,7 @@ from .crypto import decrypt, encrypt
 from .estimates import estimate_seconds
 from .hash import document_hash
 from .protocols import Job, JobMeta, JobStatus, UserContext
-from .sanitize import is_archive_type, is_known_mime_type, sanitize_filename
+from .sanitize import content_disposition, is_archive_type, is_known_mime_type, sanitize_filename
 from .telemetry import JobAccepted
 
 logger = logging.getLogger(__name__)
@@ -244,7 +244,7 @@ async def poll_result(job_id: str, svc: Services) -> PollResult:
 
     if meta and meta.original_filename:
         md_filename = meta.original_filename + ".md"
-        headers["Content-Disposition"] = f'attachment; filename="{md_filename}"'
+        headers["Content-Disposition"] = content_disposition(md_filename)
 
     if meta and meta.retention_expires:
         payload["expires_at"] = meta.retention_expires
