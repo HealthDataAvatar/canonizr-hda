@@ -24,26 +24,37 @@ function blobState(job: JobRecord, artifact: "output" | "input"): BlobState {
   return { status: "none" };
 }
 
-export async function getJobsForUser(
-  userId: string,
-  limit: number = 50,
-): Promise<RequestRow[]> {
-  const jobs = await listJobsForUser(userId, limit);
-  return jobs.map((job) => ({
+function toRequestRow(job: JobRecord): RequestRow {
+  return {
     id: job.id,
     timestamp: job.timestamp,
     completedAt: job.completedAt,
-    keyName: job.keyName,
-    fileHash: job.fileHash,
+    keyId: job.keyId,
     billableKB: job.billableKB,
     status: statusToCode(job.status),
     result: blobState(job, "output"),
     input: blobState(job, "input"),
     detail: job.detail,
-    steps: job.steps,
     originalFilename: job.originalFilename,
     mimeType: job.mimeType,
     inputBytes: job.inputBytes,
     retentionExpires: job.retentionExpires,
-  }));
+  };
+}
+
+export interface RequestPage {
+  requests: RequestRow[];
+  nextCursor: string | null;
+}
+
+export async function getJobsForUser(
+  userId: string,
+  pageSize: number = 20,
+  cursor?: string,
+): Promise<RequestPage> {
+  const page = await listJobsForUser(userId, pageSize, cursor);
+  return {
+    requests: page.jobs.map(toRequestRow),
+    nextCursor: page.nextCursor,
+  };
 }

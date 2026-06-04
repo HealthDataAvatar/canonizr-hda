@@ -18,13 +18,13 @@ const available = (id: string, type: "result" | "input"): BlobState => ({
 });
 
 const requests: RequestRow[] = [
-  { id: "req-001", timestamp: new Date(now - 8_000).toISOString(), keyName: TEST_KEY_NAMES.crane, fileHash: "f4a1b2c3d4e5f6a7", billableKB: 2100, status: 202, result: processing, input: available("req-001", "input") },
-  { id: "req-002", timestamp: new Date(now - 3 * MINUTE).toISOString(), completedAt: new Date(now - 2 * MINUTE).toISOString(), keyName: TEST_KEY_NAMES.crane, fileHash: "a8b9c0d1e2f3a4b5", billableKB: 200, status: 200, result: available("req-002", "result"), input: available("req-002", "input") },
-  { id: "req-003", timestamp: new Date(now - 12 * MINUTE).toISOString(), completedAt: new Date(now - 12 * MINUTE + 500).toISOString(), keyName: TEST_KEY_NAMES.raven, fileHash: "c6d7e8f9a0b1c2d3", billableKB: 100, status: 200, result: available("req-003", "result"), input: none },
-  { id: "req-004", timestamp: new Date(now - 25 * MINUTE).toISOString(), keyName: TEST_KEY_NAMES.crane, billableKB: 100, status: 400, result: none, input: none },
-  { id: "req-005", timestamp: new Date(now - 3 * HOUR).toISOString(), completedAt: new Date(now - 3 * HOUR + 11200).toISOString(), keyName: TEST_KEY_NAMES.raven, fileHash: "1a2b3c4d5e6f7a8b", billableKB: 2600, status: 200, result: expired, input: expired },
-  { id: "req-006", timestamp: new Date(now - DAY).toISOString(), keyName: TEST_KEY_NAMES.otter, billableKB: 400, status: 429, result: none, input: none },
-  { id: "req-007", timestamp: new Date(now - 2 * DAY).toISOString(), keyName: TEST_KEY_NAMES.otter, fileHash: "5a6b7c8d9e0f1a2b", billableKB: 4200, status: 500, result: none, input: none },
+  { id: "req-001", timestamp: new Date(now - 8_000).toISOString(), keyId: TEST_KEY_NAMES.crane, billableKB: 2100, status: 202, result: processing, input: available("req-001", "input") },
+  { id: "req-002", timestamp: new Date(now - 3 * MINUTE).toISOString(), completedAt: new Date(now - 2 * MINUTE).toISOString(), keyId: TEST_KEY_NAMES.crane, billableKB: 200, status: 200, result: available("req-002", "result"), input: available("req-002", "input") },
+  { id: "req-003", timestamp: new Date(now - 12 * MINUTE).toISOString(), completedAt: new Date(now - 12 * MINUTE + 500).toISOString(), keyId: TEST_KEY_NAMES.raven, billableKB: 100, status: 200, result: available("req-003", "result"), input: none },
+  { id: "req-004", timestamp: new Date(now - 25 * MINUTE).toISOString(), keyId: TEST_KEY_NAMES.crane, billableKB: 100, status: 400, result: none, input: none },
+  { id: "req-005", timestamp: new Date(now - 3 * HOUR).toISOString(), completedAt: new Date(now - 3 * HOUR + 11200).toISOString(), keyId: TEST_KEY_NAMES.raven, billableKB: 2600, status: 200, result: expired, input: expired },
+  { id: "req-006", timestamp: new Date(now - DAY).toISOString(), keyId: TEST_KEY_NAMES.otter, billableKB: 400, status: 429, result: none, input: none },
+  { id: "req-007", timestamp: new Date(now - 2 * DAY).toISOString(), keyId: TEST_KEY_NAMES.otter, billableKB: 4200, status: 500, result: none, input: none },
 ];
 
 const sampleKeys: KeyOption[] = [
@@ -45,17 +45,17 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const AllStates: Story = {
-  args: { initialRequests: requests, uploadSlot },
+  args: { initialRequests: requests, initialCursor: null, uploadSlot },
   render: () => (
     <Showcase
       items={[
         {
           label: "With requests (mixed statuses)",
-          children: <JobsPageContent initialRequests={requests} uploadSlot={uploadSlot} />,
+          children: <JobsPageContent initialRequests={requests} initialCursor={null} uploadSlot={uploadSlot} />,
         },
         {
           label: "Empty",
-          children: <JobsPageContent initialRequests={[]} uploadSlot={uploadSlot} />,
+          children: <JobsPageContent initialRequests={[]} initialCursor={null} uploadSlot={uploadSlot} />,
         },
       ]}
     />

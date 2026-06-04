@@ -49,7 +49,7 @@ async def _handle_job(job: Job, svc: Services, sem: asyncio.Semaphore) -> None:
         logger.info("Processing job %s (%s, %s)", job.job_id, job.mime_type, job.filename)
 
         # Idempotency guard: skip jobs already in a terminal state
-        meta = svc.jobs.get_by_job_id(job.job_id)
+        meta = svc.jobs.get(job.job_id)
         if meta and meta.status in (JobStatus.OK, JobStatus.DELETED):
             logger.info("Job %s already %s — skipping", job.job_id, meta.status)
             svc.telemetry.emit(JobSkippedIdempotent(job_id=job.job_id, current_status=meta.status))

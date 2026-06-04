@@ -106,9 +106,9 @@ async function getTableStats() {
   let jobsErrorToday = 0;
   let totalUsers = 0;
 
-  // Jobs today
+  // Jobs today (query GwUserJobs — one row per job, no dedup needed)
   try {
-    const jobs = getTableClient(TableName.GW_JOBS);
+    const jobs = getTableClient(TableName.GW_USER_JOBS);
     for await (const e of jobs.listEntities({
       queryOptions: { filter: `created_at ge '${todayFilter}'` },
     })) {

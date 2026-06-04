@@ -23,6 +23,7 @@ from reportlab.pdfgen import canvas
 GW_SUBSCRIPTIONS = "GwSubscriptions"
 GW_ENCRYPTION_KEYS = "GwEncryptionKeys"
 GW_JOBS = "GwJobs"
+GW_USER_JOBS = "GwUserJobs"
 USER_PERMISSIONS = "UserPermissions"
 
 
@@ -62,6 +63,7 @@ def seed_azurite():
     ts.create_table_if_not_exists(GW_SUBSCRIPTIONS)
     ts.create_table_if_not_exists(GW_ENCRYPTION_KEYS)
     ts.create_table_if_not_exists(GW_JOBS)
+    ts.create_table_if_not_exists(GW_USER_JOBS)
     ts.create_table_if_not_exists(USER_PERMISSIONS)
 
     # Create blob container (gateway/worker need it to exist)

@@ -26,7 +26,7 @@ from tests.fakes import (
 
 def _make_svc():
     sub_id = "sub_1"
-    user = UserContext(user_id="user_1", encryption_key=os.urandom(32), price_per_unit=0.003, key_name="test-key")
+    user = UserContext(user_id="user_1", encryption_key=os.urandom(32), price_per_unit=0.003, key_id="test-key")
     redis = FakeRedis()
     queue = FakeQueue()
     emitter = FakeEmitter()
@@ -137,7 +137,7 @@ class TestIdempotencyGuard:
         svc.jobs.create(meta)
 
         # Verify the guard condition
-        fetched = svc.jobs.get_by_job_id("2025-06_done")
+        fetched = svc.jobs.get("2025-06_done")
         assert fetched is not None
         assert fetched.status in (JobStatus.OK, JobStatus.DELETED)
 
@@ -152,7 +152,7 @@ class TestIdempotencyGuard:
         )
         svc.jobs.create(meta)
 
-        fetched = svc.jobs.get_by_job_id("2025-06_pending")
+        fetched = svc.jobs.get("2025-06_pending")
         assert fetched is not None
         assert fetched.status not in (JobStatus.OK, JobStatus.DELETED)
 
@@ -167,6 +167,6 @@ class TestIdempotencyGuard:
         )
         svc.jobs.create(meta)
 
-        fetched = svc.jobs.get_by_job_id("2025-06_err")
+        fetched = svc.jobs.get("2025-06_err")
         assert fetched is not None
         assert fetched.status not in (JobStatus.OK, JobStatus.DELETED)

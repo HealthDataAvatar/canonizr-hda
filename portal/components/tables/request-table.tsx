@@ -31,8 +31,7 @@ export interface RequestRow {
   id: string;
   timestamp: string;
   completedAt?: string;
-  keyName: string;
-  fileHash?: string;
+  keyId: string;
   billableKB: number;
   status: number;
   result: BlobState;
@@ -206,7 +205,7 @@ function buildColumns(onDelete?: (id: string) => void, highlightIds?: Set<string
         );
       },
     }),
-    col.accessor("keyName", {
+    col.accessor("keyId", {
       header: "Key",
       enableSorting: true,
       cell: ({ getValue }) => <Mono muted>{getValue()}</Mono>,
@@ -218,9 +217,7 @@ function buildColumns(onDelete?: (id: string) => void, highlightIds?: Set<string
       cell: ({ row }) => {
         const r = row.original;
         const isSession = highlightIds?.has(r.id);
-        const title = r.fileHash
-          ? `Job: ${r.id}\nHash: ${r.fileHash}`
-          : `Job: ${r.id}`;
+        const title = `Job: ${r.id}`;
         return (
           <Mono muted className="inline-flex items-center gap-1" title={title}>
             {isSession && <span className="size-1.5 rounded-full bg-accent shrink-0" />}
@@ -315,7 +312,7 @@ function MobileDetailPanel({ row, onDelete, pricePerUnit }: { row: RequestRow; o
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-y-2 gap-x-4 text-sm">
         <span className="text-muted-foreground">Key</span>
-        <span className="font-mono">{row.keyName}</span>
+        <span className="font-mono">{row.keyId}</span>
         <span className="text-muted-foreground">Job ID</span>
         <span className="inline-flex items-center gap-1 font-mono">
           {row.id.slice(0, 8)}
@@ -357,7 +354,7 @@ export function requestExportRows(requests: RequestRow[]): { headers: string[]; 
   const headers = ["Time", "Key", "Job ID", "Size", "Status", "File", "Type"];
   const rows = requests.map((r) => [
     new Date(r.timestamp).toLocaleString(),
-    r.keyName,
+    r.keyId,
     r.id,
     formatKB(r.billableKB),
     String(r.status),

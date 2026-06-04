@@ -8,9 +8,8 @@ from __future__ import annotations
 
 import asyncio
 import json
-import uuid
+import secrets
 from dataclasses import asdict, dataclass
-from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Protocol
 
@@ -40,6 +39,11 @@ class JobStatus(StrEnum):
     DELETED = "deleted"
 
 
+def generate_job_id() -> str:
+    """16-char URL-safe random ID (~96 bits entropy)."""
+    return secrets.token_urlsafe(12)
+
+
 @dataclass
 class JobMeta:
     """Job metadata stored in the job store."""
@@ -47,7 +51,7 @@ class JobMeta:
     user_id: str
     job_id: str
     sub_id: str
-    key_name: str = ""
+    key_id: str = ""
     original_filename: str = "document"
     mime_type: str = ""
     input_bytes: int = 0
@@ -62,17 +66,23 @@ class JobMeta:
     artefacts: str = ""  # JSON manifest from ArtefactWriter.manifest_json()
 
 
+@dataclass
+class JobPage:
+    """Paginated job listing result."""
+
+    jobs: list[JobMeta]
+    continuation: str | None = None
+
+
 class JobStore(Protocol):
     def create(self, meta: JobMeta) -> None: ...
-    def get(self, user_id: str, job_id: str) -> JobMeta | None: ...
-    def get_by_job_id(self, job_id: str) -> JobMeta | None: ...
+    def get(self, job_id: str) -> JobMeta | None: ...
     def update(self, meta: JobMeta) -> None: ...
-    def list_for_user(self, user_id: str, limit: int = 50) -> list[JobMeta]: ...
-    def mark_deleted(self, user_id: str, job_id: str) -> bool: ...
+    def list_for_user(self, user_id: str, page_size: int = 20, continuation: str | None = None) -> JobPage: ...
+    def mark_deleted(self, job_id: str) -> bool: ...
     def list_expired(self, before: str) -> list[JobMeta]: ...
     def list_deleted(self) -> list[JobMeta]: ...
     def list_processing(self, older_than: str) -> list[JobMeta]: ...
-    def strip_pii(self, user_id: str) -> int: ...
 
 
 # ---------------------------------------------------------------------------
@@ -87,7 +97,7 @@ class UserContext:
     user_id: str
     encryption_key: bytes  # 32-byte AES-256 key
     price_per_unit: float
-    key_name: str = ""
+    key_id: str = ""
 
 
 @dataclass
@@ -156,8 +166,7 @@ class Job:
 
     @staticmethod
     def create(**kwargs) -> Job:
-        month = datetime.now(UTC).strftime("%Y-%m")
-        return Job(job_id=f"{month}_{uuid.uuid4().hex}", stream_id="", **kwargs)
+        return Job(job_id=generate_job_id(), stream_id="", **kwargs)
 
     def to_fields(self) -> dict[str, str]:
         """Serialize to a flat string dict (for Redis XADD or similar)."""

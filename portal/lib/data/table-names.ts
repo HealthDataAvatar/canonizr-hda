@@ -24,4 +24,5 @@ export const TableName = {
   GW_SUBSCRIPTIONS: "GwSubscriptions",
   GW_ENCRYPTION_KEYS: "GwEncryptionKeys",
   GW_JOBS: "GwJobs",
+  GW_USER_JOBS: "GwUserJobs",
 } as const;

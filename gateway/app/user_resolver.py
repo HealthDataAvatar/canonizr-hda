@@ -65,7 +65,7 @@ class TableUserResolver:
             logger.error("User %s has no price_per_unit in UserConfig", uid)
             return ResolveMisconfigured("No price_per_unit in UserConfig")
 
-        return UserContext(user_id=uid, encryption_key=bytes.fromhex(key_hex), key_name=kname, price_per_unit=ppu)
+        return UserContext(user_id=uid, encryption_key=bytes.fromhex(key_hex), key_id=kname, price_per_unit=ppu)
 
     async def _is_blocked(self, user_id: str) -> bool:
         ck = user_blocked(user_id=user_id)

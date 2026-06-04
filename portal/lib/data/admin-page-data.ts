@@ -37,7 +37,7 @@ export async function getUserList(): Promise<AdminUserRow[]> {
   await requireAdmin({ autoRedirect: true });
   const users = getTableClient(TableName.USERS);
   const keys = getTableClient(TableName.API_KEYS);
-  const jobs = getTableClient(TableName.GW_JOBS);
+  const jobs = getTableClient(TableName.GW_USER_JOBS);
 
   const rows: AdminUserRow[] = [];
 
@@ -134,7 +134,7 @@ export async function getUserDetail(userId: string): Promise<AdminUserDetail | n
   const { keys: keyStore } = getServices();
   const apiKeys = await keyStore.list(userId);
 
-  const recentJobs = await getJobsForUser(userId, 50);
+  const { requests: recentJobs } = await getJobsForUser(userId, 50);
 
   const thirtyDaysAgo = Date.now() - 30 * 86_400_000;
   const stats = aggregateJobs(

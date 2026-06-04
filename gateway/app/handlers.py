@@ -107,7 +107,6 @@ async def accept_job(
         raise Rejected(429, rejection)
     await svc.quota.record(sub_id, len(file_bytes))
 
-    # Create job (ID prefixed with YYYY-MM for month-scoped queries)
     job = Job.create(
         sub_id=sub_id,
         mime_type=mime_type,
@@ -128,7 +127,7 @@ async def accept_job(
         user_id=user.user_id,
         job_id=job.job_id,
         sub_id=sub_id,
-        key_name=user.key_name,
+        key_id=user.key_id,
         original_filename=safe_filename,
         mime_type=mime_type,
         input_bytes=len(file_bytes),
@@ -168,7 +167,7 @@ async def accept_job(
 async def poll_result(job_id: str, svc: Services) -> PollResult:
     """Poll for a job result."""
     result = await svc.queue.get_result(job_id)
-    meta = svc.jobs.get_by_job_id(job_id)
+    meta = svc.jobs.get(job_id)
 
     if meta is None:
         if result is None:
@@ -264,7 +263,7 @@ async def delete_result(job_id: str, sub_id: str, svc: Services) -> bool:
     """
     user = _require_user(await svc.users.resolve(sub_id))
 
-    meta = svc.jobs.get_by_job_id(job_id)
+    meta = svc.jobs.get(job_id)
     if meta is None:
         return False
 
@@ -276,7 +275,7 @@ async def delete_result(job_id: str, sub_id: str, svc: Services) -> bool:
 
     blob_prefix = f"{meta.user_id}/{job_id}"
     await svc.blobs.delete_prefix(f"{blob_prefix}/")
-    svc.jobs.mark_deleted(meta.user_id, job_id)
+    svc.jobs.mark_deleted(job_id)
 
     return True
 
@@ -305,7 +304,7 @@ async def download_artifact(
     """
     user = _require_user(await svc.users.resolve(sub_id))
 
-    meta = svc.jobs.get_by_job_id(job_id)
+    meta = svc.jobs.get(job_id)
     if meta is None:
         raise Rejected(404, "Job not found")
 
@@ -361,7 +360,7 @@ async def download_artefact(
     """
     user = _require_user(await svc.users.resolve(sub_id))
 
-    meta = svc.jobs.get_by_job_id(job_id)
+    meta = svc.jobs.get(job_id)
     if meta is None:
         raise Rejected(404, "Job not found")
 

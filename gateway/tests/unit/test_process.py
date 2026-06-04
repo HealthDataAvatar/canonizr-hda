@@ -28,7 +28,7 @@ from tests.fakes import (
 
 def _make_svc():
     key = os.urandom(32)
-    user = UserContext(user_id="user_1", encryption_key=key, price_per_unit=0.003, key_name="test")
+    user = UserContext(user_id="user_1", encryption_key=key, price_per_unit=0.003, key_id="test")
     quota_redis = FakeRedis()
     emitter = FakeEmitter()
     svc = Services(
@@ -82,7 +82,7 @@ class TestProcessJob:
         assert output is not None
 
         # Job metadata updated
-        meta = svc.jobs.get(user.user_id, job.job_id)
+        meta = svc.jobs.get(job.job_id)
         assert meta is not None
         assert meta.status == "ok"
         assert meta.completed_at != ""
@@ -128,7 +128,7 @@ class TestProcessJob:
         assert proc.file_size > 0
 
         # Job metadata updated to error
-        meta = svc.jobs.get(user.user_id, job.job_id)
+        meta = svc.jobs.get(job.job_id)
         assert meta is not None
         assert meta.status == "error"
 
@@ -153,7 +153,7 @@ class TestProcessJob:
         assert proc.job_result.detail == "boom"
 
         # Job metadata also records the real error
-        meta = svc.jobs.get(user.user_id, job.job_id)
+        meta = svc.jobs.get(job.job_id)
         assert meta is not None
         assert meta.detail == "[internal] boom"
 

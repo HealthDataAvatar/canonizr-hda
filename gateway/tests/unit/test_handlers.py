@@ -28,7 +28,7 @@ from tests.fakes import (
 
 def _make_user(user_id="user_1", sub_id="sub_1"):
     key = os.urandom(32)
-    return sub_id, UserContext(user_id=user_id, encryption_key=key, price_per_unit=0.003, key_name="test-key")
+    return sub_id, UserContext(user_id=user_id, encryption_key=key, price_per_unit=0.003, key_id="test-key")
 
 
 def _make_svc(sub_id="sub_1", user_id="user_1"):
@@ -69,7 +69,7 @@ class TestAcceptJob:
         result = await accept_job(b"hello", "test.txt", "text/plain", "sub_1", svc)
         blob_key = f"{user.user_id}/{result.job_id}/input.bin"
         assert await svc.blobs.get(blob_key) is not None
-        meta = svc.jobs.get(user.user_id, result.job_id)
+        meta = svc.jobs.get(result.job_id)
         assert meta is not None
         assert meta.status == JobStatus.PROCESSING
         assert meta.original_filename == "test.txt"
@@ -176,7 +176,7 @@ class TestAcceptJob:
     async def test_sanitizes_filename(self):
         svc, user, _ = _make_svc()
         result = await accept_job(b"data", "../../etc/passwd", "text/plain", "sub_1", svc)
-        meta = svc.jobs.get(user.user_id, result.job_id)
+        meta = svc.jobs.get(result.job_id)
         assert meta is not None
         assert meta.original_filename == "passwd"
 
@@ -210,7 +210,7 @@ class TestPollResult:
         encrypted = encrypt(payload.encode(), user.encryption_key)
         await svc.blobs.put(f"{user.user_id}/{result.job_id}/output.bin", encrypted)
 
-        meta = svc.jobs.get(user.user_id, result.job_id)
+        meta = svc.jobs.get(result.job_id)
         assert meta is not None
         meta.status = JobStatus.OK
         meta.completed_at = datetime.now(UTC).isoformat()
@@ -230,7 +230,7 @@ class TestPollResult:
     async def test_deleted_job_returns_410(self):
         svc, user, _ = _make_svc()
         result = await accept_job(b"hello", "test.txt", "text/plain", "sub_1", svc)
-        meta = svc.jobs.get(user.user_id, result.job_id)
+        meta = svc.jobs.get(result.job_id)
         assert meta is not None
         meta.status = JobStatus.DELETED
         svc.jobs.update(meta)
@@ -267,7 +267,7 @@ class TestDeleteResult:
         assert await svc.blobs.get(f"{user.user_id}/{result.job_id}/input.bin") is None
         assert await svc.blobs.get(f"{user.user_id}/{result.job_id}/output.bin") is None
 
-        meta = svc.jobs.get(user.user_id, result.job_id)
+        meta = svc.jobs.get(result.job_id)
         assert meta is not None
         assert meta.status == JobStatus.DELETED
 

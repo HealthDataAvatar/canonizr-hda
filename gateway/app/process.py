@@ -99,7 +99,7 @@ async def process_job(job: Job, user: UserContext, svc: Services) -> ProcessResu
 
         # Update job metadata
         now = datetime.now(UTC)
-        meta = svc.jobs.get(user.user_id, job.job_id)
+        meta = svc.jobs.get(job.job_id)
         if meta:
             meta.status = JobStatus.OK
             meta.completed_at = now.isoformat()
@@ -114,7 +114,7 @@ async def process_job(job: Job, user: UserContext, svc: Services) -> ProcessResu
         return proc
 
     except UnsupportedFormat as e:
-        _mark_error(svc, user.user_id, job.job_id, str(e), "permanent", trace)
+        _mark_error(svc, job.job_id, str(e), "permanent", trace)
         proc = ProcessResult(
             JobResult(job_id=job.job_id, status="error", detail=str(e), status_code=400),
             file_size,
@@ -125,7 +125,7 @@ async def process_job(job: Job, user: UserContext, svc: Services) -> ProcessResu
         return proc
 
     except ServiceNotConfigured as e:
-        _mark_error(svc, user.user_id, job.job_id, str(e), "permanent", trace)
+        _mark_error(svc, job.job_id, str(e), "permanent", trace)
         proc = ProcessResult(
             JobResult(job_id=job.job_id, status="error", detail=str(e), status_code=422),
             file_size,
@@ -138,7 +138,7 @@ async def process_job(job: Job, user: UserContext, svc: Services) -> ProcessResu
     except Exception as e:
         category = _error_category(e)
         logger.error("Job %s failed (%s): %s", job.job_id, category, e)
-        _mark_error(svc, user.user_id, job.job_id, str(e), category, trace)
+        _mark_error(svc, job.job_id, str(e), category, trace)
         steps = trace.to_steps()
         proc = ProcessResult(
             JobResult(job_id=job.job_id, status="error", detail=str(e), status_code=500),
@@ -163,7 +163,7 @@ def _emit_telemetry(
     processing_ms = (now - processing_start) * 1000
 
     # Look up queue wait from job metadata
-    meta = svc.jobs.get(user.user_id, job.job_id)
+    meta = svc.jobs.get(job.job_id)
     queue_wait_ms = 0.0
     if meta and meta.created_at:
         try:
@@ -227,11 +227,9 @@ def _error_category(e: Exception) -> str:
     return "internal"
 
 
-def _mark_error(
-    svc: Services, user_id: str, job_id: str, detail: str, category: str, trace: Trace | None = None
-) -> None:
+def _mark_error(svc: Services, job_id: str, detail: str, category: str, trace: Trace | None = None) -> None:
     """Update job metadata to error status."""
-    meta = svc.jobs.get(user_id, job_id)
+    meta = svc.jobs.get(job_id)
     if meta:
         meta.status = JobStatus.ERROR
         meta.detail = f"[{category}] {detail}"

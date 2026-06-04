@@ -12,9 +12,9 @@ const DAY = 24 * HOUR;
 const none: BlobState = { status: "none" };
 
 const recentJobs: RequestRow[] = [
-  { id: "req-001", timestamp: new Date(now - 3 * MINUTE).toISOString(), completedAt: new Date(now - 2 * MINUTE).toISOString(), keyName: TEST_KEY_NAMES.crane, fileHash: "a8b9c0d1e2f3a4b5", billableKB: 200, status: 200, result: { status: "available", url: "#" }, input: none },
-  { id: "req-002", timestamp: new Date(now - HOUR).toISOString(), keyName: TEST_KEY_NAMES.crane, billableKB: 100, status: 400, result: none, input: none },
-  { id: "req-003", timestamp: new Date(now - 2 * DAY).toISOString(), completedAt: new Date(now - 2 * DAY + 6800).toISOString(), keyName: TEST_KEY_NAMES.raven, fileHash: "7e8f9a0b1c2d3e4f", billableKB: 2600, status: 200, result: none, input: none },
+  { id: "req-001", timestamp: new Date(now - 3 * MINUTE).toISOString(), completedAt: new Date(now - 2 * MINUTE).toISOString(), keyId: TEST_KEY_NAMES.crane, billableKB: 200, status: 200, result: { status: "available", url: "#" }, input: none },
+  { id: "req-002", timestamp: new Date(now - HOUR).toISOString(), keyId: TEST_KEY_NAMES.crane, billableKB: 100, status: 400, result: none, input: none },
+  { id: "req-003", timestamp: new Date(now - 2 * DAY).toISOString(), completedAt: new Date(now - 2 * DAY + 6800).toISOString(), keyId: TEST_KEY_NAMES.raven, billableKB: 2600, status: 200, result: none, input: none },
 ];
 
 const activeUser: AdminUserDetail = {

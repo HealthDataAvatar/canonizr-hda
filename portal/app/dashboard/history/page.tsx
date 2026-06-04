@@ -7,11 +7,12 @@ import { UploadForm, type KeyOption } from "@/components/upload-form";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default async function JobsPage() {
-  const { requests } = await getHistoryData();
+  const { requests, nextCursor } = await getHistoryData();
 
   return (
     <JobsPageContent
       initialRequests={requests}
+      initialCursor={nextCursor}
       uploadSlot={
         <UploadForm
           keySelectorSlot={

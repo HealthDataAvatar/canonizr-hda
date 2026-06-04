@@ -178,24 +178,24 @@ export async function seedJob(
   overrides: Record<string, unknown> = {},
 ) {
   await initTables();
-  const client = getTableClient(TableName.GW_JOBS);
+  const client = getTableClient(TableName.GW_USER_JOBS);
   const jobId = `job-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+  const createdAt = (overrides.created_at as string) ?? new Date().toISOString();
+  const epochMs = new Date(createdAt).getTime();
+  const invertedTs = String(9_999_999_999_999 - epochMs).padStart(13, "0");
   await client.upsertEntity({
     partitionKey: userId,
-    rowKey: jobId,
-    sub_id: "sub-001",
-    key_name: "test-key",
+    rowKey: `${invertedTs}_${jobId}`,
+    job_id: jobId,
+    key_id: "test-key",
     original_filename: "test.pdf",
     mime_type: "application/pdf",
     input_bytes: 150000,
-    input_hash: "abc123",
     status: "ok",
-    error_detail: "",
-    actions: "docling",
-    created_at: new Date().toISOString(),
-    completed_at: new Date().toISOString(),
+    detail: "",
+    created_at: createdAt,
+    completed_at: createdAt,
     retention_expires: "",
-    deleted: false,
     ...overrides,
   });
   return jobId;

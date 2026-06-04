@@ -1,4 +1,4 @@
-/** Jobs table — read only from the portal's perspective. Gateway writes. */
+/** Jobs table — reads from GwUserJobs index (mutable, newest-first). */
 
 import { getTableClient } from "@/lib/data/table-client";
 import { TableName } from "@/lib/data/table-names";
@@ -8,16 +8,19 @@ export interface JobRecord {
   id: string;
   timestamp: string;
   completedAt?: string;
-  keyName: string;
-  fileHash?: string;
+  keyId: string;
   billableKB: number;
   status: "ok" | "processing" | "error" | "deleted";
   retentionExpires?: string;
   detail?: string;
-  steps?: string;
   originalFilename?: string;
   mimeType?: string;
   inputBytes: number;
+}
+
+export interface JobPage {
+  jobs: JobRecord[];
+  nextCursor: string | null;
 }
 
 function parseStatus(raw: string): "ok" | "processing" | "error" | "deleted" {
@@ -29,36 +32,43 @@ function parseStatus(raw: string): "ok" | "processing" | "error" | "deleted" {
 
 export async function listJobsForUser(
   userId: string,
-  limit: number = 50,
-): Promise<JobRecord[]> {
-  const client = getTableClient(TableName.GW_JOBS);
+  pageSize: number = 20,
+  cursor?: string,
+): Promise<JobPage> {
+  const client = getTableClient(TableName.GW_USER_JOBS);
 
-  const entities = client.listEntities({
-    queryOptions: {
-      filter: `PartitionKey eq '${userId}'`,
-    },
-  });
+  const pages = client
+    .listEntities({
+      queryOptions: {
+        filter: `PartitionKey eq '${userId}'`,
+      },
+    })
+    .byPage({ maxPageSize: pageSize, continuationToken: cursor });
 
-  const rows: JobRecord[] = [];
-  for await (const entity of entities) {
-    rows.push({
-      id: entity.rowKey as string,
+  const page = await pages.next();
+  if (page.done || !page.value) {
+    return { jobs: [], nextCursor: null };
+  }
+
+  const jobs: JobRecord[] = [];
+  for (const entity of page.value) {
+    jobs.push({
+      id: (entity.job_id as string) ?? "",
       timestamp: (entity.created_at as string) ?? "",
       completedAt: (entity.completed_at as string) || undefined,
-      keyName: (entity.key_name as string) ?? "",
-      fileHash: (entity.input_hash as string) || undefined,
+      keyId: (entity.key_id as string) ?? "",
       billableKB: toBillableKB(Number(entity.input_bytes ?? 0)),
       status: parseStatus(entity.status as string),
       retentionExpires: (entity.retention_expires as string) || undefined,
       detail: (entity.detail as string) || undefined,
-      steps: (entity.steps as string) || undefined,
       originalFilename: (entity.original_filename as string) || undefined,
       mimeType: (entity.mime_type as string) || undefined,
       inputBytes: Number(entity.input_bytes ?? 0),
     });
-    if (rows.length >= limit) break;
   }
 
-  rows.sort((a, b) => (b.timestamp > a.timestamp ? 1 : -1));
-  return rows;
+  return {
+    jobs,
+    nextCursor: page.value.continuationToken ?? null,
+  };
 }

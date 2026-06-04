@@ -75,7 +75,7 @@ class TestBillingRejection:
     @pytest.mark.asyncio
     async def test_active_user_proceeds(self):
         key = os.urandom(32)
-        user = UserContext(user_id="user_1", encryption_key=key, price_per_unit=0.003, key_name="test-key")
+        user = UserContext(user_id="user_1", encryption_key=key, price_per_unit=0.003, key_id="test-key")
         svc = _make_svc(user)
         result = await accept_job(b"hello", "test.txt", "text/plain", "sub_1", svc)
         assert result.job_id

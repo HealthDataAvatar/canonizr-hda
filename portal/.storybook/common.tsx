@@ -22,8 +22,8 @@ export const TEST_EMAILS = {
 } as const;
 
 export const TEST_JOB_IDS = {
-  normal: "2026-05_a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6",
-  recent: "2026-06_f1e2d3c4b5a6f7e8d9c0b1a2f3e4d5c6",
+  normal: "V1StGXR8_Z5jHsqz",
+  recent: "Xk9mLp2Q_wR4tYnB",
 } as const;
 
 /**

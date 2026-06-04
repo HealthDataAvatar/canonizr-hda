@@ -37,7 +37,7 @@ class TestCleanup:
         assert result.scanned == 2  # pass 1: expired, pass 2: now deleted
         assert result.blobs_deleted == 2
         assert result.marked_deleted == 1
-        j1 = jobs.get("u1", "j1")
+        j1 = jobs.get("j1")
         assert j1 is not None
         assert j1.status == JobStatus.DELETED
         assert await blobs.get("u1/j1/input.bin") is None
@@ -55,7 +55,7 @@ class TestCleanup:
         result = await run_cleanup(jobs, blobs)
 
         assert result.scanned == 0
-        j1 = jobs.get("u1", "j1")
+        j1 = jobs.get("j1")
         assert j1 is not None
         assert j1.status == JobStatus.OK
 
@@ -105,8 +105,8 @@ class TestCleanup:
         result = await run_cleanup(jobs, blobs)
 
         assert result.marked_deleted == 1
-        j1 = jobs.get("u1", "j1")
-        j2 = jobs.get("u1", "j2")
+        j1 = jobs.get("j1")
+        j2 = jobs.get("j2")
         assert j1 is not None
         assert j2 is not None
         assert j1.status == JobStatus.DELETED

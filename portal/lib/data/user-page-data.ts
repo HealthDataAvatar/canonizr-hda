@@ -22,17 +22,17 @@ import type { RecentError } from "@/components/error-banner";
 
 export async function getRecentError(): Promise<RecentError | null> {
   const { userId } = await requireUser({ autoRedirect: true });
-  const jobs = await getJobsForUser(userId, 10);
+  const page = await getJobsForUser(userId, 10);
 
   const fiveMinAgo = Date.now() - 5 * 60 * 1000;
-  const error = jobs.find(
+  const error = page.requests.find(
     (r) => r.status !== 200 && r.status !== 202 && new Date(r.timestamp).getTime() > fiveMinAgo
   );
 
   if (!error) return null;
   return {
     id: error.id,
-    keyName: error.keyName,
+    keyName: error.keyId,
     status: error.status,
     timestamp: error.timestamp,
   };
@@ -150,9 +150,11 @@ export async function getBillingData(): Promise<BillingData> {
 
 export interface HistoryData {
   requests: RequestRow[];
+  nextCursor: string | null;
 }
 
 export async function getHistoryData(): Promise<HistoryData> {
   const { userId } = await requireUser({ autoRedirect: true });
-  return { requests: await getJobsForUser(userId) };
+  const page = await getJobsForUser(userId);
+  return { requests: page.requests, nextCursor: page.nextCursor };
 }

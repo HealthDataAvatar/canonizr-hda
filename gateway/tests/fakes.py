@@ -9,7 +9,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from app.protocols import Job, JobMeta, JobResult, JobStatus, UserContext
+from app.protocols import Job, JobMeta, JobPage, JobResult, JobStatus, UserContext
 from app.types import (
     ExtractedDocument,
     Markdown,
@@ -98,33 +98,27 @@ class FakeBlobStore:
 
 
 class FakeJobStore:
-    """In-memory job metadata store."""
+    """In-memory job metadata store matching the new dual-table protocol."""
 
     def __init__(self):
-        self._jobs: dict[tuple[str, str], JobMeta] = {}
+        self._jobs: dict[str, JobMeta] = {}  # job_id → latest JobMeta
 
     def create(self, meta: JobMeta) -> None:
-        self._jobs[(meta.user_id, meta.job_id)] = meta
+        self._jobs[meta.job_id] = meta
 
-    def get(self, user_id: str, job_id: str) -> JobMeta | None:
-        return self._jobs.get((user_id, job_id))
-
-    def get_by_job_id(self, job_id: str) -> JobMeta | None:
-        for (_, jid), meta in self._jobs.items():
-            if jid == job_id:
-                return meta
-        return None
+    def get(self, job_id: str) -> JobMeta | None:
+        return self._jobs.get(job_id)
 
     def update(self, meta: JobMeta) -> None:
-        self._jobs[(meta.user_id, meta.job_id)] = meta
+        self._jobs[meta.job_id] = meta
 
-    def list_for_user(self, user_id: str, limit: int = 50) -> list[JobMeta]:
-        jobs = [m for (uid, _), m in self._jobs.items() if uid == user_id]
+    def list_for_user(self, user_id: str, page_size: int = 20, continuation: str | None = None) -> JobPage:
+        jobs = [m for m in self._jobs.values() if m.user_id == user_id]
         jobs.sort(key=lambda j: j.created_at, reverse=True)
-        return jobs[:limit]
+        return JobPage(jobs=jobs[:page_size])
 
-    def mark_deleted(self, user_id: str, job_id: str) -> bool:
-        meta = self.get(user_id, job_id)
+    def mark_deleted(self, job_id: str) -> bool:
+        meta = self.get(job_id)
         if meta is None:
             return False
         meta.status = JobStatus.DELETED
@@ -142,15 +136,6 @@ class FakeJobStore:
 
     def list_deleted(self) -> list[JobMeta]:
         return [m for m in self._jobs.values() if m.status == JobStatus.DELETED]
-
-    def strip_pii(self, user_id: str) -> int:
-        count = 0
-        for (uid, _), meta in self._jobs.items():
-            if uid == user_id:
-                meta.original_filename = ""
-                meta.status = JobStatus.DELETED
-                count += 1
-        return count
 
 
 class FakeQueue:

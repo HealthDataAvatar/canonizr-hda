@@ -90,46 +90,74 @@ describe("getJobsForUser", () => {
   });
 
   it("returns empty for user with no jobs", async () => {
-    const rows = await getJobsForUser("no-such-user");
-    expect(rows).toEqual([]);
+    const { requests } = await getJobsForUser("no-such-user");
+    expect(requests).toEqual([]);
   });
 
   it("returns seeded jobs", async () => {
     await seedJob(userId);
     await seedJob(userId);
-    const rows = await getJobsForUser(userId);
-    expect(rows.length).toBe(2);
+    const { requests } = await getJobsForUser(userId);
+    expect(requests.length).toBe(2);
   });
 
   it("maps fields correctly", async () => {
     const jobId = await seedJob(userId, {
       input_bytes: 250000,
       status: "ok",
-      key_name: "my-key",
-      input_hash: "deadbeef",
+      key_id: "my-key",
     });
-    const rows = await getJobsForUser(userId);
-    const row = rows.find((r) => r.id === jobId)!;
+    const { requests } = await getJobsForUser(userId);
+    const row = requests.find((r) => r.id === jobId)!;
     expect(row.status).toBe(200);
-    expect(row.keyName).toBe("my-key");
-    expect(row.fileHash).toBe("deadbeef");
+    expect(row.keyId).toBe("my-key");
     expect(row.billableKB).toBeGreaterThan(0);
   });
 
   it("maps processing → 202, error → 500", async () => {
     await seedJob(userId, { status: "processing" });
     await seedJob(userId, { status: "error" });
-    const rows = await getJobsForUser(userId);
-    expect(rows.find((r) => r.status === 202)).toBeTruthy();
-    expect(rows.find((r) => r.status === 500)).toBeTruthy();
+    const { requests } = await getJobsForUser(userId);
+    expect(requests.find((r) => r.status === 202)).toBeTruthy();
+    expect(requests.find((r) => r.status === 500)).toBeTruthy();
   });
 
-  it("respects limit", async () => {
+  it("respects pageSize", async () => {
     const uid = `limit-${Date.now()}`;
     await seedJob(uid);
     await seedJob(uid);
     await seedJob(uid);
-    expect((await getJobsForUser(uid, 2)).length).toBe(2);
+    const { requests } = await getJobsForUser(uid, 2);
+    expect(requests.length).toBe(2);
+  });
+
+  it("paginates with cursor", async () => {
+    const uid = `cursor-${Date.now()}`;
+    await seedJob(uid, { created_at: "2026-01-01T00:00:00Z" });
+    await seedJob(uid, { created_at: "2026-02-01T00:00:00Z" });
+    await seedJob(uid, { created_at: "2026-03-01T00:00:00Z" });
+
+    // Page 1: newest 2
+    const page1 = await getJobsForUser(uid, 2);
+    expect(page1.requests.length).toBe(2);
+    expect(page1.nextCursor).not.toBeNull();
+
+    // Page 2: remaining 1
+    const page2 = await getJobsForUser(uid, 2, page1.nextCursor!);
+    expect(page2.requests.length).toBe(1);
+    expect(page2.nextCursor).toBeNull();
+
+    // No overlap between pages
+    const allIds = [...page1.requests, ...page2.requests].map((r) => r.id);
+    expect(new Set(allIds).size).toBe(3);
+  });
+
+  it("returns null cursor when all results fit in one page", async () => {
+    const uid = `nocursor-${Date.now()}`;
+    await seedJob(uid);
+    const { requests, nextCursor } = await getJobsForUser(uid, 20);
+    expect(requests.length).toBe(1);
+    expect(nextCursor).toBeNull();
   });
 
   it("sorts by timestamp descending", async () => {
@@ -137,8 +165,8 @@ describe("getJobsForUser", () => {
     await seedJob(uid, { created_at: "2026-01-01T00:00:00Z" });
     await seedJob(uid, { created_at: "2026-06-01T00:00:00Z" });
     await seedJob(uid, { created_at: "2026-03-01T00:00:00Z" });
-    const rows = await getJobsForUser(uid);
-    const ts = rows.map((r) => r.timestamp);
+    const { requests } = await getJobsForUser(uid);
+    const ts = requests.map((r) => r.timestamp);
     expect(ts).toEqual([...ts].sort().reverse());
   });
 });
