@@ -68,10 +68,10 @@ export function KeysDataSlots({ keys }: { keys: KeyRow[] }) {
               </p>
             </div>
             <Link
-              href="/dashboard/playground"
+              href="/dashboard/history"
               className="shrink-0 rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:bg-accent/90 transition-colors"
             >
-              Open Playground
+              Go to Jobs
             </Link>
           </CardContent>
         </Card>

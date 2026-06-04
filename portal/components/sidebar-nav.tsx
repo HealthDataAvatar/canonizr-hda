@@ -5,9 +5,8 @@ import { usePathname } from "next/navigation";
 
 const links = [
   { href: "/dashboard/keys", label: "API Keys" },
-  { href: "/dashboard/playground", label: "Playground" },
+  { href: "/dashboard/history", label: "Jobs" },
   { href: "/dashboard/billing", label: "Billing" },
-  { href: "/dashboard/history", label: "History" },
 ];
 
 export function SidebarNav({ isAdmin = false }: { isAdmin?: boolean }) {

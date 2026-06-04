@@ -3,13 +3,11 @@
 import { useState, useRef, useCallback, createContext, useContext, useEffect, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { CopyButton } from "@/components/ui/copy-button";
 import { UsageBar } from "@/components/usage-bar";
 import { Upload, Loader, FileText } from "lucide-react";
 import { formatKB } from "@/lib/pure/format";
 
 const APIM_URL = "https://apim-canonizr-prod.azure-api.net";
-const POLL_INTERVAL = 1500;
 
 export interface KeyOption {
   id: string;
@@ -18,8 +16,6 @@ export interface KeyOption {
   quotaKB: number | null;
   usageKB: number;
 }
-
-type Status = "idle" | "uploading" | "processing" | "done" | "error";
 
 const KeyContext = createContext<{
   onKeyChange: (key: string) => void;
@@ -56,36 +52,47 @@ export function KeySelector({ keys }: { keys: KeyOption[] }) {
   );
 }
 
-export interface PlaygroundProps {
-  keySelectorSlot: ReactNode;
-  /** Pre-seed result state for stories */
-  initialResult?: {
-    status: Status;
-    markdown?: string;
-    error?: string;
-    jobInfo?: { inputBytes: number; timeMs: number };
-  };
+const SESSION_JOBS_KEY = "canonizr_session_jobs";
+
+/** Get job IDs submitted in this browser session */
+export function getSessionJobIds(): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    return JSON.parse(sessionStorage.getItem(SESSION_JOBS_KEY) ?? "[]");
+  } catch {
+    return [];
+  }
 }
 
-export function Playground({ keySelectorSlot, initialResult }: PlaygroundProps) {
+function addSessionJobId(jobId: string) {
+  const ids = getSessionJobIds();
+  ids.unshift(jobId);
+  sessionStorage.setItem(SESSION_JOBS_KEY, JSON.stringify(ids.slice(0, 100)));
+}
+
+/** Context for the parent JobsPageContent to receive job submission events */
+export const UploadFormJobContext = createContext<((jobId: string) => void) | null>(null);
+
+type SubmitStatus = "idle" | "uploading" | "submitting";
+
+export interface UploadFormProps {
+  keySelectorSlot: ReactNode;
+}
+
+export function UploadForm({ keySelectorSlot }: UploadFormProps) {
+  const onJobSubmitted = useContext(UploadFormJobContext);
   const [apiKey, setApiKey] = useState("");
   const [file, setFile] = useState<File | null>(null);
-  const [status, setStatus] = useState<Status>(initialResult?.status ?? "idle");
-  const [markdown, setMarkdown] = useState(initialResult?.markdown ?? "");
-  const [error, setError] = useState(initialResult?.error ?? "");
-  const [jobInfo, setJobInfo] = useState<{ inputBytes: number; timeMs: number } | null>(initialResult?.jobInfo ?? null);
+  const [status, setStatus] = useState<SubmitStatus>("idle");
+  const [error, setError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const dropRef = useRef<HTMLDivElement>(null);
   const [dragOver, setDragOver] = useState(false);
 
   const handleKeyChange = useCallback((key: string) => setApiKey(key), []);
 
   const handleFile = useCallback((f: File) => {
     setFile(f);
-    setStatus("idle");
-    setMarkdown("");
     setError("");
-    setJobInfo(null);
   }, []);
 
   async function handleSubmit() {
@@ -93,16 +100,12 @@ export function Playground({ keySelectorSlot, initialResult }: PlaygroundProps) 
 
     setStatus("uploading");
     setError("");
-    setMarkdown("");
-    setJobInfo(null);
-
-    const startTime = Date.now();
 
     try {
-      // Submit
       const form = new FormData();
       form.append("file", file);
 
+      setStatus("submitting");
       const submitRes = await fetch(`${APIM_URL}/v1/jobs`, {
         method: "POST",
         headers: { "Ocp-Apim-Subscription-Key": apiKey },
@@ -114,36 +117,14 @@ export function Playground({ keySelectorSlot, initialResult }: PlaygroundProps) 
         throw new Error(body.detail ?? `Submit failed: ${submitRes.status}`);
       }
 
-      const { poll_url, input_bytes } = await submitRes.json();
-      setStatus("processing");
-
-      // Poll
-      while (true) {
-        await new Promise((r) => setTimeout(r, POLL_INTERVAL));
-
-        const pollRes = await fetch(`${APIM_URL}${poll_url}`, {
-          headers: { "Ocp-Apim-Subscription-Key": apiKey },
-        });
-
-        if (pollRes.status === 202) continue;
-
-        if (!pollRes.ok) {
-          const body = await pollRes.json().catch(() => ({}));
-          throw new Error(body.detail ?? `Processing failed: ${pollRes.status}`);
-        }
-
-        const result = await pollRes.json();
-        setMarkdown(result.markdown ?? "");
-        setJobInfo({
-          inputBytes: input_bytes,
-          timeMs: Date.now() - startTime,
-        });
-        setStatus("done");
-        return;
-      }
+      const { job_id } = await submitRes.json();
+      addSessionJobId(job_id);
+      setFile(null);
+      setStatus("idle");
+      onJobSubmitted?.(job_id);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unknown error");
-      setStatus("error");
+      setStatus("idle");
     }
   }
 
@@ -154,20 +135,19 @@ export function Playground({ keySelectorSlot, initialResult }: PlaygroundProps) 
     if (f) handleFile(f);
   }
 
+  const busy = status !== "idle";
+
   return (
     <KeyContext.Provider value={{ onKeyChange: handleKeyChange }}>
-      <div className="space-y-6">
-        {/* Key selector (streamed in via Suspense) */}
+      <div className="space-y-4">
         {keySelectorSlot}
 
-        {/* Drop zone */}
         <div
-          ref={dropRef}
           onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
           onDragLeave={() => setDragOver(false)}
           onDrop={handleDrop}
           onClick={() => fileInputRef.current?.click()}
-          className={`flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed px-6 py-12 cursor-pointer transition-colors ${
+          className={`flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-6 py-8 cursor-pointer transition-colors ${
             dragOver ? "border-accent bg-accent/5" : "border-border hover:border-muted-foreground/50"
           }`}
         >
@@ -182,51 +162,31 @@ export function Playground({ keySelectorSlot, initialResult }: PlaygroundProps) 
           />
           {file ? (
             <>
-              <FileText className="size-8 text-muted-foreground" />
-              <p className="font-medium">{file.name}</p>
-              <p className="text-sm text-muted-foreground">{formatKB(Math.ceil(file.size / 1024))}</p>
+              <FileText className="size-6 text-muted-foreground" />
+              <p className="font-medium text-sm">{file.name}</p>
+              <p className="text-xs text-muted-foreground">{formatKB(Math.ceil(file.size / 1024))}</p>
             </>
           ) : (
             <>
-              <Upload className="size-8 text-muted-foreground" />
-              <p className="text-muted-foreground">
+              <Upload className="size-6 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">
                 Drop a file here or click to select
               </p>
             </>
           )}
         </div>
 
-        {/* Submit */}
         <Button
           onClick={handleSubmit}
-          disabled={!file || !apiKey || status === "uploading" || status === "processing"}
+          disabled={!file || !apiKey || busy}
           className="w-full"
         >
-          {status === "uploading" && <><Loader className="size-4 mr-2 animate-spin" /> Uploading…</>}
-          {status === "processing" && <><Loader className="size-4 mr-2 animate-spin" /> Processing…</>}
-          {(status === "idle" || status === "done" || status === "error") && "Convert"}
+          {busy && <Loader className="size-4 mr-2 animate-spin" />}
+          {busy ? "Submitting…" : "Convert"}
         </Button>
 
-        {/* Error */}
-        {status === "error" && (
+        {error && (
           <p className="text-sm text-destructive">{error}</p>
-        )}
-
-        {/* Result */}
-        {status === "done" && (
-          <div className="space-y-3">
-            {jobInfo && (
-              <p className="text-sm text-muted-foreground">
-                {formatKB(Math.ceil(jobInfo.inputBytes / 1024))} processed in {(jobInfo.timeMs / 1000).toFixed(1)}s
-              </p>
-            )}
-            <div className="flex justify-end">
-              <CopyButton value={markdown} />
-            </div>
-            <pre className="max-h-[600px] overflow-auto rounded-lg border border-border bg-card p-4 text-sm whitespace-pre-wrap">
-              {markdown}
-            </pre>
-          </div>
         )}
       </div>
     </KeyContext.Provider>

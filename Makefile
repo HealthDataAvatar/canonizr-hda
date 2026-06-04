@@ -6,11 +6,10 @@ TAG         ?= latest
 TF_DIR      ?= infra/terraform
 DEPLOY_TIME ?= $(shell date -u +%Y%m%dT%H%M%SZ)
 
-.PHONY: build gateway-push deploy test test-unit test-gateway-unit test-portal-unit test-gateway-integration test-portal-integration test-integration test-smoke test-focus check-uv fmt lint check install-hooks setup-secrets gen-key gateway-logs worker-logs portal-dev portal-build portal-push portal-logs florence-build florence-push florence-logs set-admin
-
 # ---------------------------------------------------------------------------
 # Prerequisites
 # ---------------------------------------------------------------------------
+.PHONY: check-uv install-hooks check-hooks
 check-uv:
 	@command -v uv >/dev/null 2>&1 || { echo "Error: uv is not installed. See https://docs.astral.sh/uv/getting-started/installation/"; exit 1; }
 	@cd gateway && uv sync --all-extras -q
@@ -27,6 +26,9 @@ check-hooks:
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
+.PHONY: fmt lint test-gateway-unit test-portal-unit test-unit \
+        test-gateway-integration test-portal-integration test-integration \
+        test-focus test-smoke test
 fmt: check-uv
 	cd gateway && uv sync --extra lint && uv run ruff format app/ tests/
 
@@ -47,6 +49,7 @@ test-gateway-integration:
 	docker compose -f docker-compose.test.yml down -v
 
 test-portal-integration:
+	docker compose -f docker-compose.portal-test.yml down -v 2>/dev/null || true
 	docker compose -f docker-compose.portal-test.yml up --build --abort-on-container-exit --exit-code-from tests
 	docker compose -f docker-compose.portal-test.yml down -v
 
@@ -66,6 +69,7 @@ test: test-unit test-integration
 # ---------------------------------------------------------------------------
 # Stripe
 # ---------------------------------------------------------------------------
+.PHONY: stripe-setup
 stripe-setup: check-uv
 	@test -n "$$STRIPE_SECRET_KEY" || { echo "Error: set STRIPE_SECRET_KEY"; exit 1; }
 	cd gateway && uv sync && uv run python ../infra/stripe/setup.py
@@ -73,6 +77,7 @@ stripe-setup: check-uv
 # ---------------------------------------------------------------------------
 # Admin
 # ---------------------------------------------------------------------------
+.PHONY: set-admin
 set-admin:
 	@test -n "$(EMAIL)" || { echo "Usage: make set-admin EMAIL=you@example.com"; exit 1; }
 	@CONN=$$(az storage account show-connection-string -g rg-canonizr-prod -n stportalcanonizrprod --query connectionString -o tsv) && \
@@ -93,6 +98,7 @@ set-admin:
 # ---------------------------------------------------------------------------
 # Secrets
 # ---------------------------------------------------------------------------
+.PHONY: gen-key setup-secrets
 gen-key:
 	@openssl rand -hex 32
 
@@ -102,44 +108,54 @@ setup-secrets:
 # ---------------------------------------------------------------------------
 # Build & deploy
 # ---------------------------------------------------------------------------
-build:
+.PHONY: portal-build gateway-build portal-push gateway-push \
+        deploy-tofu deploy-gateway deploy-portal deploy
+portal-build:
+	docker build --platform linux/amd64 \
+		-t $(ACR_SERVER)/$(PORTAL_IMAGE):$(TAG) \
+		-f portal/Dockerfile portal/
+
+gateway-build:
 	docker build --platform linux/amd64 \
 		-t $(ACR_SERVER)/$(GATEWAY_IMAGE):$(TAG) \
 		-f gateway/gateway.dockerfile gateway/
 
-gateway-push: build
+portal-push: portal-build
+	az acr login --name $(ACR_NAME)
+	docker push $(ACR_SERVER)/$(PORTAL_IMAGE):$(TAG)
+
+gateway-push: gateway-build
 	az acr login --name $(ACR_NAME)
 	docker push $(ACR_SERVER)/$(GATEWAY_IMAGE):$(TAG)
 
-deploy: test gateway-push portal-push
+deploy-tofu:
 	tofu -chdir=$(TF_DIR) apply -var="deploy_time=$(DEPLOY_TIME)"
+
+deploy-gateway: test-gateway-unit gateway-push deploy-tofu
+
+deploy-portal: test-portal-unit portal-push deploy-tofu
+
+deploy: test gateway-push portal-push deploy-tofu
 
 # ---------------------------------------------------------------------------
 # Portal
 # ---------------------------------------------------------------------------
+.PHONY: portal-dev
 portal-dev:
 	docker compose -f docker-compose.portal-test.yml up azurite redis mail-stub gateway apim-stub -d --wait
 	docker compose -f docker-compose.portal-test.yml logs -f mail-stub gateway &
 	cd portal && npm run dev; \
 	docker compose -f docker-compose.portal-test.yml down
 
-portal-build:
-	docker build --platform linux/amd64 \
-		-t $(ACR_SERVER)/$(PORTAL_IMAGE):$(TAG) \
-		-f portal/Dockerfile portal/
-
-portal-push: portal-build
-	az acr login --name $(ACR_NAME)
-	docker push $(ACR_SERVER)/$(PORTAL_IMAGE):$(TAG)
-
 # ---------------------------------------------------------------------------
 # Logs
 # ---------------------------------------------------------------------------
-gateway-logs:
+.PHONY: log-gateway log-worker log-portal
+log-gateway:
 	az containerapp logs show --name canonizr-gateway --resource-group rg-canonizr-prod --tail 50
 
-worker-logs:
+log-worker:
 	az containerapp logs show --name canonizr-worker --resource-group rg-canonizr-prod --tail 50
 
-portal-logs:
+log-portal:
 	az containerapp logs show --name canonizr-portal --resource-group rg-canonizr-prod --tail 50

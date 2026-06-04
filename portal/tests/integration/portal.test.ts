@@ -115,11 +115,11 @@ describe("pages (authenticated)", () => {
     expect(html).toContain("Billing");
   });
 
-  it("history page renders", async () => {
+  it("jobs page renders", async () => {
     const res = await fetchPortal("/dashboard/history");
     expect(res.status).toBe(200);
     const html = await res.text();
-    expect(html).toContain("History");
+    expect(html).toContain("Jobs");
   });
 });
 

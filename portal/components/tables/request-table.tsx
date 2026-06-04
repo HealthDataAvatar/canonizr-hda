@@ -190,7 +190,7 @@ function JobDetailPanel({ row, pricePerUnit }: { row: RequestRow; pricePerUnit?:
 
 const col = createColumnHelper<RequestRow>();
 
-function buildColumns(onDelete?: (id: string) => void) {
+function buildColumns(onDelete?: (id: string) => void, highlightIds?: Set<string>) {
   return [
     col.accessor("timestamp", {
       header: "Time",
@@ -217,11 +217,13 @@ function buildColumns(onDelete?: (id: string) => void) {
       enableSorting: false,
       cell: ({ row }) => {
         const r = row.original;
+        const isSession = highlightIds?.has(r.id);
         const title = r.fileHash
           ? `Job: ${r.id}\nHash: ${r.fileHash}`
           : `Job: ${r.id}`;
         return (
           <Mono muted className="inline-flex items-center gap-1" title={title}>
+            {isSession && <span className="size-1.5 rounded-full bg-accent shrink-0" />}
             {r.id.slice(0, 8)}
             <CopyButton value={r.id} />
           </Mono>
@@ -369,12 +371,14 @@ export function RequestTable({
   requests,
   onDelete,
   pricePerUnit,
+  highlightIds,
 }: {
   requests: RequestRow[];
   onDelete?: (id: string) => void;
   pricePerUnit?: number;
+  highlightIds?: Set<string>;
 }) {
-  const columns = useMemo(() => buildColumns(onDelete), [onDelete]);
+  const columns = useMemo(() => buildColumns(onDelete, highlightIds), [onDelete, highlightIds]);
   const { headers, rows } = requestExportRows(requests);
   return (
     <DataTable
