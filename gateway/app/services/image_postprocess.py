@@ -1,3 +1,8 @@
+"""Image post-processing: classify, caption, or label images extracted from documents.
+
+Works with typed ExtractedImage and ImageCaptioner — no untyped dicts.
+"""
+
 import asyncio
 import base64
 import logging
@@ -10,9 +15,10 @@ from io import BytesIO
 
 from PIL import Image
 
-from ..imageconv import prepare_image_for_vlm
-from ..protocols import Captioner
+from ..imageconv import to_vlm_png
+from ..protocols import ImageCaptioner
 from ..tracing import Span
+from ..types import ExtractedImage, ImageFile, Markdown
 
 logger = logging.getLogger(__name__)
 
@@ -72,30 +78,6 @@ class CaptioningUpstreamError(Exception):
         super().__init__(f"Captioning failed for image at index {index}: {cause}")
 
 
-def _get_skip_indices(pictures: list[dict]) -> set[int]:
-    """Return indices of pictures that should be skipped based on classification labels."""
-    skip = set()
-    for i, pic in enumerate(pictures):
-        labels = {a.get("label") for a in pic.get("annotations", []) if a.get("label")}
-        if labels & SKIP_LABEL_VALUES:
-            logger.info("Skipping decorative image at index %d (labels: %s)", i, labels)
-            skip.add(i)
-    return skip
-
-
-def _image_dimensions(image_b64: str) -> tuple[int, int]:
-    """Decode a base64 image and return (width, height)."""
-    img = Image.open(BytesIO(base64.b64decode(image_b64)))
-    return img.size
-
-
-def _get_label(pictures: list[dict], index: int) -> str:
-    """Get the first classification label for a picture, title-cased."""
-    labels = {a.get("label") for a in pictures[index].get("annotations", []) if a.get("label")}
-    label = next(iter(labels), "Image")
-    return label.replace("_", " ").title()
-
-
 class ImageOutcome(StrEnum):
     """Outcome of processing a single image in the pipeline."""
 
@@ -107,89 +89,130 @@ class ImageOutcome(StrEnum):
     NEEDS_CAPTION = "needs_caption"
 
 
+# ---------------------------------------------------------------------------
+# Classification
+# ---------------------------------------------------------------------------
+
+
+def _should_skip(image: ExtractedImage) -> bool:
+    """Whether an image is decorative and should be skipped."""
+    return bool(image.classifications & SKIP_LABEL_VALUES)
+
+
+def _image_dimensions(image_b64: str) -> tuple[int, int]:
+    """Decode a base64 image and return (width, height)."""
+    img = Image.open(BytesIO(base64.b64decode(image_b64)))
+    return img.size
+
+
 @dataclass
-class CaptionResult:
-    markdown: str
-    captioned: int = 0
-    skipped: int = 0
-    errored: int = 0
-    labelled: int = 0
-    prompt_tokens: int = 0
-    completion_tokens: int = 0
+class _ClassifiedEntry:
+    """A single image in the markdown, classified for processing."""
+
+    index: int
+    match: re.Match
+    mime_type: str
+    image_b64: str
+    outcome: ImageOutcome
+    replacement: str | None = None
+    dimensions: tuple[int, int] | None = None
 
 
-def _classify_images(md_content: str, pictures: list[dict]) -> list[dict]:
-    """Classify each embedded image. Returns a list of entries in forward order.
-
-    Each entry has: index, match, mime_type, image_b64, and either an outcome
-    with replacement, or outcome=NEEDS_CAPTION for content images."""
+def _classify_images(md_content: str, images: list[ExtractedImage]) -> list[_ClassifiedEntry]:
+    """Classify each embedded base64 image in the markdown."""
     matches = list(IMAGE_RE.finditer(md_content))
-    skip_indices = _get_skip_indices(pictures)
     entries = []
 
     for index, match in enumerate(matches):
         mime_type = match.group(2)
         image_b64 = match.group(3)
-        entry: dict = {"index": index, "match": match, "mime_type": mime_type, "image_b64": image_b64}
 
-        if index in skip_indices:
-            entry["replacement"] = f"![{_get_label(pictures, index)}]"
-            entry["outcome"] = ImageOutcome.SKIPPED_DECORATIVE
+        image = images[index] if index < len(images) else None
+
+        if image and _should_skip(image):
+            entries.append(
+                _ClassifiedEntry(
+                    index=index,
+                    match=match,
+                    mime_type=mime_type,
+                    image_b64=image_b64,
+                    outcome=ImageOutcome.SKIPPED_DECORATIVE,
+                    replacement=f"![{image.label}]",
+                )
+            )
         else:
             try:
                 width, height = _image_dimensions(image_b64)
             except Exception:
                 logger.warning("Could not decode image at index %d", index)
-                entry["replacement"] = "![Image corrupted]"
-                entry["outcome"] = ImageOutcome.ERRORED_DECODE
+                entries.append(
+                    _ClassifiedEntry(
+                        index=index,
+                        match=match,
+                        mime_type=mime_type,
+                        image_b64=image_b64,
+                        outcome=ImageOutcome.ERRORED_DECODE,
+                        replacement="![Image corrupted]",
+                    )
+                )
             else:
-                entry["dimensions"] = [width, height]
                 if width < MIN_IMAGE_DIMENSION or height < MIN_IMAGE_DIMENSION:
-                    entry["outcome"] = ImageOutcome.SKIPPED_TOO_SMALL
+                    entries.append(
+                        _ClassifiedEntry(
+                            index=index,
+                            match=match,
+                            mime_type=mime_type,
+                            image_b64=image_b64,
+                            outcome=ImageOutcome.SKIPPED_TOO_SMALL,
+                            dimensions=(width, height),
+                        )
+                    )
                 else:
-                    entry["outcome"] = ImageOutcome.NEEDS_CAPTION
-
-        entries.append(entry)
+                    entries.append(
+                        _ClassifiedEntry(
+                            index=index,
+                            match=match,
+                            mime_type=mime_type,
+                            image_b64=image_b64,
+                            outcome=ImageOutcome.NEEDS_CAPTION,
+                            dimensions=(width, height),
+                        )
+                    )
 
     return entries
 
 
-def _apply_replacements(md_content: str, entries: list[dict]) -> tuple[str, dict[ImageOutcome, int], list[dict]]:
-    """Apply replacements in reverse order. Returns (result_markdown, counts, image_details)."""
+def _apply_replacements(md_content: str, entries: list[_ClassifiedEntry]) -> tuple[str, dict[ImageOutcome, int]]:
+    """Apply replacements in reverse order. Returns (result_markdown, counts)."""
     counts: dict[ImageOutcome, int] = {o: 0 for o in ImageOutcome}
-    image_details = []
     result = md_content
 
     for entry in reversed(entries):
-        match = entry["match"]
-        replacement = entry.get("replacement")
-        outcome = entry["outcome"]
-
-        if replacement is None:
-            result = result[: match.start()] + result[match.end() :]
+        if entry.replacement is None:
+            result = result[: entry.match.start()] + result[entry.match.end() :]
         else:
-            result = result[: match.start()] + replacement + result[match.end() :]
+            result = result[: entry.match.start()] + entry.replacement + result[entry.match.end() :]
+        counts[entry.outcome] += 1
 
-        counts[outcome] += 1
-        detail: dict = {"index": entry["index"], "outcome": outcome.value}
-        if "dimensions" in entry:
-            detail["dimensions"] = entry["dimensions"]
-        image_details.append(detail)
+    return result, counts
 
-    return result, counts, image_details
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
 
 
 async def caption_images(
-    md_content: str,
-    pictures: list[dict],
+    md_content: Markdown,
+    images: list[ExtractedImage],
     deadline: float,
     parent: Span,
-    captioner: Captioner,
-) -> CaptionResult:
+    captioner: ImageCaptioner,
+) -> Markdown:
     """Replace base64 images in markdown with captions. Raises CaptioningUpstreamError on failure."""
-    entries = _classify_images(md_content, pictures)
+    entries = _classify_images(md_content, images)
     if not entries:
-        return CaptionResult(markdown=md_content)
+        return md_content
 
     cap_span = Span(name="captioning", attributes={"image_count": len(entries)})
     cap_span._start = time.monotonic()
@@ -199,50 +222,34 @@ async def caption_images(
     tasks: list[tuple[int, asyncio.Task]] = []
     image_spans: dict[int, Span] = {}
 
-    async def _caption_one(index: int, image_b64: str, mime_type: str):
+    async def _caption_one(index: int, image_b64: str, mime_type: str) -> Markdown:
         img_span = Span(
             name=f"caption_image[{index}]",
-            attributes={
-                "base64_bytes_original": len(image_b64),
-            },
+            attributes={"base64_bytes_original": len(image_b64)},
         )
         img_span._start = time.monotonic()
         cap_span.children.append(img_span)
         image_spans[index] = img_span
 
         raw = base64.b64decode(image_b64)
-        converted, mime_type = prepare_image_for_vlm(raw, mime_type)
-        image_b64 = base64.b64encode(converted).decode("utf-8")
-        img_span.set(
-            base64_bytes=len(image_b64),
-            converted_mime=mime_type,
-        )
+        vlm_png = to_vlm_png(ImageFile(data=raw, mime_type=mime_type))
+        img_span.set(output_size_bytes=len(vlm_png.data))
 
         async with semaphore:
-            return await captioner.describe(image_b64, mime_type, deadline, parent=img_span)
+            return await captioner.caption(vlm_png, deadline, img_span)
 
     for entry in entries:
-        if entry["outcome"] == ImageOutcome.NEEDS_CAPTION:
-            task = asyncio.create_task(_caption_one(entry["index"], entry["image_b64"], entry["mime_type"]))
-            tasks.append((entry["index"], task))
-
-    total_prompt_tokens = 0
-    total_completion_tokens = 0
+        if entry.outcome == ImageOutcome.NEEDS_CAPTION:
+            task = asyncio.create_task(_caption_one(entry.index, entry.image_b64, entry.mime_type))
+            tasks.append((entry.index, task))
 
     for index, task in tasks:
         entry = entries[index]
         try:
-            result = await task
-            entry["replacement"] = f"![{result.text}]"
-            entry["outcome"] = ImageOutcome.CAPTIONED
-            total_prompt_tokens += result.prompt_tokens
-            total_completion_tokens += result.completion_tokens
+            caption_text = await task
+            entry.replacement = f"![{caption_text}]"
+            entry.outcome = ImageOutcome.CAPTIONED
             image_spans[index]._end = time.monotonic()
-            image_spans[index].set(
-                prompt_tokens=result.prompt_tokens,
-                completion_tokens=result.completion_tokens,
-                dimensions=entry.get("dimensions"),
-            )
         except Exception as e:
             image_spans[index]._end = time.monotonic()
             image_spans[index].set(error=str(e))
@@ -251,44 +258,30 @@ async def caption_images(
             cap_span._end = time.monotonic()
             raise CaptioningUpstreamError(index, e) from e
 
-    result, counts, _ = _apply_replacements(md_content, entries)
+    result, counts = _apply_replacements(md_content, entries)
 
     cap_span._end = time.monotonic()
     cap_span.set(
-        captioned=counts[ImageOutcome.CAPTIONED],
+        images_captioned=counts[ImageOutcome.CAPTIONED],
         skipped=counts[ImageOutcome.SKIPPED_DECORATIVE] + counts[ImageOutcome.SKIPPED_TOO_SMALL],
         errored=counts[ImageOutcome.ERRORED_DECODE],
-        prompt_tokens=total_prompt_tokens,
-        completion_tokens=total_completion_tokens,
     )
 
-    return CaptionResult(
-        markdown=result,
-        captioned=counts[ImageOutcome.CAPTIONED],
-        skipped=counts[ImageOutcome.SKIPPED_DECORATIVE] + counts[ImageOutcome.SKIPPED_TOO_SMALL],
-        errored=counts[ImageOutcome.ERRORED_DECODE],
-        prompt_tokens=total_prompt_tokens,
-        completion_tokens=total_completion_tokens,
-    )
+    return Markdown(result)
 
 
-def label_images(md_content: str, pictures: list[dict]) -> CaptionResult:
-    """Label images with Docling classifications, preserving base64 for content images."""
-    entries = _classify_images(md_content, pictures)
+def label_images(md_content: Markdown, images: list[ExtractedImage]) -> Markdown:
+    """Label images with classifications, preserving base64 for content images."""
+    entries = _classify_images(md_content, images)
     if not entries:
-        return CaptionResult(markdown=md_content)
+        return md_content
 
     for entry in entries:
-        if entry["outcome"] == ImageOutcome.NEEDS_CAPTION:
-            label = _get_label(pictures, entry["index"])
-            entry["replacement"] = f"![{label}](data:{entry['mime_type']};base64,{entry['image_b64']})"
-            entry["outcome"] = ImageOutcome.LABELLED
+        if entry.outcome == ImageOutcome.NEEDS_CAPTION:
+            image = images[entry.index] if entry.index < len(images) else None
+            label = image.label if image else "Image"
+            entry.replacement = f"![{label}](data:{entry.mime_type};base64,{entry.image_b64})"
+            entry.outcome = ImageOutcome.LABELLED
 
-    result, counts, _ = _apply_replacements(md_content, entries)
-
-    return CaptionResult(
-        markdown=result,
-        skipped=counts[ImageOutcome.SKIPPED_DECORATIVE] + counts[ImageOutcome.SKIPPED_TOO_SMALL],
-        errored=counts[ImageOutcome.ERRORED_DECODE],
-        labelled=counts[ImageOutcome.LABELLED],
-    )
+    result, _ = _apply_replacements(md_content, entries)
+    return Markdown(result)

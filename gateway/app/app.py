@@ -17,15 +17,17 @@ from fastapi.responses import JSONResponse, Response
 from .azure_clients import get_blob_service, get_table_service
 from .blob_azure import AzureBlobStore
 from .context import Services
-from .handlers import Rejected, accept_job, delete_result, download_artifact, poll_result
+from .handlers import Rejected, accept_job, delete_result, download_artefact, download_artifact, poll_result
 from .jobs_table import TableJobStore
 from .queue import RedisQueue
 from .quota import QuotaService
 from .redis_client import get_redis
 from .sanitize import content_disposition
-from .services.captioning import OpenAICaptioner
-from .services.docling import HttpPdfExtractor
-from .services.libreoffice import HttpOfficeConverter
+from .services.captioning import OpenAIImageCaptioner
+from .services.docling import DoclingPdfExtractor
+from .services.libreoffice import GotenbergOleConverter
+from .services.markitdown import MarkItDownExtractor
+from .services.thumbnails import PyMuPdfRenderer
 from .telemetry import PostHogEmitter
 from .user_resolver import TableUserResolver
 
@@ -51,9 +53,11 @@ async def lifespan(app: FastAPI):
         queue=queue,
         quota=QuotaService(r, table_service=table_svc),  # type: ignore[arg-type]
         telemetry=PostHogEmitter(),
-        captioner=OpenAICaptioner(),
-        pdf_extractor=HttpPdfExtractor(),
-        office_converter=HttpOfficeConverter(),
+        captioner=OpenAIImageCaptioner(),
+        pdf_extractor=DoclingPdfExtractor(),
+        ole_converter=GotenbergOleConverter(),
+        ooxml_extractor=MarkItDownExtractor(),
+        page_renderer=PyMuPdfRenderer(),
     )
     await queue.ensure_group()
     yield
@@ -198,6 +202,26 @@ async def get_artifact(request: Request, job_id: str, artifact: str):
 
     try:
         result = await download_artifact(job_id, sub_id, artifact, _svc)
+    except Rejected as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
+
+    return Response(
+        content=result.data,
+        media_type=result.content_type,
+        headers={"Content-Disposition": content_disposition(result.filename)},
+    )
+
+
+@app.get("/v1/jobs/{job_id}/artefacts/{name}")
+async def get_artefact(request: Request, job_id: str, name: str):
+    assert _svc is not None
+
+    sub_id = request.headers.get("x-subscription-id", "")
+    if not sub_id:
+        raise HTTPException(status_code=401, detail="Missing subscription ID")
+
+    try:
+        result = await download_artefact(job_id, sub_id, name, _svc)
     except Rejected as e:
         raise HTTPException(status_code=e.status_code, detail=e.detail)
 

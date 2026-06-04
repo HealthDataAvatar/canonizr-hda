@@ -10,13 +10,15 @@ from app.crypto import encrypt
 from app.process import process_job
 from app.protocols import Job, UserContext
 from app.quota import QuotaService
-from app.response import ConvertResult
+from app.types import Markdown
 from tests.fakes import (
     FakeBlobStore,
-    FakeCaptioner,
     FakeEmitter,
+    FakeImageCaptioner,
     FakeJobStore,
-    FakeOfficeConverter,
+    FakeOleConverter,
+    FakeOoxmlExtractor,
+    FakePageRenderer,
     FakePdfExtractor,
     FakeQueue,
     FakeRedis,
@@ -36,9 +38,11 @@ def _make_svc():
         queue=FakeQueue(),
         quota=QuotaService(quota_redis),
         telemetry=emitter,
-        captioner=FakeCaptioner(),
+        captioner=FakeImageCaptioner(),
         pdf_extractor=FakePdfExtractor(),
-        office_converter=FakeOfficeConverter(),
+        ole_converter=FakeOleConverter(),
+        ooxml_extractor=FakeOoxmlExtractor(),
+        page_renderer=FakePageRenderer(),
     )
     return svc, user, emitter
 
@@ -64,7 +68,7 @@ class TestProcessJob:
 
         svc.jobs.create(JobMeta(user_id=user.user_id, job_id=job.job_id, sub_id="sub_1"))
 
-        mock_result = ConvertResult(markdown="# Hello", detected_type="text/plain", actions=["passthrough"])
+        mock_result = Markdown("# Hello")
 
         with patch("app.process.convert", new_callable=AsyncMock, return_value=mock_result):
             proc = await process_job(job, user, svc)
@@ -114,7 +118,7 @@ class TestProcessJob:
             )
         )
 
-        from app.convert import UnsupportedFormat
+        from app.errors import UnsupportedFormat
 
         with patch("app.process.convert", new_callable=AsyncMock, side_effect=UnsupportedFormat("video/mp4")):
             proc = await process_job(job, user, svc)

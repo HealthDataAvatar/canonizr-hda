@@ -1,6 +1,7 @@
 """Unit tests for input sanitization."""
 
-from app.sanitize import content_disposition, is_known_mime_type, sanitize_filename
+from app.mimetypes import is_known_mime_type
+from app.sanitize import content_disposition, sanitize_filename
 
 
 class TestSanitizeFilename:

@@ -10,10 +10,12 @@ from app.protocols import ResolveRejected, UserContext
 from app.quota import QuotaService
 from tests.fakes import (
     FakeBlobStore,
-    FakeCaptioner,
     FakeEmitter,
+    FakeImageCaptioner,
     FakeJobStore,
-    FakeOfficeConverter,
+    FakeOleConverter,
+    FakeOoxmlExtractor,
+    FakePageRenderer,
     FakePdfExtractor,
     FakeQueue,
     FakeRedis,
@@ -30,9 +32,11 @@ def _make_svc(resolver_result):
         queue=FakeQueue(),
         quota=QuotaService(FakeRedis(), max_rejected=3),
         telemetry=FakeEmitter(),
-        captioner=FakeCaptioner(),
+        captioner=FakeImageCaptioner(),
         pdf_extractor=FakePdfExtractor(),
-        office_converter=FakeOfficeConverter(),
+        ole_converter=FakeOleConverter(),
+        ooxml_extractor=FakeOoxmlExtractor(),
+        page_renderer=FakePageRenderer(),
     )
 
 

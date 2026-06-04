@@ -1,16 +1,17 @@
+"""Image captioning via OpenAI-compatible vision API."""
+
 import base64
 import json
 import logging
 import os
 import time
+from dataclasses import dataclass
 
 import httpx
 
-from ..imageconv import prepare_image_for_vlm
 from ..prompts import IMAGE
-from ..protocols import VisionResult
-from ..response import ConvertResult
 from ..tracing import Span
+from ..types import Markdown, VlmImagePNG
 from .retry import request_with_retry
 
 logger = logging.getLogger(__name__)
@@ -26,17 +27,17 @@ def is_available() -> bool:
     return os.environ.get("CAPTIONING_ENABLED", "true").lower() == "true"
 
 
-def get_config() -> dict:
-    """Return captioning config safe for inclusion in warnings/logs."""
-    return {
-        "endpoint": ENDPOINT,
-        "api_key": f"set ({len(API_KEY)} chars)" if API_KEY else "not set",
-        "model": API_MODEL or "not set",
-    }
+@dataclass
+class _VisionResponse:
+    """Internal: parsed response from the vision API."""
+
+    text: str
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
 
 
-async def _call(image_b64: str, mime_type: str, deadline: float, parent: Span) -> VisionResult:
-    """Send a base64-encoded image to the vision service."""
+async def _call(image_b64: str, deadline: float, parent: Span) -> _VisionResponse:
+    """Send a base64 PNG to the vision service."""
     payload: dict = {
         "messages": [
             {
@@ -44,9 +45,7 @@ async def _call(image_b64: str, mime_type: str, deadline: float, parent: Span) -
                 "content": [
                     {
                         "type": "image_url",
-                        "image_url": {
-                            "url": f"data:{mime_type};base64,{image_b64}",
-                        },
+                        "image_url": {"url": f"data:image/png;base64,{image_b64}"},
                     },
                     {
                         "type": "text",
@@ -70,7 +69,6 @@ async def _call(image_b64: str, mime_type: str, deadline: float, parent: Span) -
     http_span._start = time.monotonic()
     parent.children.append(http_span)
 
-    start_time = time.time()
     async with httpx.AsyncClient() as client:
         response = await request_with_retry(
             client,
@@ -82,7 +80,6 @@ async def _call(image_b64: str, mime_type: str, deadline: float, parent: Span) -
             json=payload,
             headers=headers,
         )
-    elapsed = (time.time() - start_time) * 1000
 
     http_span._end = time.monotonic()
 
@@ -90,48 +87,30 @@ async def _call(image_b64: str, mime_type: str, deadline: float, parent: Span) -
     text = raw.get("choices", [{}])[0].get("message", {}).get("content", "")
     usage = raw.get("usage", {})
 
-    return VisionResult(
+    return _VisionResponse(
         text=text,
         prompt_tokens=usage.get("prompt_tokens", 0),
         completion_tokens=usage.get("completion_tokens", 0),
-        elapsed_ms=elapsed,
     )
 
 
-async def describe(image_b64: str, mime_type: str, deadline: float, parent: Span) -> VisionResult:
-    """Describe an image from base64. Used for inline images in documents."""
-    return await _call(image_b64, mime_type, deadline, parent)
+class OpenAIImageCaptioner:
+    """ImageCaptioner implementation backed by an OpenAI-compatible vision API.
 
+    Token counts are recorded in the span, not the return value.
+    """
 
-async def describe_file(image_bytes: bytes, mime_type: str, deadline: float, parent: Span) -> ConvertResult:
-    """Describe a standalone image upload."""
-    input_size = len(image_bytes)
-    with parent.span("image_convert", input_size_bytes=input_size) as s:
-        image_bytes, mime_type = prepare_image_for_vlm(image_bytes, mime_type)
-        s.set(output_size_bytes=len(image_bytes), output_mime=mime_type)
-
-    image_b64 = base64.b64encode(image_bytes).decode("utf-8")
-    result = await _call(image_b64, mime_type, deadline, parent)
-
-    return ConvertResult(
-        markdown=result.text,
-        detected_type=mime_type,
-        actions=["captioning"],
-        processing_time_ms=result.elapsed_ms,
-        images_captioned=1,
-        captioning_prompt_tokens=result.prompt_tokens,
-        captioning_completion_tokens=result.completion_tokens,
-    )
-
-
-class OpenAICaptioner:
-    """Captioner backed by an OpenAI-compatible vision API (Azure OpenAI, llama.cpp, etc.)."""
+    # TODO: add CaptionMode enum driven by ExtractedImage.classifications
+    # to select different prompts for charts vs photos vs handwriting
 
     def is_available(self) -> bool:
         return is_available()
 
-    async def describe(self, image_b64: str, mime_type: str, deadline: float, parent: Span) -> VisionResult:
-        return await _call(image_b64, mime_type, deadline, parent)
-
-    async def describe_file(self, image_bytes: bytes, mime_type: str, deadline: float, parent: Span) -> ConvertResult:
-        return await describe_file(image_bytes, mime_type, deadline, parent)
+    async def caption(self, image: VlmImagePNG, deadline: float, span: Span) -> Markdown:
+        image_b64 = base64.b64encode(image.data).decode("utf-8")
+        result = await _call(image_b64, deadline, span)
+        span.set(
+            prompt_tokens=result.prompt_tokens,
+            completion_tokens=result.completion_tokens,
+        )
+        return Markdown(result.text)

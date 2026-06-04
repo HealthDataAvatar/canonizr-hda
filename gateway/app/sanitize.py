@@ -4,27 +4,6 @@ import re
 import unicodedata
 from urllib.parse import quote
 
-from .convert import LIBREOFFICE_TYPES, MARKITDOWN_TYPES, PASSTHROUGH_TYPES
-
-KNOWN_MIME_TYPES = PASSTHROUGH_TYPES | MARKITDOWN_TYPES | LIBREOFFICE_TYPES | {"application/pdf"}
-
-# Image types are checked by prefix, not exact match
-IMAGE_PREFIX = "image/"
-
-ARCHIVE_TYPES = {
-    "application/zip",
-    "application/x-zip-compressed",
-    "application/gzip",
-    "application/x-gzip",
-    "application/x-tar",
-    "application/x-7z-compressed",
-    "application/x-rar-compressed",
-    "application/vnd.rar",
-    "application/x-bzip2",
-    "application/x-xz",
-    "application/zstd",
-}
-
 
 def sanitize_filename(raw: str) -> str:
     """Strip path components, dangerous chars, and truncate.
@@ -64,17 +43,3 @@ def content_disposition(filename: str | None) -> str:
         ascii_fallback = name.encode("ascii", errors="replace").decode("ascii")
         utf8_quoted = quote(name)
         return f"attachment; filename=\"{ascii_fallback}\"; filename*=UTF-8''{utf8_quoted}"
-
-
-def is_archive_type(mime_type: str) -> bool:
-    """Check if a MIME type is an archive format."""
-    return mime_type in ARCHIVE_TYPES
-
-
-def is_known_mime_type(mime_type: str) -> bool:
-    """Check if a MIME type is in our known set."""
-    if mime_type in KNOWN_MIME_TYPES:
-        return True
-    if mime_type.startswith(IMAGE_PREFIX):
-        return True
-    return False

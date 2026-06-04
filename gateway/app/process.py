@@ -9,15 +9,18 @@ import time
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
+from .artefacts import ArtefactStore
 from .context import Services
-from .convert import ServiceNotConfigured, UnsupportedFormat, convert
+from .convert import convert
 from .crypto import decrypt, encrypt
+from .errors import ServiceNotConfigured, UnsupportedFormat
 from .hash import document_hash
 from .protocols import Job, JobResult, JobStatus, UserContext
 from .services.image_postprocess import CaptioningUpstreamError
 from .services.retry import PermanentUpstreamError, TransientUpstreamError
 from .telemetry import JobCompleted, ServiceStep, set_telemetry_context
 from .tracing import Step, Trace
+from .types import SubmittedFile
 
 logger = logging.getLogger(__name__)
 
@@ -56,18 +59,42 @@ async def process_job(job: Job, user: UserContext, svc: Services) -> ProcessResu
     doc_hash_val = document_hash(file_bytes)
     deadline = time.monotonic() + job.deadline_seconds
     trace = Trace("worker", file_size_bytes=file_size, mime_type=job.mime_type, filename=job.filename)
+    artefacts = ArtefactStore(blob_prefix, user.encryption_key, svc.blobs)
 
     try:
-        result = await convert(file_bytes, job.mime_type, job.filename, deadline, trace, svc)
+        submitted = SubmittedFile(data=file_bytes, mime_type=job.mime_type, filename=job.filename)
+        markdown = await convert(submitted, deadline, trace, svc, artefacts)
         trace.finish()
         steps = trace.to_steps()
-        result.detected_type = job.mime_type
-        result.input_bytes = file_size
-        result.input_hash = doc_hash_val
 
-        # Encrypt output with per-user key
-        payload_json = json.dumps(result.to_dict(verbose=job.verbose))
-        encrypted_output = encrypt(payload_json.encode(), user.encryption_key)
+        # Store markdown as artefact
+        await artefacts.put("markdown", markdown.encode(), "text/markdown", label="Extracted text")
+
+        # TODO: remove output.bin once poll handler reads from artefacts
+        # Temporary bridge: write output.bin so existing poll handler works
+        # Reconstruct metadata from trace steps for backward compat
+        actions = [s.service for s in steps if s.service]
+        images_captioned = sum(s.attributes.get("images_captioned", 0) for s in steps)
+        images_errored = sum(s.attributes.get("images_errored", 0) for s in steps)
+        prompt_tokens = sum(s.attributes.get("prompt_tokens", 0) for s in steps)
+        completion_tokens = sum(s.attributes.get("completion_tokens", 0) for s in steps)
+        payload = {
+            "markdown": str(markdown),
+            "metadata": {
+                "detected_type": job.mime_type,
+                "input_bytes": file_size,
+                "input_hash": doc_hash_val,
+                "actions": actions,
+                "captioning": {
+                    "images_captioned": images_captioned,
+                    "images_skipped": 0,
+                    "images_errored": images_errored,
+                    "prompt_tokens": prompt_tokens,
+                    "completion_tokens": completion_tokens,
+                },
+            },
+        }
+        encrypted_output = encrypt(json.dumps(payload).encode(), user.encryption_key)
         await svc.blobs.put(f"{blob_prefix}/output.bin", encrypted_output)
 
         # Update job metadata
@@ -78,6 +105,8 @@ async def process_job(job: Job, user: UserContext, svc: Services) -> ProcessResu
             meta.completed_at = now.isoformat()
             meta.retention_expires = (now + timedelta(seconds=DEFAULT_RETENTION_SECONDS)).isoformat()
             meta.steps = json.dumps(trace.to_dict())
+            if artefacts.manifest:
+                meta.artefacts = artefacts.manifest_json()
             svc.jobs.update(meta)
 
         proc = ProcessResult(JobResult(job_id=job.job_id, status="ok", status_code=200), file_size, doc_hash_val)

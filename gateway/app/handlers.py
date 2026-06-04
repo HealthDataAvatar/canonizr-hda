@@ -15,8 +15,9 @@ from .context import Services
 from .crypto import decrypt, encrypt
 from .estimates import estimate_seconds
 from .hash import document_hash
+from .mimetypes import is_archive_type, is_known_mime_type
 from .protocols import Job, JobMeta, JobStatus, ResolveMisconfigured, ResolveRejected, UserContext
-from .sanitize import content_disposition, is_archive_type, is_known_mime_type, sanitize_filename
+from .sanitize import content_disposition, sanitize_filename
 from .telemetry import JobAccepted
 
 logger = logging.getLogger(__name__)
@@ -245,6 +246,9 @@ async def poll_result(job_id: str, svc: Services) -> PollResult:
     if meta and meta.retention_expires:
         payload["expires_at"] = meta.retention_expires
 
+    if meta and meta.artefacts:
+        payload["artefacts"] = json.loads(meta.artefacts)
+
     return PollResult(status="ok", status_code=200, body=payload, headers=headers)
 
 
@@ -338,3 +342,53 @@ async def download_artifact(
 
     else:
         raise Rejected(400, f"Unknown artifact: {artifact}")
+
+
+# ---------------------------------------------------------------------------
+# GET /v1/jobs/{job_id}/artefacts/{name}
+# ---------------------------------------------------------------------------
+
+
+async def download_artefact(
+    job_id: str,
+    sub_id: str,
+    name: str,
+    svc: Services,
+) -> ArtifactResult:
+    """Download a pipeline artefact by name. Returns decrypted bytes.
+
+    Raises Rejected on auth failure, wrong user, expired, missing, or unknown name.
+    """
+    user = _require_user(await svc.users.resolve(sub_id))
+
+    meta = svc.jobs.get_by_job_id(job_id)
+    if meta is None:
+        raise Rejected(404, "Job not found")
+
+    if meta.user_id != user.user_id:
+        raise Rejected(403, "Job does not belong to this user")
+
+    if meta.status == JobStatus.DELETED:
+        raise Rejected(410, "Job deleted")
+
+    if meta.retention_expires:
+        if datetime.now(UTC) > datetime.fromisoformat(meta.retention_expires):
+            raise Rejected(410, "Job expired")
+
+    # Look up in manifest
+    if not meta.artefacts:
+        raise Rejected(404, "No artefacts available for this job")
+
+    manifest: list[dict] = json.loads(meta.artefacts)
+    entry = next((a for a in manifest if a["name"] == name), None)
+    if entry is None:
+        available = [a["name"] for a in manifest]
+        raise Rejected(404, f"Unknown artefact: {name}. Available: {available}")
+
+    blob_prefix = f"{meta.user_id}/{job_id}"
+    encrypted = await svc.blobs.get(f"{blob_prefix}/artefacts/{name}.bin")
+    if encrypted is None:
+        raise Rejected(404, "Artefact blob not found")
+
+    decrypted = decrypt(encrypted, user.encryption_key)
+    return ArtifactResult(data=decrypted, filename=name, content_type=entry["mime_type"])

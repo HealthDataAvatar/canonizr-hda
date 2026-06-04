@@ -87,8 +87,25 @@ async def extract(file_bytes: bytes, mime_type: str, deadline: float, parent: Sp
     return md_content, pictures
 
 
-class HttpPdfExtractor:
+from ..types import ExtractedDocument, ExtractedImage, Markdown, PdfContent
+
+
+def _to_extracted_image(pic: dict) -> ExtractedImage | None:
+    """Convert a Docling picture dict to a typed ExtractedImage."""
+    data = pic.get("data") or pic.get("image")
+    if not isinstance(data, bytes):
+        return None
+    annotations = pic.get("annotations", [])
+    labels = frozenset(a.get("label") for a in annotations if a.get("label"))
+    # Human-readable label: first classification, title-cased
+    label = next(iter(labels), "Image").replace("_", " ").title()
+    return ExtractedImage(data=data, mime_type="image/png", label=label, classifications=labels)
+
+
+class DoclingPdfExtractor:
     """PdfExtractor implementation backed by a Docling HTTP service."""
 
-    async def convert(self, file_bytes: bytes, mime_type: str, deadline: float, parent: Span) -> tuple[str, list[dict]]:
-        return await extract(file_bytes, mime_type, deadline, parent)
+    async def extract(self, pdf: PdfContent, deadline: float, span: Span) -> ExtractedDocument:
+        md_content, raw_pictures = await extract(pdf.data, "application/pdf", deadline, span)
+        images = [img for pic in raw_pictures if (img := _to_extracted_image(pic)) is not None]
+        return ExtractedDocument(markdown=Markdown(md_content), images=images)

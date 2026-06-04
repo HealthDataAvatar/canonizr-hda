@@ -21,6 +21,8 @@ class Service(StrEnum):
     PASSTHROUGH = "passthrough"
     EXTRACT_PAGES = "extract_pages"
     LIBREOFFICE = "libreoffice"
+    THUMBNAILS = "thumbnails"
+    ARTEFACTS = "artefacts"
 
 
 _SERVICE_NAMES = frozenset(Service)

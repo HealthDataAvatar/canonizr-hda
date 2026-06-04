@@ -2,7 +2,17 @@
 
 from dataclasses import dataclass
 
-from .protocols import BlobStore, Captioner, JobStore, OfficeConverter, PdfExtractor, Queue, UserResolver
+from .protocols import (
+    BlobStore,
+    ImageCaptioner,
+    JobStore,
+    OleConverter,
+    OoxmlExtractor,
+    PageRenderer,
+    PdfExtractor,
+    Queue,
+    UserResolver,
+)
 from .quota import QuotaService
 from .telemetry import TelemetryEmitter
 
@@ -17,6 +27,8 @@ class Services:
     queue: Queue
     quota: QuotaService
     telemetry: TelemetryEmitter
-    captioner: Captioner
+    captioner: ImageCaptioner
     pdf_extractor: PdfExtractor
-    office_converter: OfficeConverter
+    ole_converter: OleConverter
+    ooxml_extractor: OoxmlExtractor
+    page_renderer: PageRenderer

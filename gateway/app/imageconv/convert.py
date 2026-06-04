@@ -59,3 +59,38 @@ def extract_pages(image_bytes: bytes, *, max_dimension: int = DEFAULT_MAX_DIMENS
 
 def is_multipage(mime_type: str) -> bool:
     return mime_type in MULTIPAGE_TYPES
+
+
+# ---------------------------------------------------------------------------
+# Typed wrappers using domain types
+# ---------------------------------------------------------------------------
+
+from ..types import ExtractedImage, ImageFile, VlmImagePNG
+
+
+def to_vlm_png(image: ImageFile, *, max_dimension: int = DEFAULT_MAX_DIMENSION) -> VlmImagePNG:
+    """Convert any image format to a VLM-ready PNG, downscaled."""
+    img = Image.open(BytesIO(image.data))
+    _downscale(img, max_dimension)
+    buf = BytesIO()
+    img.convert("RGB").save(buf, format="PNG")
+    return VlmImagePNG(data=buf.getvalue())
+
+
+def extracted_to_vlm_png(image: ExtractedImage, *, max_dimension: int = DEFAULT_MAX_DIMENSION) -> VlmImagePNG:
+    """Convert a Docling-extracted image to a VLM-ready PNG."""
+    return to_vlm_png(ImageFile(data=image.data, mime_type=image.mime_type), max_dimension=max_dimension)
+
+
+def extract_pages_typed(image: ImageFile, *, max_dimension: int = DEFAULT_MAX_DIMENSION) -> list[VlmImagePNG]:
+    """Extract all pages from a multi-page image (e.g. TIFF) as VLM-ready PNGs."""
+    img = Image.open(BytesIO(image.data))
+    pages = []
+    for i in range(getattr(img, "n_frames", 1)):
+        img.seek(i)
+        frame = img.convert("RGB")
+        _downscale(frame, max_dimension)
+        buf = BytesIO()
+        frame.save(buf, format="PNG")
+        pages.append(VlmImagePNG(data=buf.getvalue()))
+    return pages

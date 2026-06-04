@@ -1,190 +1,216 @@
-import asyncio
-import functools
-from io import BytesIO
+"""Conversion pipeline — typed steps composed by a router.
 
-from markitdown import MarkItDown
+Each step is a standalone function with typed inputs and outputs.
+The router composes steps and stores artefacts at the seams.
+"""
 
+from __future__ import annotations
+
+import logging
+
+from .artefacts import ArtefactStore
 from .context import Services
-from .imageconv import extract_pages, is_multipage
-from .response import ConvertResult
-from .services.image_postprocess import IMAGE_RE, CaptionResult, caption_images, label_images
-from .tracing import Service, Trace
+from .errors import ServiceNotConfigured, UnsupportedFormat
+from .imageconv import extract_pages_typed, is_multipage, to_vlm_png
+from .mimetypes import LIBREOFFICE_TYPES, MARKITDOWN_TYPES, PASSTHROUGH_TYPES
+from .protocols import ImageCaptioner, OleConverter, OoxmlExtractor, PageRenderer, PdfExtractor
+from .services.image_postprocess import IMAGE_RE, caption_images, label_images
+from .tracing import Service, Span, Trace
+from .types import (
+    ExtractedDocument,
+    ImageFile,
+    Markdown,
+    OleOfficeDocument,
+    OoxmlDocument,
+    PdfContent,
+    SubmittedFile,
+    VlmImagePNG,
+)
 
-markitdown = MarkItDown()
+logger = logging.getLogger(__name__)
 
-# Formats any LLM can read directly — no conversion needed
-PASSTHROUGH_TYPES = {
-    "text/plain",
-    "text/markdown",
-    "text/csv",
-    "text/x-python",
-    "text/x-java",
-    "text/x-c",
-    "text/x-script.python",
-    "application/json",
-    "application/xml",
-    "text/xml",
-    "image/svg+xml",
-}
 
-# Formats MarkItDown handles natively
-MARKITDOWN_TYPES = {
-    "text/html",  # HTML → clean markdown
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",  # .docx
-    "application/vnd.openxmlformats-officedocument.presentationml.presentation",  # .pptx
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",  # .xlsx
-    "application/epub+zip",  # .epub
-    "message/rfc822",  # .eml
-    "application/vnd.ms-outlook",  # .msg
-}
+# ---------------------------------------------------------------------------
+# Step functions — typed input, typed output, single service dependency
+# ---------------------------------------------------------------------------
 
-# Formats that need LibreOffice (via Gotenberg) to convert to PDF first
-LIBREOFFICE_TYPES = {
-    "application/msword",  # .doc
-    "application/rtf",  # .rtf
-    "text/rtf",  # .rtf (alternate MIME)
-    "application/vnd.ms-powerpoint",  # .ppt
-    "application/vnd.ms-excel",  # .xls
-    "application/vnd.oasis.opendocument.text",  # .odt
-    "application/vnd.oasis.opendocument.presentation",  # .odp
-    "application/vnd.oasis.opendocument.spreadsheet",  # .ods
-    "application/vnd.apple.pages",  # .pages
-    "application/vnd.apple.numbers",  # .numbers
-    "application/vnd.apple.keynote",  # .key
-}
+
+async def to_pdf(doc: OleOfficeDocument, deadline: float, span: Span, converter: OleConverter) -> PdfContent:
+    """Pre-2007 binary office → PDF via Gotenberg."""
+    if not converter.is_available():
+        raise ServiceNotConfigured(f"This file type ({doc.mime_type}) requires LibreOffice. Rerun setup to enable it.")
+    with span.span(Service.GOTENBERG) as lo_span:
+        return await converter.convert(doc, deadline, lo_span)
+
+
+async def extract_pdf(pdf: PdfContent, deadline: float, span: Span, extractor: PdfExtractor) -> ExtractedDocument:
+    """PDF → structured document with text and classified images."""
+    with span.span(Service.DOCLING) as docling_span:
+        return await extractor.extract(pdf, deadline, docling_span)
+
+
+async def extract_ooxml(doc: OoxmlDocument, span: Span, extractor: OoxmlExtractor) -> Markdown:
+    """Modern office/HTML → markdown via MarkItDown."""
+    with span.span(Service.MARKITDOWN) as md_span:
+        result = await extractor.extract(doc)
+        md_span.set(md_length=len(result))
+    return result
+
+
+def extract_text(file: SubmittedFile) -> Markdown:
+    """Passthrough — decode UTF-8."""
+    return Markdown(file.data.decode("utf-8", errors="replace"))
+
+
+async def caption_image(image: VlmImagePNG, deadline: float, span: Span, captioner: ImageCaptioner) -> Markdown:
+    """Single VLM-ready image → descriptive markdown."""
+    with span.span(Service.CAPTIONING, service="openai/gpt-4o") as cap_span:
+        return await captioner.caption(image, deadline, cap_span)
+
+
+async def caption_standalone(file: SubmittedFile, deadline: float, span: Span, captioner: ImageCaptioner) -> Markdown:
+    """Standalone image file (any format, possibly multi-page) → markdown."""
+    if not captioner.is_available():
+        raise ServiceNotConfigured(
+            "Image processing requires the captioning service. "
+            "Set CAPTIONING_ENABLED=true in .env and ensure the captioning container is running."
+        )
+
+    image = ImageFile(data=file.data, mime_type=file.mime_type)
+
+    if is_multipage(file.mime_type):
+        with span.span(Service.EXTRACT_PAGES) as ep_span:
+            pages = extract_pages_typed(image)
+            ep_span.set(page_count=len(pages))
+
+        captions: list[Markdown] = []
+        with span.span(Service.CAPTIONING, service="openai/gpt-4o", page_count=len(pages)) as cap_span:
+            for i, page_png in enumerate(pages):
+                with cap_span.span(f"page[{i}]") as page_span:
+                    cap = await captioner.caption(page_png, deadline, page_span)
+                captions.append(cap)
+        return Markdown("\n\n---\n\n".join(captions))
+
+    png = to_vlm_png(image)
+    return await caption_image(png, deadline, span, captioner)
+
+
+async def resolve_images(doc: ExtractedDocument, deadline: float, span: Span, captioner: ImageCaptioner) -> Markdown:
+    """Replace base64 image references in extracted markdown with captions."""
+    return await caption_images(doc.markdown, doc.images, deadline, span, captioner)
+
+
+def label_extracted_images(doc: ExtractedDocument) -> Markdown:
+    """Replace base64 image references with classification labels (no VLM)."""
+    return label_images(doc.markdown, doc.images)
+
+
+async def render_thumbnails(pdf: PdfContent, renderer: PageRenderer) -> list[bytes]:
+    """PDF → list of PNG page thumbnails."""
+    result = await renderer.render(pdf)
+    return result.pages
+
+
+# ---------------------------------------------------------------------------
+# Router — composes steps, stores artefacts at the seams
+# ---------------------------------------------------------------------------
 
 
 async def convert(
-    file_bytes: bytes, mime_type: str, filename: str, deadline: float, trace: Trace, svc: Services
-) -> ConvertResult:
-    """Convert any supported file to markdown."""
-    parent = trace.root
+    file: SubmittedFile,
+    deadline: float,
+    trace: Trace,
+    svc: Services,
+    artefacts: ArtefactStore | None = None,
+) -> Markdown:
+    """Convert any supported file to markdown.
 
-    # Passthrough — already LLM-readable
-    if mime_type in PASSTHROUGH_TYPES:
+    Artefacts (thumbnails, converted PDF, extracted images) are stored
+    via the ArtefactStore as a side effect. The return value is the
+    extracted markdown text.
+    """
+    parent = trace.root
+    mime = file.mime_type
+
+    # Text passthrough
+    if mime in PASSTHROUGH_TYPES:
         with parent.span(Service.PASSTHROUGH):
             pass
-        return ConvertResult(
-            markdown=file_bytes.decode("utf-8", errors="replace"),
-            detected_type=mime_type,
-            actions=["passthrough"],
-        )
+        return extract_text(file)
 
-    # Images — describe via vision model
-    if mime_type.startswith("image/"):
-        if not svc.captioner.is_available():
-            raise ServiceNotConfigured(
-                "Image processing requires the captioning service. "
-                "Set CAPTIONING_ENABLED=true in .env and ensure the captioning container is running."
-            )
-        if is_multipage(mime_type):
-            with parent.span(Service.EXTRACT_PAGES) as ep_span:
-                pages = extract_pages(file_bytes)
-                ep_span.set(page_count=len(pages))
+    # Standalone images
+    if mime.startswith("image/"):
+        return await caption_standalone(file, deadline, parent, svc.captioner)
 
-            results = []
-            with parent.span(Service.CAPTIONING, service="openai/gpt-4o", page_count=len(pages)) as cap_span:
-                for i, (p, mt) in enumerate(pages):
-                    with cap_span.span(f"page[{i}]") as page_span:
-                        r = await svc.captioner.describe_file(p, mt, deadline, page_span)
-                    results.append(r)
-                cap_span.set(
-                    images_captioned=sum(r.images_captioned for r in results),
-                    prompt_tokens=sum(r.captioning_prompt_tokens for r in results),
-                    completion_tokens=sum(r.captioning_completion_tokens for r in results),
-                )
+    # Modern office formats (OOXML, HTML, epub, email)
+    if mime in MARKITDOWN_TYPES:
+        doc = OoxmlDocument(data=file.data, mime_type=mime, filename=file.filename)
+        return await extract_ooxml(doc, parent, svc.ooxml_extractor)
 
-            markdown = "\n\n---\n\n".join(r.markdown for r in results)
-            return ConvertResult(
-                markdown=markdown,
-                detected_type=mime_type,
-                actions=["captioning"],
-                images_captioned=sum(r.images_captioned for r in results),
-                captioning_prompt_tokens=sum(r.captioning_prompt_tokens for r in results),
-                captioning_completion_tokens=sum(r.captioning_completion_tokens for r in results),
-            )
-        with parent.span(Service.CAPTIONING, service="openai/gpt-4o") as cap_span:
-            result = await svc.captioner.describe_file(file_bytes, mime_type, deadline, cap_span)
-            cap_span.set(
-                images_captioned=result.images_captioned,
-                prompt_tokens=result.captioning_prompt_tokens,
-                completion_tokens=result.captioning_completion_tokens,
-            )
-        result.detected_type = mime_type
-        return result
+    # Legacy office → PDF, or direct PDF
+    pdf: PdfContent | None = None
 
-    # PDF — Docling for quality extraction, then caption images
-    if mime_type == "application/pdf":
-        with parent.span(Service.DOCLING) as docling_span:
-            md_content, pictures = await svc.pdf_extractor.convert(file_bytes, mime_type, deadline, docling_span)
+    if mime in LIBREOFFICE_TYPES:
+        ole_doc = OleOfficeDocument(data=file.data, mime_type=mime, filename=file.filename)
+        pdf = await to_pdf(ole_doc, deadline, parent, svc.ole_converter)
+        if artefacts:
+            await artefacts.put("pdf", pdf.data, "application/pdf", label="Converted PDF")
 
-        actions = ["docling"]
-        cap = CaptionResult(markdown=md_content)
-        image_count = len(list(IMAGE_RE.finditer(md_content)))
+    elif mime == "application/pdf":
+        pdf = PdfContent(data=file.data, source_mime=mime)
 
-        if image_count > 0:
+    if pdf:
+        doc_ext = await extract_pdf(pdf, deadline, parent, svc.pdf_extractor)
+
+        # Store artefacts: thumbnails + extracted images
+        if artefacts:
+            await _store_pdf_artefacts(pdf, doc_ext, artefacts, parent, svc.page_renderer)
+
+        # Caption or label embedded images
+        if IMAGE_RE.search(doc_ext.markdown):
             if svc.captioner.is_available():
-                cap = await caption_images(md_content, pictures, deadline, parent, svc.captioner)
-                actions.append("captioning")
+                return await resolve_images(doc_ext, deadline, parent, svc.captioner)
             else:
-                cap = label_images(md_content, pictures)
-                actions.append("labelling")
+                return label_extracted_images(doc_ext)
 
-        return ConvertResult(
-            markdown=cap.markdown,
-            detected_type=mime_type,
-            actions=actions,
-            images_captioned=cap.captioned,
-            images_skipped=cap.skipped,
-            images_errored=cap.errored,
-            captioning_prompt_tokens=cap.prompt_tokens,
-            captioning_completion_tokens=cap.completion_tokens,
+        return doc_ext.markdown
+
+    raise UnsupportedFormat(mime)
+
+
+# ---------------------------------------------------------------------------
+# Artefact helpers
+# ---------------------------------------------------------------------------
+
+
+async def _store_pdf_artefacts(
+    pdf: PdfContent,
+    doc: ExtractedDocument,
+    artefacts: ArtefactStore,
+    span: Span,
+    renderer: PageRenderer,
+) -> None:
+    """Store page thumbnails and extracted images as artefacts."""
+    with span.span(Service.ARTEFACTS) as art_span:
+        with art_span.span(Service.THUMBNAILS) as thumb_span:
+            try:
+                pages = await render_thumbnails(pdf, renderer)
+                for png in pages:
+                    name = artefacts.allocate("page")
+                    await artefacts.put(name, png, "image/png", label=f"Page {int(name.split('-')[1]) + 1}")
+                thumb_span.set(page_count=len(pages))
+            except Exception:
+                logger.warning("Failed to render page thumbnails", exc_info=True)
+                thumb_span.set(error="render failed")
+
+        image_count = 0
+        for img in doc.images:
+            name = artefacts.allocate("image")
+            await artefacts.put(name, img.data, img.mime_type, label=img.label)
+            image_count += 1
+
+        art_span.set(
+            artefact_count=len(artefacts.manifest),
+            image_count=image_count,
+            total_bytes=sum(a.size_bytes for a in artefacts.manifest),
         )
-
-    # Office docs MarkItDown handles directly
-    if mime_type in MARKITDOWN_TYPES:
-        loop = asyncio.get_event_loop()
-        with parent.span(Service.MARKITDOWN) as md_span:
-            mit_result = await loop.run_in_executor(
-                None,
-                functools.partial(
-                    markitdown.convert_stream, BytesIO(file_bytes), file_extension=_ext_from_filename(filename)
-                ),
-            )
-            md_span.set(md_length=len(mit_result.text_content))
-        return ConvertResult(
-            markdown=mit_result.text_content,
-            detected_type=mime_type,
-            actions=["markitdown"],
-        )
-
-    # Legacy formats — Gotenberg converts to PDF, then Docling extracts
-    if mime_type in LIBREOFFICE_TYPES:
-        if not svc.office_converter.is_available():
-            raise ServiceNotConfigured(f"This file type ({mime_type}) requires LibreOffice. Rerun setup to enable it.")
-        with parent.span(Service.GOTENBERG) as lo_span:
-            pdf_bytes, _ = await svc.office_converter.convert(file_bytes, mime_type, filename, deadline, lo_span)
-        result = await convert(pdf_bytes, "application/pdf", filename, deadline, trace, svc)
-        result.actions.insert(0, f"gotenberg ({mime_type} -> pdf)")
-        result.detected_type = mime_type
-        return result
-
-    raise UnsupportedFormat(mime_type)
-
-
-def _ext_from_filename(filename: str) -> str:
-    """Extract file extension from filename."""
-    if "." in filename:
-        return "." + filename.rsplit(".", 1)[-1].lower()
-    return ""
-
-
-class UnsupportedFormat(Exception):
-    def __init__(self, mime_type: str):
-        self.mime_type = mime_type
-        super().__init__(f"Unsupported file type: {mime_type}")
-
-
-class ServiceNotConfigured(Exception):
-    def __init__(self, message: str):
-        super().__init__(message)

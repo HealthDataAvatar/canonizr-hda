@@ -54,13 +54,15 @@ async def convert(file_bytes: bytes, mime_type: str, filename: str, deadline: fl
     return response.content, "application/pdf"
 
 
-class HttpOfficeConverter:
-    """OfficeConverter implementation backed by Gotenberg's LibreOffice endpoint."""
+from ..types import OleOfficeDocument, PdfContent
+
+
+class GotenbergOleConverter:
+    """OleConverter implementation backed by Gotenberg's LibreOffice endpoint."""
 
     def is_available(self) -> bool:
         return is_available()
 
-    async def convert(
-        self, file_bytes: bytes, mime_type: str, filename: str, deadline: float, parent: Span
-    ) -> tuple[bytes, str]:
-        return await convert(file_bytes, mime_type, filename, deadline, parent)
+    async def convert(self, doc: OleOfficeDocument, deadline: float, span: Span) -> PdfContent:
+        pdf_bytes, _ = await convert(doc.data, doc.mime_type, doc.filename, deadline, span)
+        return PdfContent(data=pdf_bytes, source_mime=doc.mime_type)

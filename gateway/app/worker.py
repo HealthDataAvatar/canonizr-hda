@@ -18,9 +18,11 @@ from .protocols import Job, JobStatus, UserContext
 from .queue import RedisQueue
 from .quota import QuotaService
 from .redis_client import get_redis
-from .services.captioning import OpenAICaptioner
-from .services.docling import HttpPdfExtractor
-from .services.libreoffice import HttpOfficeConverter
+from .services.captioning import OpenAIImageCaptioner
+from .services.docling import DoclingPdfExtractor
+from .services.libreoffice import GotenbergOleConverter
+from .services.markitdown import MarkItDownExtractor
+from .services.thumbnails import PyMuPdfRenderer
 from .sweep import run_sweep_loop
 from .telemetry import JobReclaimed, JobSkippedIdempotent, PostHogEmitter, WorkerError
 from .user_resolver import TableUserResolver
@@ -116,9 +118,11 @@ async def run():
         queue=queue,
         quota=QuotaService(r, table_service=table_svc),  # type: ignore[arg-type]
         telemetry=PostHogEmitter(),
-        captioner=OpenAICaptioner(),
-        pdf_extractor=HttpPdfExtractor(),
-        office_converter=HttpOfficeConverter(),
+        captioner=OpenAIImageCaptioner(),
+        pdf_extractor=DoclingPdfExtractor(),
+        ole_converter=GotenbergOleConverter(),
+        ooxml_extractor=MarkItDownExtractor(),
+        page_renderer=PyMuPdfRenderer(),
     )
     await queue.ensure_group()
     asyncio.create_task(run_sweep_loop(svc))

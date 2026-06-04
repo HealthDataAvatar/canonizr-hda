@@ -15,10 +15,12 @@ from app.quota import QuotaService
 from app.services.retry import TransientUpstreamError
 from tests.fakes import (
     FakeBlobStore,
-    FakeCaptioner,
     FakeEmitter,
+    FakeImageCaptioner,
     FakeJobStore,
-    FakeOfficeConverter,
+    FakeOleConverter,
+    FakeOoxmlExtractor,
+    FakePageRenderer,
     FakePdfExtractor,
     FakeQueue,
     FakeRedis,
@@ -26,7 +28,7 @@ from tests.fakes import (
 )
 
 
-def _make_svc(*, pdf_extractor=None, captioner=None, office_converter=None):
+def _make_svc(*, pdf_extractor=None, captioner=None, ole_converter=None):
     key = os.urandom(32)
     user = UserContext(user_id="user_1", encryption_key=key, price_per_unit=0.003, key_name="test")
     emitter = FakeEmitter()
@@ -37,9 +39,11 @@ def _make_svc(*, pdf_extractor=None, captioner=None, office_converter=None):
         queue=FakeQueue(),
         quota=QuotaService(FakeRedis()),
         telemetry=emitter,
-        captioner=captioner or FakeCaptioner(),
+        captioner=captioner or FakeImageCaptioner(),
         pdf_extractor=pdf_extractor or FakePdfExtractor(),
-        office_converter=office_converter or FakeOfficeConverter(),
+        ole_converter=ole_converter or FakeOleConverter(),
+        ooxml_extractor=FakeOoxmlExtractor(),
+        page_renderer=FakePageRenderer(),
     )
     return svc, user, emitter
 
@@ -50,7 +54,20 @@ def _make_job(**overrides):
     return Job.create(**defaults)
 
 
-async def _seed_and_run(svc, user, job, file_bytes=b"hello"):
+def _tiny_png() -> bytes:
+    """Generate a minimal valid 1x1 PNG."""
+    from io import BytesIO
+
+    from PIL import Image
+
+    buf = BytesIO()
+    Image.new("RGB", (1, 1), "red").save(buf, format="PNG")
+    return buf.getvalue()
+
+
+async def _seed_and_run(svc, user, job, file_bytes=None):
+    if file_bytes is None:
+        file_bytes = _tiny_png() if job.mime_type.startswith("image/") else b"hello"
     encrypted = encrypt(file_bytes, user.encryption_key)
     await svc.blobs.put(f"{user.user_id}/{job.job_id}/input.bin", encrypted)
     svc.jobs.create(JobMeta(user_id=user.user_id, job_id=job.job_id, sub_id="sub_1"))
@@ -76,12 +93,14 @@ class TestPdfExtractorErrors:
 
     @pytest.mark.asyncio
     async def test_success_returns_ok(self):
+        from app.types import ExtractedDocument, Markdown
+
         fake_pdf = FakePdfExtractor(
             responses=[
-                ("# Hello world", []),
+                ExtractedDocument(markdown=Markdown("# Hello world")),
             ]
         )
-        svc, user, _ = _make_svc(pdf_extractor=fake_pdf, captioner=FakeCaptioner(available=False))
+        svc, user, _ = _make_svc(pdf_extractor=fake_pdf, captioner=FakeImageCaptioner(available=False))
         job = _make_job(mime_type="application/pdf", filename="test.pdf")
 
         proc = await _seed_and_run(svc, user, job)
@@ -94,7 +113,7 @@ class TestCaptionerErrors:
     @pytest.mark.asyncio
     async def test_captioner_timeout_classifies_as_transient(self):
         """Image captioning timeout → transient error."""
-        fake_cap = FakeCaptioner(
+        fake_cap = FakeImageCaptioner(
             responses=[
                 TransientUpstreamError("captioning", 504, "service timeout"),
             ]
@@ -110,7 +129,7 @@ class TestCaptionerErrors:
     @pytest.mark.asyncio
     async def test_captioner_unavailable_returns_permanent(self):
         """Captioning not configured → permanent (ServiceNotConfigured)."""
-        fake_cap = FakeCaptioner(available=False)
+        fake_cap = FakeImageCaptioner(available=False)
         svc, user, _ = _make_svc(captioner=fake_cap)
         job = _make_job(mime_type="image/png", filename="test.png")
 
@@ -123,12 +142,12 @@ class TestCaptionerErrors:
 class TestOfficeConverterErrors:
     @pytest.mark.asyncio
     async def test_gotenberg_timeout_classifies_as_transient(self):
-        fake_office = FakeOfficeConverter(
+        fake_office = FakeOleConverter(
             responses=[
                 TransientUpstreamError("gotenberg", 504, "service timeout"),
             ]
         )
-        svc, user, _ = _make_svc(office_converter=fake_office)
+        svc, user, _ = _make_svc(ole_converter=fake_office)
         job = _make_job(mime_type="application/msword", filename="test.doc")
 
         proc = await _seed_and_run(svc, user, job)
@@ -138,8 +157,8 @@ class TestOfficeConverterErrors:
 
     @pytest.mark.asyncio
     async def test_gotenberg_unavailable_returns_permanent(self):
-        fake_office = FakeOfficeConverter(available=False)
-        svc, user, _ = _make_svc(office_converter=fake_office)
+        fake_office = FakeOleConverter(available=False)
+        svc, user, _ = _make_svc(ole_converter=fake_office)
         job = _make_job(mime_type="application/msword", filename="test.doc")
 
         proc = await _seed_and_run(svc, user, job)

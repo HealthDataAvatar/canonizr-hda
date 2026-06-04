@@ -4,7 +4,7 @@ Used by the gateway to set estimated_seconds in the 202 response
 and Retry-After headers on /result polling.
 """
 
-from .convert import LIBREOFFICE_TYPES, MARKITDOWN_TYPES, PASSTHROUGH_TYPES
+from .mimetypes import LIBREOFFICE_TYPES, MARKITDOWN_TYPES, PASSTHROUGH_TYPES
 
 
 def estimate_seconds(mime_type: str, file_size_bytes: int) -> int:

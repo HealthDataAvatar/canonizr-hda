@@ -14,7 +14,6 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Protocol
 
-from .response import ConvertResult
 from .tracing import Span
 
 # ---------------------------------------------------------------------------
@@ -60,6 +59,7 @@ class JobMeta:
     retention_expires: str = ""
     steps: str = ""  # JSON span tree from Trace.to_dict()
     price_per_unit: float = 0.0
+    artefacts: str = ""  # JSON manifest from ArtefactWriter.manifest_json()
 
 
 class JobStore(Protocol):
@@ -225,37 +225,50 @@ class Queue(Protocol):
 # ---------------------------------------------------------------------------
 
 
-@dataclass
-class VisionResult:
-    """Result from a single image captioning call."""
-
-    text: str
-    prompt_tokens: int = 0
-    completion_tokens: int = 0
-    elapsed_ms: float = 0.0
-
-
 # ---------------------------------------------------------------------------
-# Upstream services (Docling, Captioning, Gotenberg)
+# Upstream service protocols
 # ---------------------------------------------------------------------------
 
+from .types import (
+    ExtractedDocument,
+    Markdown,
+    OleOfficeDocument,
+    OoxmlDocument,
+    PageThumbnailPNGs,
+    PdfContent,
+    VlmImagePNG,
+)
 
-class Captioner(Protocol):
+
+class OleConverter(Protocol):
+    """Pre-2007 binary office → PDF via Gotenberg."""
+
     def is_available(self) -> bool: ...
-    async def describe(self, image_b64: str, mime_type: str, deadline: float, parent: Span) -> VisionResult: ...
-    async def describe_file(
-        self, image_bytes: bytes, mime_type: str, deadline: float, parent: Span
-    ) -> ConvertResult: ...
+    async def convert(self, doc: OleOfficeDocument, deadline: float, span: Span) -> PdfContent: ...
 
 
 class PdfExtractor(Protocol):
-    async def convert(
-        self, file_bytes: bytes, mime_type: str, deadline: float, parent: Span
-    ) -> tuple[str, list[dict]]: ...
+    """PDF → structured document with text and classified images."""
+
+    async def extract(self, pdf: PdfContent, deadline: float, span: Span) -> ExtractedDocument: ...
 
 
-class OfficeConverter(Protocol):
+class OoxmlExtractor(Protocol):
+    """Modern office/HTML → markdown via MarkItDown."""
+
+    async def extract(self, doc: OoxmlDocument) -> Markdown: ...
+
+
+class ImageCaptioner(Protocol):
+    """Describe a VLM-ready image as text. Token counts go in the span."""
+
     def is_available(self) -> bool: ...
-    async def convert(
-        self, file_bytes: bytes, mime_type: str, filename: str, deadline: float, parent: Span
-    ) -> tuple[bytes, str]: ...
+    async def caption(self, image: VlmImagePNG, deadline: float, span: Span) -> Markdown: ...
+
+    # TODO: add CaptionMode enum driven by ExtractedImage.classifications
+
+
+class PageRenderer(Protocol):
+    """PDF → page thumbnail images."""
+
+    async def render(self, pdf: PdfContent, dpi: int = 150) -> PageThumbnailPNGs: ...
