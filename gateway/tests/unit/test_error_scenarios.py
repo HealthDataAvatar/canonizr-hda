@@ -9,7 +9,7 @@ import pytest
 
 from app.context import Services
 from app.crypto import encrypt
-from app.process import process_job
+from app.process import dispatch_job
 from app.protocols import Job, JobMeta, UserContext
 from app.quota import QuotaService
 from app.services.retry import TransientUpstreamError
@@ -71,7 +71,7 @@ async def _seed_and_run(svc, user, job, file_bytes=None):
     encrypted = encrypt(file_bytes, user.encryption_key)
     await svc.blobs.put(f"{user.user_id}/{job.job_id}/input.bin", encrypted)
     svc.jobs.create(JobMeta(user_id=user.user_id, job_id=job.job_id, sub_id="sub_1"))
-    return await process_job(job, user, svc)
+    return await dispatch_job(job, user, svc)
 
 
 class TestPdfExtractorErrors:
@@ -107,36 +107,6 @@ class TestPdfExtractorErrors:
 
         assert proc.job_result.status == "ok"
         assert proc.error_category == ""
-
-
-class TestCaptionerErrors:
-    @pytest.mark.asyncio
-    async def test_captioner_timeout_classifies_as_transient(self):
-        """Image captioning timeout → transient error."""
-        fake_cap = FakeImageCaptioner(
-            responses=[
-                TransientUpstreamError("captioning", 504, "service timeout"),
-            ]
-        )
-        svc, user, _ = _make_svc(captioner=fake_cap)
-        job = _make_job(mime_type="image/png", filename="test.png")
-
-        proc = await _seed_and_run(svc, user, job)
-
-        assert proc.job_result.status == "error"
-        assert proc.error_category == "transient"
-
-    @pytest.mark.asyncio
-    async def test_captioner_unavailable_returns_permanent(self):
-        """Captioning not configured → permanent (ServiceNotConfigured)."""
-        fake_cap = FakeImageCaptioner(available=False)
-        svc, user, _ = _make_svc(captioner=fake_cap)
-        job = _make_job(mime_type="image/png", filename="test.png")
-
-        proc = await _seed_and_run(svc, user, job)
-
-        assert proc.job_result.status == "error"
-        assert proc.error_category == "permanent"
 
 
 class TestOfficeConverterErrors:

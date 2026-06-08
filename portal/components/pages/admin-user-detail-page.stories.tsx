@@ -2,20 +2,9 @@ import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { Showcase, TEST_EMAILS, TEST_KEY_NAMES } from "@/.storybook/common";
 import { AdminUserDetailContent } from "./admin-user-detail-content";
 import type { AdminUserDetail } from "@/lib/data/admin-page-data";
-import type { RequestRow, BlobState } from "@/components/tables/request-table";
 
 const now = Date.now();
-const MINUTE = 60_000;
-const HOUR = 60 * MINUTE;
-const DAY = 24 * HOUR;
-
-const none: BlobState = { status: "none" };
-
-const recentJobs: RequestRow[] = [
-  { id: "req-001", timestamp: new Date(now - 3 * MINUTE).toISOString(), completedAt: new Date(now - 2 * MINUTE).toISOString(), keyId: TEST_KEY_NAMES.crane, billableKB: 200, status: 200, result: { status: "available", url: "#" }, input: none },
-  { id: "req-002", timestamp: new Date(now - HOUR).toISOString(), keyId: TEST_KEY_NAMES.crane, billableKB: 100, status: 400, result: none, input: none },
-  { id: "req-003", timestamp: new Date(now - 2 * DAY).toISOString(), completedAt: new Date(now - 2 * DAY + 6800).toISOString(), keyId: TEST_KEY_NAMES.raven, billableKB: 2600, status: 200, result: none, input: none },
-];
+const DAY = 24 * 60 * 60_000;
 
 const activeUser: AdminUserDetail = {
   id: "u-001",
@@ -32,7 +21,6 @@ const activeUser: AdminUserDetail = {
     { id: "key-aaa", displayName: TEST_KEY_NAMES.crane, value: "", usageKB: 3200, quotaKB: 10000 },
     { id: "key-bbb", displayName: TEST_KEY_NAMES.raven, value: "", usageKB: 800, quotaKB: 10000 },
   ],
-  recentJobs,
   usageKB30d: 72000,
   totalInvoiced: 12.45,
 };
@@ -49,7 +37,6 @@ const newUser: AdminUserDetail = {
   spendCapKB: null,
   stripeCustomerId: "",
   keys: [{ id: "key-ccc", displayName: "my-first-key", value: "", usageKB: 0, quotaKB: null }],
-  recentJobs: [],
   usageKB30d: 0,
   totalInvoiced: 0,
 };
@@ -60,7 +47,6 @@ const blockedUser: AdminUserDetail = {
   email: TEST_EMAILS.long,
   blocked: true,
   keys: [],
-  recentJobs: recentJobs.slice(1),
   usageKB30d: 100,
   totalInvoiced: 0,
 };

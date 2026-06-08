@@ -6,7 +6,7 @@
  */
 
 import { getTableClient } from "./table-client";
-import { TableName } from "./table-names";
+import { TableName } from "./table-interface";
 
 const ALL_TABLES = [
   // Auth adapter

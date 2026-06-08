@@ -136,6 +136,7 @@ deploy-gateway: test-gateway-unit gateway-push deploy-tofu
 deploy-portal: test-portal-unit portal-push deploy-tofu
 
 deploy: test gateway-push portal-push deploy-tofu
+	@echo "Deploy started at $(DEPLOY_TIME) passed"
 
 # ---------------------------------------------------------------------------
 # Portal

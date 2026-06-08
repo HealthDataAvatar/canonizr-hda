@@ -2,7 +2,7 @@
 
 import requests
 
-from tests.integration.conftest import GATEWAY_URL, TIMEOUT, submit_and_poll
+from tests.integration.conftest import GATEWAY_URL, TIMEOUT, assert_canonize_ok, submit_and_poll
 
 
 class TestPolling:
@@ -17,7 +17,7 @@ class TestPolling:
         )
         assert submit.status_code == 202
         assert result.status_code == 200
-        assert "markdown" in result.json()
+        assert_canonize_ok(result.json())
 
     def test_result_available_on_repeated_poll(self, test_sub):
         submit, result = submit_and_poll(
@@ -29,7 +29,8 @@ class TestPolling:
         poll_url = submit.json()["poll_url"]
         second = requests.get(f"{GATEWAY_URL}{poll_url}", timeout=TIMEOUT)
         assert second.status_code == 200
-        assert second.json()["markdown"] == result.json()["markdown"]
+        # Same artefacts on repeated poll
+        assert second.json()["artefacts"] == result.json()["artefacts"]
 
 
 class TestDelete:

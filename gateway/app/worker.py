@@ -1,6 +1,6 @@
 """Worker process — thin wiring layer.
 
-Constructs Services at startup, main loop calls process_job.
+Constructs Services at startup, main loop calls dispatch_job.
 No business logic here.
 """
 
@@ -13,7 +13,7 @@ from .azure_clients import get_blob_service, get_table_service
 from .blob_azure import AzureBlobStore
 from .context import Services
 from .jobs_table import TableJobStore
-from .process import ProcessResult, process_job
+from .process import ProcessResult, dispatch_job
 from .protocols import Job, JobStatus, UserContext
 from .queue import RedisQueue
 from .quota import QuotaService
@@ -72,7 +72,7 @@ async def _handle_job(job: Job, svc: Services, sem: asyncio.Semaphore) -> None:
 
         beat = svc.queue.heartbeat(job)
         try:
-            proc = await process_job(job, user, svc)
+            proc = await dispatch_job(job, user, svc)
         finally:
             beat.cancel()
         await svc.queue.store_result(job.job_id, proc.job_result)

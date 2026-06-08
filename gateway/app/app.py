@@ -17,7 +17,7 @@ from fastapi.responses import JSONResponse, Response
 from .azure_clients import get_blob_service, get_table_service
 from .blob_azure import AzureBlobStore
 from .context import Services
-from .handlers import Rejected, accept_job, delete_result, download_artefact, download_artifact, poll_result
+from .handlers import Rejected, accept_canonize, delete_result, download_artefact, download_artifact, poll_result
 from .jobs_table import TableJobStore
 from .queue import RedisQueue
 from .quota import QuotaService
@@ -109,13 +109,8 @@ async def _read_file(file: UploadFile) -> bytes:
     return content.read()
 
 
-@app.post("/v1/jobs")
-async def create_job(
-    request: Request,
-    file: UploadFile = File(...),
-    verbose: bool = Query(False),
-    accept: str = Header("application/json"),
-):
+async def _accept_and_respond(request: Request, file: UploadFile, base_path: str):
+    """Shared logic for POST /v1/canonize and POST /v1/jobs."""
     assert _svc is not None
 
     file_bytes = await _read_file(file)
@@ -131,7 +126,7 @@ async def create_job(
         mime_type = magic.from_buffer(file_bytes, mime=True)
 
     try:
-        result = await accept_job(file_bytes, file.filename or "document", mime_type, sub_id, _svc)
+        result = await accept_canonize(file_bytes, file.filename or "document", mime_type, sub_id, _svc)
     except Rejected as e:
         raise HTTPException(status_code=e.status_code, detail=e.detail)
 
@@ -140,18 +135,79 @@ async def create_job(
         content={
             "job_id": result.job_id,
             "status": "processing",
-            "poll_url": f"/v1/jobs/{result.job_id}",
+            "poll_url": f"{base_path}/{result.job_id}",
             "estimated_seconds": result.estimated_seconds,
             "input_bytes": result.input_bytes,
             "billable_units": result.billable_units,
             "retention_seconds": result.retention_seconds,
         },
         headers={
-            "Location": f"/v1/jobs/{result.job_id}",
+            "Location": f"{base_path}/{result.job_id}",
             "Retry-After": str(result.estimated_seconds),
             "X-Input-Size-Bytes": str(result.input_bytes),
             "X-Billable-Units": str(result.billable_units),
         },
+    )
+
+
+@app.post("/v1/canonize")
+async def create_canonize_job(
+    request: Request,
+    file: UploadFile = File(...),
+):
+    return await _accept_and_respond(request, file, "/v1/canonize")
+
+
+@app.post("/v1/jobs")
+async def create_job(
+    request: Request,
+    file: UploadFile = File(...),
+    verbose: bool = Query(False),
+    accept: str = Header("application/json"),
+):
+    return await _accept_and_respond(request, file, "/v1/jobs")
+
+
+@app.get("/v1/canonize/{job_id}")
+async def get_canonize_job(job_id: str):
+    assert _svc is not None
+    result = await poll_result(job_id, _svc)
+    if result.status_code == 200 and result.body:
+        import json
+
+        return Response(content=json.dumps(result.body), media_type="application/json", headers=result.headers or {})
+    return JSONResponse(status_code=result.status_code, content=result.body or {})
+
+
+@app.delete("/v1/canonize/{job_id}")
+async def delete_canonize_job(request: Request, job_id: str):
+    assert _svc is not None
+    sub_id = request.headers.get("x-subscription-id", "")
+    if not sub_id:
+        raise HTTPException(status_code=401, detail="Missing subscription ID")
+    try:
+        found = await delete_result(job_id, sub_id, _svc)
+    except Rejected as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
+    if not found:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return Response(status_code=204)
+
+
+@app.get("/v1/canonize/{job_id}/artefacts/{name}")
+async def get_canonize_artefact(request: Request, job_id: str, name: str):
+    assert _svc is not None
+    sub_id = request.headers.get("x-subscription-id", "")
+    if not sub_id:
+        raise HTTPException(status_code=401, detail="Missing subscription ID")
+    try:
+        result = await download_artefact(job_id, sub_id, name, _svc)
+    except Rejected as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
+    return Response(
+        content=result.data,
+        media_type=result.content_type,
+        headers={"Content-Disposition": content_disposition(result.filename)},
     )
 
 

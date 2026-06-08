@@ -9,7 +9,7 @@ import { describe, it, expect, beforeAll } from "vitest";
 import { authenticate, createFetcher, createTestUser, seedTestUser, seedJob, seedInvoice, initTables, PORTAL_URL } from "./helpers";
 import { getCurrentPermissions } from "@/lib/data/tables";
 import { getTableClient } from "@/lib/data/table-client";
-import { TableName } from "@/lib/data/table-names";
+import { TableName } from "@/lib/data/table-interface";
 
 let fetchPortal: ReturnType<typeof createFetcher>;
 

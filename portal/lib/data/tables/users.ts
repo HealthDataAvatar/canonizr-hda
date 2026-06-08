@@ -1,12 +1,8 @@
 /** Users table — auth identity only. Immutable after creation. */
 
 import { getTableClient } from "@/lib/data/table-client";
-import { TableName } from "@/lib/data/table-names";
+import { TableName, UserRecord } from "@/lib/data/table-interface";
 
-export interface UserRecord {
-  id: string;
-  email: string;
-}
 
 export async function getUser(userId: string): Promise<UserRecord> {
   const client = getTableClient(TableName.USERS);

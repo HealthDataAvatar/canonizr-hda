@@ -47,7 +47,9 @@ class TestErrorSanitisation:
         with (
             patch("app.app._svc", AsyncMock()),
             patch(
-                "app.app.accept_job", new_callable=AsyncMock, side_effect=HTTPException(500, detail="traceback here")
+                "app.app.accept_canonize",
+                new_callable=AsyncMock,
+                side_effect=HTTPException(500, detail="traceback here"),
             ),
             patch("app.app.DEBUG_MODE", False),
         ):
@@ -63,7 +65,9 @@ class TestErrorSanitisation:
         with (
             patch("app.app._svc", AsyncMock()),
             patch(
-                "app.app.accept_job", new_callable=AsyncMock, side_effect=HTTPException(500, detail="traceback here")
+                "app.app.accept_canonize",
+                new_callable=AsyncMock,
+                side_effect=HTTPException(500, detail="traceback here"),
             ),
             patch("app.app.DEBUG_MODE", True),
         ):

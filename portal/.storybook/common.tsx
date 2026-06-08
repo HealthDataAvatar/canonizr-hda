@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
 // ---------------------------------------------------------------------------
-// Shared test data — realistic formats matching production
+// Shared test constants
 // ---------------------------------------------------------------------------
 
 export const TEST_KEY_VALUES = {
@@ -25,6 +25,12 @@ export const TEST_JOB_IDS = {
   normal: "V1StGXR8_Z5jHsqz",
   recent: "Xk9mLp2Q_wR4tYnB",
 } as const;
+
+// ---------------------------------------------------------------------------
+// Synthetic data — use generateSyntheticUser() from @/lib/data/synthetic
+// ---------------------------------------------------------------------------
+
+export { generateSyntheticUser } from "@/lib/data/synthetic";
 
 /**
  * Labelled grid for showing multiple component variants in a single story.

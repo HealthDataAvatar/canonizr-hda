@@ -23,6 +23,7 @@ class Service(StrEnum):
     LIBREOFFICE = "libreoffice"
     THUMBNAILS = "thumbnails"
     ARTEFACTS = "artefacts"
+    NORMALISE_IMAGE = "normalise_image"
 
 
 _SERVICE_NAMES = frozenset(Service)

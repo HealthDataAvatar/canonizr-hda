@@ -16,7 +16,7 @@ from .crypto import decrypt, encrypt
 from .estimates import estimate_seconds
 from .hash import document_hash
 from .mimetypes import is_archive_type, is_known_mime_type
-from .protocols import Job, JobMeta, JobStatus, ResolveMisconfigured, ResolveRejected, UserContext
+from .protocols import Job, JobMeta, JobStatus, JobType, ResolveMisconfigured, ResolveRejected, UserContext
 from .sanitize import content_disposition, sanitize_filename
 from .telemetry import JobAccepted
 
@@ -72,18 +72,18 @@ def _require_user(resolved) -> UserContext:
 
 
 # ---------------------------------------------------------------------------
-# POST /convert
+# POST /canonize
 # ---------------------------------------------------------------------------
 
 
-async def accept_job(
+async def accept_canonize(
     file_bytes: bytes,
     filename: str,
     mime_type: str,
     sub_id: str,
     svc: Services,
 ) -> AcceptResult:
-    """Accept a file for conversion. Returns job_id and estimate.
+    """Accept a file for canonization. Returns job_id and estimate.
 
     Raises Rejected on auth failure, unknown user, or quota exceeded.
     """
@@ -99,19 +99,19 @@ async def accept_job(
     if not is_known_mime_type(mime_type):
         raise Rejected(400, f"Unsupported file type: {mime_type}")
 
-    doc_hash = document_hash(file_bytes)
-
     # Quota check + immediate reservation
     rejection = await svc.quota.check(sub_id, len(file_bytes))
     if rejection:
         raise Rejected(429, rejection)
     await svc.quota.record(sub_id, len(file_bytes))
 
+    doc_hash = document_hash(file_bytes)
     job = Job.create(
         sub_id=sub_id,
         mime_type=mime_type,
         filename=filename,
         deadline_seconds=300.0,
+        job_type=JobType.CANONIZE,
     )
 
     # Sanitize and store
@@ -127,6 +127,7 @@ async def accept_job(
         user_id=user.user_id,
         job_id=job.job_id,
         sub_id=sub_id,
+        job_type=JobType.CANONIZE,
         key_id=user.key_id,
         original_filename=safe_filename,
         mime_type=mime_type,
@@ -159,6 +160,10 @@ async def accept_job(
     )
 
 
+# Backward compat alias
+accept_job = accept_canonize
+
+
 # ---------------------------------------------------------------------------
 # GET /result/{job_id}
 # ---------------------------------------------------------------------------
@@ -172,10 +177,7 @@ async def poll_result(job_id: str, svc: Services) -> PollResult:
     if meta is None:
         if result is None:
             return PollResult(status="processing", status_code=202, body={"job_id": job_id, "status": "processing"})
-        meta_user_id = ""
     else:
-        meta_user_id = meta.user_id
-
         if meta.status == JobStatus.DELETED:
             return PollResult(
                 status="expired",
@@ -202,53 +204,39 @@ async def poll_result(job_id: str, svc: Services) -> PollResult:
             body={"job_id": job_id, "status": "error", "detail": result.detail},
         )
 
-    # Success — decrypt and return output
-    blob_prefix = f"{meta_user_id}/{job_id}" if meta_user_id else job_id
-    encrypted_output = await svc.blobs.get(f"{blob_prefix}/output.bin")
-    if encrypted_output is None:
-        return PollResult(
-            status="expired",
-            status_code=410,
-            body={"job_id": job_id, "status": "expired", "detail": "Result blob not found"},
-        )
-
-    if meta and meta.sub_id:
-        user = await svc.users.resolve(meta.sub_id)
-        if not isinstance(user, UserContext):
-            return PollResult(
-                status="error",
-                status_code=500,
-                body={"job_id": job_id, "status": "error", "detail": "User key not found"},
-            )
-        payload = json.loads(decrypt(encrypted_output, user.encryption_key))
-    else:
+    # Success — return artefact manifest from metadata
+    if not meta:
         return PollResult(
             status="error",
             status_code=500,
-            body={"job_id": job_id, "status": "error", "detail": "Missing user context"},
+            body={"job_id": job_id, "status": "error", "detail": "Missing job metadata"},
         )
 
-    resp_meta = payload.get("metadata", {})
-    captioning = resp_meta.get("captioning", {})
-    headers = {
-        "X-Input-Size-Bytes": str(resp_meta.get("input_bytes", 0)),
-        "X-Document-Hash": resp_meta.get("input_hash", ""),
-        "X-Processing-Time-Ms": str(round(resp_meta.get("processing_time_ms", 0))),
-        "X-Processing-Pipeline": ",".join(resp_meta.get("actions", [])),
-        "X-Images-Captioned": str(captioning.get("images_captioned", 0)),
+    body: dict = {
+        "job_id": job_id,
+        "status": "ok",
+        "metadata": {
+            "detected_type": meta.mime_type,
+            "input_bytes": meta.input_bytes,
+            "input_hash": meta.input_hash,
+        },
     }
 
-    if meta and meta.original_filename:
-        md_filename = meta.original_filename + ".md"
-        headers["Content-Disposition"] = content_disposition(md_filename)
+    headers: dict[str, str] = {
+        "X-Input-Size-Bytes": str(meta.input_bytes),
+        "X-Document-Hash": meta.input_hash,
+    }
 
-    if meta and meta.retention_expires:
-        payload["expires_at"] = meta.retention_expires
+    if meta.artefacts:
+        body["artefacts"] = json.loads(meta.artefacts)
 
-    if meta and meta.artefacts:
-        payload["artefacts"] = json.loads(meta.artefacts)
+    if meta.retention_expires:
+        body["expires_at"] = meta.retention_expires
 
-    return PollResult(status="ok", status_code=200, body=payload, headers=headers)
+    if meta.original_filename:
+        headers["Content-Disposition"] = content_disposition(meta.original_filename + ".md")
+
+    return PollResult(status="ok", status_code=200, body=body, headers=headers)
 
 
 # ---------------------------------------------------------------------------

@@ -155,6 +155,37 @@ def submit_and_poll(
     return submit, result
 
 
+def assert_canonize_ok(data: dict) -> list[dict]:
+    """Assert the response shape of a successful canonize job and return the artefacts list."""
+    assert data["status"] == "ok", f"Expected status 'ok', got {data.get('status')}"
+    assert "job_id" in data
+    assert "metadata" in data
+    meta = data["metadata"]
+    assert "detected_type" in meta
+    assert "input_bytes" in meta
+    assert "input_hash" in meta
+    assert "artefacts" in data
+    artefacts = data["artefacts"]
+    assert isinstance(artefacts, list)
+    for a in artefacts:
+        assert "name" in a
+        assert "mime_type" in a
+        assert "size_bytes" in a
+        assert "label" in a
+        assert a["size_bytes"] > 0
+    return artefacts
+
+
+def find_artefact(artefacts: list[dict], name: str) -> dict | None:
+    """Find an artefact by name in the manifest."""
+    return next((a for a in artefacts if a["name"] == name), None)
+
+
+def artefact_names(artefacts: list[dict]) -> set[str]:
+    """Get the set of artefact names."""
+    return {a["name"] for a in artefacts}
+
+
 def make_png(text: str = "Hello World", width: int = 200, height: int = 100) -> bytes:
     """Generate a PNG image with text drawn on it."""
     img = Image.new("RGB", (width, height), color="white")

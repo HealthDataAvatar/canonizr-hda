@@ -162,6 +162,7 @@ def _to_event(meta: JobMeta) -> dict:
         "job_id": meta.job_id,
         "user_id": meta.user_id,
         "sub_id": meta.sub_id,
+        "job_type": meta.job_type,
         "key_id": meta.key_id,
         "original_filename": meta.original_filename,
         "mime_type": meta.mime_type,
@@ -183,6 +184,7 @@ def _from_event(entity: dict) -> JobMeta:
         user_id=entity.get("user_id", entity.get("PartitionKey", "")),
         job_id=entity.get("job_id", ""),
         sub_id=entity.get("sub_id", ""),
+        job_type=entity.get("job_type", ""),
         key_id=entity.get("key_id", ""),
         original_filename=entity.get("original_filename", "document"),
         mime_type=entity.get("mime_type", ""),
@@ -205,9 +207,14 @@ def _from_event(entity: dict) -> JobMeta:
 
 
 def _index_fields(meta: JobMeta) -> dict:
-    """Fields written to the index row (subset of JobMeta)."""
+    """Fields written to the index row (subset of JobMeta).
+
+    Note: steps is intentionally excluded — it's large and only needed
+    for admin trace view (lazy-loaded from GwJobs by job ID).
+    """
     return {
         "job_id": meta.job_id,
+        "job_type": meta.job_type,
         "key_id": meta.key_id,
         "original_filename": meta.original_filename,
         "mime_type": meta.mime_type,
@@ -217,6 +224,8 @@ def _index_fields(meta: JobMeta) -> dict:
         "created_at": meta.created_at,
         "completed_at": meta.completed_at,
         "retention_expires": meta.retention_expires,
+        "artefacts": meta.artefacts,
+        "price_per_unit": meta.price_per_unit,
     }
 
 
@@ -233,6 +242,7 @@ def _from_index(entity: dict) -> JobMeta:
         user_id=entity["PartitionKey"],
         job_id=entity.get("job_id", ""),
         sub_id="",  # not stored in index
+        job_type=entity.get("job_type", ""),
         key_id=entity.get("key_id", ""),
         original_filename=entity.get("original_filename", "document"),
         mime_type=entity.get("mime_type", ""),
@@ -242,4 +252,6 @@ def _from_index(entity: dict) -> JobMeta:
         created_at=entity.get("created_at", ""),
         completed_at=entity.get("completed_at", ""),
         retention_expires=entity.get("retention_expires", ""),
+        artefacts=entity.get("artefacts", ""),
+        price_per_unit=float(entity.get("price_per_unit", 0.0)),
     )

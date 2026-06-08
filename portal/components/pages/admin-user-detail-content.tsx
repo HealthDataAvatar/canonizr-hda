@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { createColumnHelper } from "@tanstack/react-table";
 import { AdminUserForm } from "@/components/admin-user-form";
-import { RequestTable } from "@/components/tables/request-table";
 import type { KeyRow } from "@/components/tables/key-table";
 import { MetricCard } from "@/components/metric-card";
 import { Section } from "@/components/ui/section";
@@ -71,9 +70,7 @@ export function AdminUserDetailContent({ user }: { user: AdminUserDetail }) {
         />
       </Section>
 
-      <Section title={`Recent jobs (${user.recentJobs.length})`}>
-        <RequestTable requests={user.recentJobs} pricePerUnit={user.pricePerUnit} />
-      </Section>
+      {/* TODO: Admin job history — fetched separately via getJobsForUser */}
     </div>
   );
 }

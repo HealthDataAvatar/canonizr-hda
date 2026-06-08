@@ -1,20 +1,21 @@
-"""Conversion pipeline — typed steps composed by a router.
+"""Canonize pipeline — reduce files to canonical machine-readable forms.
 
 Each step is a standalone function with typed inputs and outputs.
 The router composes steps and stores artefacts at the seams.
+No AI interpretation — that belongs in the describe pipeline.
 """
 
 from __future__ import annotations
 
 import logging
+import re
 
 from .artefacts import ArtefactStore
 from .context import Services
 from .errors import ServiceNotConfigured, UnsupportedFormat
-from .imageconv import extract_pages_typed, is_multipage, to_vlm_png
+from .imageconv import to_vlm_png
 from .mimetypes import LIBREOFFICE_TYPES, MARKITDOWN_TYPES, PASSTHROUGH_TYPES
-from .protocols import ImageCaptioner, OleConverter, OoxmlExtractor, PageRenderer, PdfExtractor
-from .services.image_postprocess import IMAGE_RE, caption_images, label_images
+from .protocols import OleConverter, OoxmlExtractor, PageRenderer, PdfExtractor
 from .tracing import Service, Span, Trace
 from .types import (
     ExtractedDocument,
@@ -24,7 +25,6 @@ from .types import (
     OoxmlDocument,
     PdfContent,
     SubmittedFile,
-    VlmImagePNG,
 )
 
 logger = logging.getLogger(__name__)
@@ -62,53 +62,14 @@ def extract_text(file: SubmittedFile) -> Markdown:
     return Markdown(file.data.decode("utf-8", errors="replace"))
 
 
-async def caption_image(image: VlmImagePNG, deadline: float, span: Span, captioner: ImageCaptioner) -> Markdown:
-    """Single VLM-ready image → descriptive markdown."""
-    with span.span(Service.CAPTIONING, service="openai/gpt-4o") as cap_span:
-        return await captioner.caption(image, deadline, cap_span)
-
-
-async def caption_standalone(file: SubmittedFile, deadline: float, span: Span, captioner: ImageCaptioner) -> Markdown:
-    """Standalone image file (any format, possibly multi-page) → markdown."""
-    if not captioner.is_available():
-        raise ServiceNotConfigured(
-            "Image processing requires the captioning service. "
-            "Set CAPTIONING_ENABLED=true in .env and ensure the captioning container is running."
-        )
-
-    image = ImageFile(data=file.data, mime_type=file.mime_type)
-
-    if is_multipage(file.mime_type):
-        with span.span(Service.EXTRACT_PAGES) as ep_span:
-            pages = extract_pages_typed(image)
-            ep_span.set(page_count=len(pages))
-
-        captions: list[Markdown] = []
-        with span.span(Service.CAPTIONING, service="openai/gpt-4o", page_count=len(pages)) as cap_span:
-            for i, page_png in enumerate(pages):
-                with cap_span.span(f"page[{i}]") as page_span:
-                    cap = await captioner.caption(page_png, deadline, page_span)
-                captions.append(cap)
-        return Markdown("\n\n---\n\n".join(captions))
-
-    png = to_vlm_png(image)
-    return await caption_image(png, deadline, span, captioner)
-
-
-async def resolve_images(doc: ExtractedDocument, deadline: float, span: Span, captioner: ImageCaptioner) -> Markdown:
-    """Replace base64 image references in extracted markdown with captions."""
-    return await caption_images(doc.markdown, doc.images, deadline, span, captioner)
-
-
-def label_extracted_images(doc: ExtractedDocument) -> Markdown:
-    """Replace base64 image references with classification labels (no VLM)."""
-    return label_images(doc.markdown, doc.images)
-
-
 async def render_thumbnails(pdf: PdfContent, renderer: PageRenderer) -> list[bytes]:
     """PDF → list of PNG page thumbnails."""
     result = await renderer.render(pdf)
     return result.pages
+
+
+# Base64 image references inlined by Docling
+_IMAGE_RE = re.compile(r"!\[([^\]]*)\]\(data:(image/[^;]+);base64,([^)]+)\)")
 
 
 # ---------------------------------------------------------------------------
@@ -116,18 +77,27 @@ async def render_thumbnails(pdf: PdfContent, renderer: PageRenderer) -> list[byt
 # ---------------------------------------------------------------------------
 
 
-async def convert(
+def _strip_base64_images(markdown: Markdown) -> Markdown:
+    """Remove base64-inlined images from Docling markdown output.
+
+    Images are already stored as separate artefacts; the inline base64
+    references are redundant and bloat the markdown.
+    """
+    return Markdown(_IMAGE_RE.sub("", markdown).strip())
+
+
+async def canonize(
     file: SubmittedFile,
     deadline: float,
     trace: Trace,
     svc: Services,
     artefacts: ArtefactStore | None = None,
 ) -> Markdown:
-    """Convert any supported file to markdown.
+    """Reduce a file to its canonical machine-readable forms.
 
-    Artefacts (thumbnails, converted PDF, extracted images) are stored
-    via the ArtefactStore as a side effect. The return value is the
-    extracted markdown text.
+    Artefacts (thumbnails, converted PDF, extracted images, normalised PNGs)
+    are stored via the ArtefactStore. The return value is the extracted
+    markdown text (empty string for image-only inputs).
     """
     parent = trace.root
     mime = file.mime_type
@@ -138,9 +108,15 @@ async def convert(
             pass
         return extract_text(file)
 
-    # Standalone images
+    # Standalone images → normalise to PNG
     if mime.startswith("image/"):
-        return await caption_standalone(file, deadline, parent, svc.captioner)
+        image = ImageFile(data=file.data, mime_type=mime)
+        with parent.span(Service.NORMALISE_IMAGE) as img_span:
+            png = to_vlm_png(image)
+            img_span.set(input_mime=mime, output_bytes=len(png.data))
+        if artefacts:
+            await artefacts.put("image-0", png.data, "image/png", label="Normalised image")
+        return Markdown("")
 
     # Modern office formats (OOXML, HTML, epub, email)
     if mime in MARKITDOWN_TYPES:
@@ -166,16 +142,14 @@ async def convert(
         if artefacts:
             await _store_pdf_artefacts(pdf, doc_ext, artefacts, parent, svc.page_renderer)
 
-        # Caption or label embedded images
-        if IMAGE_RE.search(doc_ext.markdown):
-            if svc.captioner.is_available():
-                return await resolve_images(doc_ext, deadline, parent, svc.captioner)
-            else:
-                return label_extracted_images(doc_ext)
-
-        return doc_ext.markdown
+        # Strip base64 image references — images are in artefacts
+        return _strip_base64_images(doc_ext.markdown)
 
     raise UnsupportedFormat(mime)
+
+
+# Keep old name as alias during migration
+convert = canonize
 
 
 # ---------------------------------------------------------------------------

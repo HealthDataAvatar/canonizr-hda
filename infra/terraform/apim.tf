@@ -156,6 +156,97 @@ resource "azurerm_api_management_api_operation" "delete_job" {
   }
 }
 
+# ---------------------------------------------------------------------------
+# Canonize endpoints
+# ---------------------------------------------------------------------------
+
+resource "azurerm_api_management_api_operation" "canonize_job" {
+  operation_id        = "canonize-job"
+  api_name            = azurerm_api_management_api.canonizr.name
+  api_management_name = azurerm_api_management.this.name
+  resource_group_name = azurerm_resource_group.this.name
+  display_name        = "Canonize File"
+  method              = "POST"
+  url_template        = "/v1/canonize"
+}
+
+resource "azurerm_api_management_api_operation" "get_canonize_job" {
+  operation_id        = "get-canonize-job"
+  api_name            = azurerm_api_management_api.canonizr.name
+  api_management_name = azurerm_api_management.this.name
+  resource_group_name = azurerm_resource_group.this.name
+  display_name        = "Get Canonize Job"
+  method              = "GET"
+  url_template        = "/v1/canonize/{jobId}"
+
+  template_parameter {
+    name     = "jobId"
+    required = true
+    type     = "string"
+  }
+}
+
+resource "azurerm_api_management_api_operation" "delete_canonize_job" {
+  operation_id        = "delete-canonize-job"
+  api_name            = azurerm_api_management_api.canonizr.name
+  api_management_name = azurerm_api_management.this.name
+  resource_group_name = azurerm_resource_group.this.name
+  display_name        = "Delete Canonize Job"
+  method              = "DELETE"
+  url_template        = "/v1/canonize/{jobId}"
+
+  template_parameter {
+    name     = "jobId"
+    required = true
+    type     = "string"
+  }
+}
+
+resource "azurerm_api_management_api_operation" "get_canonize_artefact" {
+  operation_id        = "get-canonize-artefact"
+  api_name            = azurerm_api_management_api.canonizr.name
+  api_management_name = azurerm_api_management.this.name
+  resource_group_name = azurerm_resource_group.this.name
+  display_name        = "Get Canonize Job Artefact"
+  method              = "GET"
+  url_template        = "/v1/canonize/{jobId}/artefacts/{name}"
+
+  template_parameter {
+    name     = "jobId"
+    required = true
+    type     = "string"
+  }
+
+  template_parameter {
+    name     = "name"
+    required = true
+    type     = "string"
+  }
+}
+
+# Fix: missing operation for existing /v1/jobs artefacts endpoint
+resource "azurerm_api_management_api_operation" "get_job_artefact" {
+  operation_id        = "get-job-artefact"
+  api_name            = azurerm_api_management_api.canonizr.name
+  api_management_name = azurerm_api_management.this.name
+  resource_group_name = azurerm_resource_group.this.name
+  display_name        = "Get Job Artefact"
+  method              = "GET"
+  url_template        = "/v1/jobs/{jobId}/artefacts/{name}"
+
+  template_parameter {
+    name     = "jobId"
+    required = true
+    type     = "string"
+  }
+
+  template_parameter {
+    name     = "name"
+    required = true
+    type     = "string"
+  }
+}
+
 resource "azurerm_api_management_api_operation" "health" {
   operation_id        = "health"
   api_name            = azurerm_api_management_api.canonizr.name

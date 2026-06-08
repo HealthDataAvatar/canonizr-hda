@@ -1,46 +1,30 @@
-"""Test captioning service paths.
+"""Test image canonization paths.
 
-These are smoke tests — they require a live captioning service.
-They should NOT run in the standard integration test suite.
+Images are normalised to PNG — no captioning in the canonize pipeline.
+Captioning moves to the /describe endpoint (future).
+
+These are smoke tests — marked to run separately.
 """
 
 import io
 
 import pytest
 
-from tests.integration.conftest import make_png, make_tiff, submit_and_poll
+from tests.integration.conftest import assert_canonize_ok, find_artefact, make_png, submit_and_poll
 
 pytestmark = pytest.mark.smoke
 
 
-def test_image_returns_text(test_sub):
+def test_image_produces_png_artefact(test_sub):
     png_bytes = make_png("Hello World")
-    submit, result = submit_and_poll(
+    _, result = submit_and_poll(
         files={"file": ("test.png", io.BytesIO(png_bytes), "image/png")},
         sub_id=test_sub,
     )
-    assert submit.status_code == 202
     assert result.status_code == 200
-    assert len(result.json()["markdown"]) > 0
-
-
-def test_image_caption_not_empty(test_sub):
-    png_bytes = make_png("Test 123")
-    submit, result = submit_and_poll(
-        files={"file": ("test.png", io.BytesIO(png_bytes), "image/png")},
-        sub_id=test_sub,
-    )
-    assert submit.status_code == 202
-    assert result.status_code == 200
-    assert len(result.json()["markdown"].strip()) > 5
-
-
-def test_multipage_tiff(test_sub):
-    tiff_bytes = make_tiff(["Page One", "Page Two", "Page Three"])
-    submit, result = submit_and_poll(
-        files={"file": ("scan.tiff", io.BytesIO(tiff_bytes), "image/tiff")},
-        sub_id=test_sub,
-    )
-    assert submit.status_code == 202
-    assert result.status_code == 200
-    assert result.json()["metadata"]["captioning"]["images_captioned"] == 3
+    artefacts = assert_canonize_ok(result.json())
+    img = find_artefact(artefacts, "image-0")
+    assert img is not None
+    assert img["mime_type"] == "image/png"
+    # No markdown for image-only jobs
+    assert find_artefact(artefacts, "markdown") is None

@@ -4,7 +4,7 @@
  */
 
 import { getTableClient } from "@/lib/data/table-client";
-import { TableName } from "@/lib/data/table-names";
+import { TableName } from "@/lib/data/table-interface";
 import type { BillingStore, Invoice, Usage } from ".";
 
 export class TableBillingStore implements BillingStore {

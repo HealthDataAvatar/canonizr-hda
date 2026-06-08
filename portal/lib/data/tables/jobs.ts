@@ -1,27 +1,9 @@
 /** Jobs table — reads from GwUserJobs index (mutable, newest-first). */
 
 import { getTableClient } from "@/lib/data/table-client";
-import { TableName } from "@/lib/data/table-names";
+import { TableName, JobPage, JobRecord, JobType  } from "@/lib/data/table-interface";
 import { toBillableKB } from "@/lib/pure/format";
 
-export interface JobRecord {
-  id: string;
-  timestamp: string;
-  completedAt?: string;
-  keyId: string;
-  billableKB: number;
-  status: "ok" | "processing" | "error" | "deleted";
-  retentionExpires?: string;
-  detail?: string;
-  originalFilename?: string;
-  mimeType?: string;
-  inputBytes: number;
-}
-
-export interface JobPage {
-  jobs: JobRecord[];
-  nextCursor: string | null;
-}
 
 function parseStatus(raw: string): "ok" | "processing" | "error" | "deleted" {
   if (raw === "ok") return "ok";
@@ -57,6 +39,7 @@ export async function listJobsForUser(
       timestamp: (entity.created_at as string) ?? "",
       completedAt: (entity.completed_at as string) || undefined,
       keyId: (entity.key_id as string) ?? "",
+      jobType: ((entity.job_type as string) || "") as JobType,
       billableKB: toBillableKB(Number(entity.input_bytes ?? 0)),
       status: parseStatus(entity.status as string),
       retentionExpires: (entity.retention_expires as string) || undefined,
@@ -64,6 +47,8 @@ export async function listJobsForUser(
       originalFilename: (entity.original_filename as string) || undefined,
       mimeType: (entity.mime_type as string) || undefined,
       inputBytes: Number(entity.input_bytes ?? 0),
+      artefacts: (entity.artefacts as string) || undefined,
+      pricePerUnit: entity.price_per_unit ? Number(entity.price_per_unit) : undefined,
     });
   }
 

@@ -30,6 +30,8 @@ const SERVICE_COLORS: Record<string, string> = {
   passthrough: "var(--color-trace-passthrough, oklch(0.70 0.05 45))",
   extract_pages: "var(--color-trace-extract-pages, oklch(0.65 0.12 200))",
   libreoffice: "var(--color-trace-libreoffice, oklch(0.65 0.15 100))",
+  thumbnails: "var(--color-trace-thumbnails, oklch(0.65 0.12 180))",
+  artefacts: "var(--color-trace-artefacts, oklch(0.65 0.10 90))",
 };
 
 const DEFAULT_COLOR = "var(--color-trace-default, oklch(0.55 0.05 45))";

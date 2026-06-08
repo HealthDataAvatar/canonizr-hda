@@ -5,14 +5,15 @@
  */
 
 import { requireAdmin } from "@/lib/auth/session";
-import { getUser, getCurrentConfig, getCurrentPermissions } from "@/lib/data/tables";
 import { getJobsForUser } from "./jobs";
 import { getServices } from "@/lib/services";
 import { getTableClient } from "./table-client";
-import { TableName } from "./table-names";
-import type { RequestRow } from "@/components/tables/request-table";
+import { TableName } from "./table-interface";
 import type { KeyRow } from "@/components/tables/key-table";
 import { aggregateJobs, sumInvoiceAmounts, type JobSummaryInput } from "@/lib/pure/admin-calc";
+import { getCurrentPermissions } from "./tables/user-permissions";
+import { getCurrentConfig } from "./tables/user-config";
+import { getUser } from "./tables/users";
 
 // -------------------------------------------------------------------------
 // User list
@@ -103,7 +104,6 @@ export interface AdminUserDetail {
   spendCapKB: number | null;
   stripeCustomerId: string;
   keys: KeyRow[];
-  recentJobs: RequestRow[];
   usageKB30d: number;
   totalInvoiced: number;
 }
@@ -134,14 +134,13 @@ export async function getUserDetail(userId: string): Promise<AdminUserDetail | n
   const { keys: keyStore } = getServices();
   const apiKeys = await keyStore.list(userId);
 
-  const { requests: recentJobs } = await getJobsForUser(userId, 50);
-
+  const jobPage = await getJobsForUser(userId, 100);
   const thirtyDaysAgo = Date.now() - 30 * 86_400_000;
   const stats = aggregateJobs(
-    recentJobs.map((j) => ({
-      timestamp: j.timestamp,
-      inputBytes: j.inputBytes ?? 0,
-      status: j.status >= 400 ? "error" : "ok",
+    jobPage.jobs.map((j) => ({
+      timestamp: j.submittedAt,
+      inputBytes: j.inputBytes,
+      status: j.status === "error" ? "error" : "ok",
     })),
     thirtyDaysAgo,
   );
@@ -177,7 +176,6 @@ export async function getUserDetail(userId: string): Promise<AdminUserDetail | n
       usageKB: k.usageKB,
       quotaKB: k.quotaKB,
     })),
-    recentJobs,
     usageKB30d: stats.billableKB,
     totalInvoiced,
   };

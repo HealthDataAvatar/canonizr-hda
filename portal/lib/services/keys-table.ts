@@ -5,7 +5,7 @@
 
 import { randomUUID } from "crypto";
 import { getTableClient } from "@/lib/data/table-client";
-import { TableName } from "@/lib/data/table-names";
+import { TableName } from "@/lib/data/table-interface";
 import { getRedis } from "@/lib/redis";
 import type { ApiKey, KeyStore } from ".";
 

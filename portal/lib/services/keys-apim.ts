@@ -8,7 +8,7 @@
  */
 
 import { getTableClient } from "@/lib/data/table-client";
-import { TableName } from "@/lib/data/table-names";
+import { TableName } from "@/lib/data/table-interface";
 import { getRedis } from "@/lib/redis";
 import { ApiKey, KeyStore } from "@/lib/services";
 

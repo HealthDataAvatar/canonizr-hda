@@ -1,6 +1,6 @@
 import { setConnectionString, getTableClient } from "@/lib/data/table-client";
 import { ensureAllTables } from "@/lib/data/ensure-tables";
-import { TableName } from "@/lib/data/table-names";
+import { TableName } from "@/lib/data/table-interface";
 
 export const PORTAL_URL = process.env.PORTAL_URL ?? "http://localhost:3000";
 export const APIM_STUB_URL = process.env.APIM_STUB_URL ?? "http://localhost:8080";
@@ -195,7 +195,7 @@ export async function seedJob(
     detail: "",
     created_at: createdAt,
     completed_at: createdAt,
-    retention_expires: "",
+    retention_expires: new Date(Date.now() + 24 * 60 * 60_000).toISOString(),
     ...overrides,
   });
   return jobId;

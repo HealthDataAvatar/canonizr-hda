@@ -7,7 +7,7 @@
 import { requireAdmin } from "@/lib/auth/session";
 import { getRedis } from "@/lib/redis";
 import { getTableClient } from "./table-client";
-import { TableName } from "./table-names";
+import { TableName } from "./table-interface";
 
 const STREAM_KEY = "stream:convert";
 const GROUP_NAME = "workers";

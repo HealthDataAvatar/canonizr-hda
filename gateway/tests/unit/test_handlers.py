@@ -6,7 +6,6 @@ import os
 import pytest
 
 from app.context import Services
-from app.crypto import encrypt
 from app.handlers import AcceptResult, Rejected, accept_job, delete_result, poll_result
 from app.keys import quota_limit, quota_usage
 from app.protocols import JobResult, JobStatus, UserContext
@@ -204,17 +203,18 @@ class TestPollResult:
         # Simulate worker completing the job
         from datetime import UTC, datetime, timedelta
 
-        payload = json.dumps(
-            {"markdown": "# Hello", "metadata": {"input_bytes": 5, "actions": ["passthrough"], "captioning": {}}}
+        artefacts = json.dumps(
+            [
+                {"name": "markdown", "mime_type": "text/markdown", "size_bytes": 7, "label": "Extracted text"},
+            ]
         )
-        encrypted = encrypt(payload.encode(), user.encryption_key)
-        await svc.blobs.put(f"{user.user_id}/{result.job_id}/output.bin", encrypted)
 
         meta = svc.jobs.get(result.job_id)
         assert meta is not None
         meta.status = JobStatus.OK
         meta.completed_at = datetime.now(UTC).isoformat()
         meta.retention_expires = (datetime.now(UTC) + timedelta(hours=24)).isoformat()
+        meta.artefacts = artefacts
         svc.jobs.update(meta)
 
         await svc.queue.store_result(result.job_id, JobResult(job_id=result.job_id, status="ok", status_code=200))
@@ -223,8 +223,9 @@ class TestPollResult:
         assert poll.status == "ok"
         assert poll.status_code == 200
         assert poll.body is not None
-        assert poll.body["markdown"] == "# Hello"
+        assert poll.body["artefacts"][0]["name"] == "markdown"
         assert poll.body["expires_at"] == meta.retention_expires
+        assert poll.body["metadata"]["input_bytes"] == 5
 
     @pytest.mark.asyncio
     async def test_deleted_job_returns_410(self):

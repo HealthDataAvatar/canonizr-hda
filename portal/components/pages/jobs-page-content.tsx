@@ -1,14 +1,14 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef, type ReactNode } from "react";
-import { RequestTable } from "@/components/tables/request-table";
-import type { RequestRow } from "@/components/tables/request-table";
+import { CanonizeUserJobTable } from "@/components/tables/canonize-user-job-table";
+import type { CanonizeJobRow } from "@/lib/pure/job-types";
 import { getSessionJobIds, UploadFormJobContext } from "@/components/upload-form";
 
 const REFRESH_INTERVAL = 5_000;
 
 export interface JobsPageContentProps {
-  initialRequests: RequestRow[];
+  initialRequests: CanonizeJobRow[];
   initialCursor: string | null;
   uploadSlot: ReactNode;
 }
@@ -26,7 +26,7 @@ export function JobsPageContent({ initialRequests, initialCursor, uploadSlot }: 
     setSessionJobIds(new Set(getSessionJobIds()));
   }, []);
 
-  const hasProcessing = requests.some((r) => r.status === 202);
+  const hasProcessing = requests.some((r) => r.status === "processing");
 
   const refresh = useCallback(async () => {
     try {
@@ -76,8 +76,8 @@ export function JobsPageContent({ initialRequests, initialCursor, uploadSlot }: 
         {uploadSlot}
       </UploadFormJobContext.Provider>
 
-      <RequestTable
-        requests={requests}
+      <CanonizeUserJobTable
+        jobs={requests}
         highlightIds={sessionJobIds}
       />
 

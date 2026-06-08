@@ -32,6 +32,11 @@ class BlobStore(Protocol):
 # ---------------------------------------------------------------------------
 
 
+class JobType(StrEnum):
+    CANONIZE = "canonize"
+    DESCRIBE = "describe"
+
+
 class JobStatus(StrEnum):
     PROCESSING = "processing"
     OK = "ok"
@@ -51,6 +56,7 @@ class JobMeta:
     user_id: str
     job_id: str
     sub_id: str
+    job_type: str = ""
     key_id: str = ""
     original_filename: str = "document"
     mime_type: str = ""
@@ -160,6 +166,7 @@ class Job:
     mime_type: str
     filename: str
     deadline_seconds: float
+    job_type: str = JobType.CANONIZE
     verbose: bool = False
     accept_header: str = "application/json"
     reclaimed: bool = False  # True if recovered via XAUTOCLAIM
@@ -173,6 +180,7 @@ class Job:
         return {
             "job_id": self.job_id,
             "sub_id": self.sub_id,
+            "job_type": self.job_type,
             "mime_type": self.mime_type,
             "filename": self.filename,
             "deadline_seconds": str(self.deadline_seconds),
@@ -190,6 +198,7 @@ class Job:
             mime_type=fields["mime_type"],
             filename=fields["filename"],
             deadline_seconds=float(fields["deadline_seconds"]),
+            job_type=fields.get("job_type", JobType.CANONIZE),
             verbose=fields["verbose"] == "True",
             accept_header=fields.get("accept_header", "application/json"),
         )

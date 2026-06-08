@@ -14,7 +14,7 @@ import {
   APIM_STUB_URL,
 } from "./helpers";
 import { getTableClient } from "@/lib/data/table-client";
-import { TableName } from "@/lib/data/table-names";
+import { TableName } from "@/lib/data/table-interface";
 
 let fetchPortal: ReturnType<typeof createFetcher>;
 let testUser: TestUser;

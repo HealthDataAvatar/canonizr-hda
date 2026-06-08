@@ -11,7 +11,7 @@
 import type { Adapter, AdapterUser, AdapterAccount, AdapterSession } from "next-auth/adapters";
 import { randomUUID, randomBytes } from "crypto";
 import { getTableClient } from "@/lib/data/table-client";
-import { TableName } from "@/lib/data/table-names";
+import { TableName } from "@/lib/data/table-interface";
 
 function makeClients() {
   return {

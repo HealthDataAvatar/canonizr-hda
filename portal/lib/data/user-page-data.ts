@@ -11,7 +11,7 @@ import { getCurrentConfig, getCurrentPermissions, appendPermissions, type Billin
 import { getJobsForUser } from "./jobs";
 import { calculateBilling } from "@/lib/pure/billing-calc";
 import { getRedis } from "@/lib/redis";
-import type { RequestRow } from "@/components/tables/request-table";
+import type { CanonizeJobRow } from "@/lib/pure/job-types";
 import type { KeyRow } from "@/components/tables/key-table";
 
 // -------------------------------------------------------------------------
@@ -25,16 +25,16 @@ export async function getRecentError(): Promise<RecentError | null> {
   const page = await getJobsForUser(userId, 10);
 
   const fiveMinAgo = Date.now() - 5 * 60 * 1000;
-  const error = page.requests.find(
-    (r) => r.status !== 200 && r.status !== 202 && new Date(r.timestamp).getTime() > fiveMinAgo
+  const error = page.jobs.find(
+    (r) => r.status === "error" && new Date(r.submittedAt).getTime() > fiveMinAgo
   );
 
-  if (!error) return null;
+  if (!error || error.status !== "error") return null;
   return {
     id: error.id,
     keyName: error.keyId,
-    status: error.status,
-    timestamp: error.timestamp,
+    status: 500,
+    timestamp: error.submittedAt,
   };
 }
 
@@ -149,12 +149,12 @@ export async function getBillingData(): Promise<BillingData> {
 // -------------------------------------------------------------------------
 
 export interface HistoryData {
-  requests: RequestRow[];
+  jobs: CanonizeJobRow[];
   nextCursor: string | null;
 }
 
 export async function getHistoryData(): Promise<HistoryData> {
   const { userId } = await requireUser({ autoRedirect: true });
   const page = await getJobsForUser(userId);
-  return { requests: page.requests, nextCursor: page.nextCursor };
+  return { jobs: page.jobs, nextCursor: page.nextCursor };
 }

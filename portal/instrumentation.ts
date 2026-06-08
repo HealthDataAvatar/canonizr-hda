@@ -39,7 +39,7 @@ export async function register() {
   const connStr = process.env.TABLE_STORAGE_CONNECTION_STRING;
   if (connStr && connStr.includes("http://")) {
     const { getTableClient } = await import("@/lib/data/table-client");
-    const { TableName } = await import("@/lib/data/table-names");
+    const { TableName } = await import("@/lib/data/table-interface");
     const { appendConfig, getDefaults } = await import("@/lib/data/tables/user-config");
     const { appendPermissions } = await import("@/lib/data/tables/user-permissions");
 

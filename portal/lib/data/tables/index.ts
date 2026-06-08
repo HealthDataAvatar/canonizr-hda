@@ -1,6 +1,10 @@
-export { getUser, type UserRecord } from "./users";
-export { listJobsForUser, type JobRecord, type JobPage } from "./jobs";
-export { getCurrentConfig, appendConfig, type UserConfigRecord } from "./user-config";
-export { getCurrentPermissions, appendPermissions, type UserPermissionsRecord, type BillingStatus } from "./user-permissions";
+/** Barrel re-export for table helpers. Types come from table-interface.ts. */
+
+export { getCurrentConfig, appendConfig } from "./user-config";
+export { getCurrentPermissions, appendPermissions } from "./user-permissions";
 export { getUserIdByStripeCustomerId } from "./user-permissions-lookup";
-export { invertedTimestampRK, getLatest } from "./append-only";
+export { listJobsForUser } from "./jobs";
+export { getJobTrace } from "./job-trace";
+export { getUser } from "./users";
+
+export type { UserConfigRecord, UserPermissionsRecord, BillingStatus, JobRecord, JobPage, UserRecord } from "@/lib/data/table-interface";

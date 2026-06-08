@@ -27,6 +27,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "4.3.0",
+    "filesize": "^11.0.17",
     "highlight.js": "^11.11.1",
     "ioredis": "^5.11.0",
     "lucide-react": "^1.17.0",

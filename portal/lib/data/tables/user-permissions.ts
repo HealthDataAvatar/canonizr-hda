@@ -1,20 +1,8 @@
 /** UserPermissions table — append-only permission and account state. */
 
 import { getTableClient } from "@/lib/data/table-client";
-import { TableName } from "@/lib/data/table-names";
+import { TableName, BillingStatus, UserPermissionsRecord } from "@/lib/data/table-interface";
 import { invertedTimestampRK, getLatest } from "./append-only";
-
-export type BillingStatus = "active" | "past_due" | "canceled" | "free_exhausted" | "";
-
-export interface UserPermissionsRecord {
-  isAdmin: boolean;
-  blocked: boolean;
-  stripeCustomerId: string;
-  billingStatus: BillingStatus;
-  hasPaymentMethod: boolean;
-  changedBy: string;
-  timestamp: string;
-}
 
 const DEFAULTS: Omit<UserPermissionsRecord, "changedBy" | "timestamp"> = {
   isAdmin: false,

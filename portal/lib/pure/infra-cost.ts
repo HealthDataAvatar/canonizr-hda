@@ -23,7 +23,7 @@ const WORKER_VCPUS = 2;
 
 /** Services that run inside the worker (no separate compute cost). */
 const WORKER_INTERNAL_SERVICES = new Set([
-  "captioning", "markitdown", "passthrough", "extract_pages", "libreoffice",
+  "captioning", "markitdown", "passthrough", "extract_pages", "libreoffice", "normalise_image",
 ]);
 
 /** Azure Communication Services email: $0.00025/email. */

@@ -1,17 +1,8 @@
 /** UserConfig table — append-only billing/quota settings. */
 
 import { getTableClient } from "@/lib/data/table-client";
-import { TableName } from "@/lib/data/table-names";
+import { TableName, UserConfigRecord } from "@/lib/data/table-interface";
 import { invertedTimestampRK, getLatest } from "./append-only";
-
-export interface UserConfigRecord {
-  freeUnits: number | null;
-  maxKeys: number;
-  pricePerUnit: number;
-  spendCapKB: number | null;
-  changedBy: string;
-  timestamp: string;
-}
 
 function requireEnvNumber(name: string): number {
   const raw = process.env[name];

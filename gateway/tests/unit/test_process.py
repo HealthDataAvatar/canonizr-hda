@@ -1,4 +1,4 @@
-"""Unit tests for worker process logic — uses fakes, no patching except for convert()."""
+"""Unit tests for worker process logic — uses fakes, no patching except for canonize()."""
 
 import os
 from unittest.mock import AsyncMock, patch
@@ -7,7 +7,7 @@ import pytest
 
 from app.context import Services
 from app.crypto import encrypt
-from app.process import process_job
+from app.process import dispatch_job
 from app.protocols import Job, UserContext
 from app.quota import QuotaService
 from app.types import Markdown
@@ -70,16 +70,12 @@ class TestProcessJob:
 
         mock_result = Markdown("# Hello")
 
-        with patch("app.process.convert", new_callable=AsyncMock, return_value=mock_result):
-            proc = await process_job(job, user, svc)
+        with patch("app.process_canonize.canonize", new_callable=AsyncMock, return_value=mock_result):
+            proc = await dispatch_job(job, user, svc)
 
         assert proc.job_result.status == "ok"
         assert proc.file_size == 11
         assert proc.doc_hash != ""
-
-        # Output blob written
-        output = await svc.blobs.get(f"{user.user_id}/{job.job_id}/output.bin")
-        assert output is not None
 
         # Job metadata updated
         meta = svc.jobs.get(job.job_id)
@@ -87,6 +83,7 @@ class TestProcessJob:
         assert meta.status == "ok"
         assert meta.completed_at != ""
         assert meta.retention_expires != ""
+        assert meta.artefacts != ""  # markdown artefact stored
 
         # Telemetry emitted
         assert len(emitter.events) == 1
@@ -100,7 +97,7 @@ class TestProcessJob:
         svc, user, emitter = _make_svc()
         job = _make_job()
 
-        proc = await process_job(job, user, svc)
+        proc = await dispatch_job(job, user, svc)
         assert proc.job_result.status == "error"
         assert proc.job_result.status_code == 500
         assert "not found" in proc.job_result.detail.lower()
@@ -120,8 +117,8 @@ class TestProcessJob:
 
         from app.errors import UnsupportedFormat
 
-        with patch("app.process.convert", new_callable=AsyncMock, side_effect=UnsupportedFormat("video/mp4")):
-            proc = await process_job(job, user, svc)
+        with patch("app.process_canonize.canonize", new_callable=AsyncMock, side_effect=UnsupportedFormat("video/mp4")):
+            proc = await dispatch_job(job, user, svc)
 
         assert proc.job_result.status == "error"
         assert proc.job_result.status_code == 400
@@ -145,8 +142,8 @@ class TestProcessJob:
             )
         )
 
-        with patch("app.process.convert", new_callable=AsyncMock, side_effect=RuntimeError("boom")):
-            proc = await process_job(job, user, svc)
+        with patch("app.process_canonize.canonize", new_callable=AsyncMock, side_effect=RuntimeError("boom")):
+            proc = await dispatch_job(job, user, svc)
 
         assert proc.job_result.status == "error"
         assert proc.job_result.status_code == 500
