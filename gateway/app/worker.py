@@ -18,11 +18,13 @@ from .protocols import Job, JobStatus, UserContext
 from .queue import RedisQueue
 from .quota import QuotaService
 from .redis_client import get_redis
+from .services.camelot_tables import CamelotTableExtractor
 from .services.captioning import OpenAIImageCaptioner
-from .services.docling import DoclingPdfExtractor
 from .services.libreoffice import GotenbergOleConverter
+from .services.liteparse import LiteParsePdfTextExtractor
 from .services.markitdown import MarkItDownExtractor
-from .services.thumbnails import PyMuPdfRenderer
+from .services.pdfium_renderer import PdfiumPageRenderer
+from .services.pikepdf_images import PikepdfImageExtractor
 from .sweep import run_sweep_loop
 from .telemetry import JobReclaimed, JobSkippedIdempotent, PostHogEmitter, WorkerError
 from .user_resolver import TableUserResolver
@@ -119,10 +121,12 @@ async def run():
         quota=QuotaService(r, table_service=table_svc),  # type: ignore[arg-type]
         telemetry=PostHogEmitter(),
         captioner=OpenAIImageCaptioner(),
-        pdf_extractor=DoclingPdfExtractor(),
+        pdf_text_extractor=LiteParsePdfTextExtractor(),
+        pdf_image_extractor=PikepdfImageExtractor(),
+        pdf_table_extractor=CamelotTableExtractor(),
         ole_converter=GotenbergOleConverter(),
         ooxml_extractor=MarkItDownExtractor(),
-        page_renderer=PyMuPdfRenderer(),
+        page_renderer=PdfiumPageRenderer(),
     )
     await queue.ensure_group()
     asyncio.create_task(run_sweep_loop(svc))

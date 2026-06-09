@@ -14,7 +14,9 @@ from typing import Any
 class Service(StrEnum):
     """Pipeline services that produce traced steps."""
 
-    DOCLING = "docling"
+    LITEPARSE = "liteparse"
+    PIKEPDF = "pikepdf"
+    CAMELOT = "camelot"
     GOTENBERG = "gotenberg"
     CAPTIONING = "captioning"
     MARKITDOWN = "markitdown"

@@ -10,7 +10,8 @@
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
     "test": "vitest --project unit",
-    "test-cov": "vitest run --project unit --coverage"
+    "test-cov": "vitest run --project unit --coverage",
+    "list-primary-files": "bash scripts/list-primary-files.sh"
   },
   "dependencies": {
     "@azure/arm-apimanagement": "^10.0.0",

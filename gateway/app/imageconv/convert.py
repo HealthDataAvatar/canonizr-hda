@@ -65,7 +65,7 @@ def is_multipage(mime_type: str) -> bool:
 # Typed wrappers using domain types
 # ---------------------------------------------------------------------------
 
-from ..types import ExtractedImage, ImageFile, VlmImagePNG
+from ..types import ImageFile, VlmImagePNG
 
 
 def to_vlm_png(image: ImageFile, *, max_dimension: int = DEFAULT_MAX_DIMENSION) -> VlmImagePNG:
@@ -75,11 +75,6 @@ def to_vlm_png(image: ImageFile, *, max_dimension: int = DEFAULT_MAX_DIMENSION) 
     buf = BytesIO()
     img.convert("RGB").save(buf, format="PNG")
     return VlmImagePNG(data=buf.getvalue())
-
-
-def extracted_to_vlm_png(image: ExtractedImage, *, max_dimension: int = DEFAULT_MAX_DIMENSION) -> VlmImagePNG:
-    """Convert a Docling-extracted image to a VLM-ready PNG."""
-    return to_vlm_png(ImageFile(data=image.data, mime_type=image.mime_type), max_dimension=max_dimension)
 
 
 def extract_pages_typed(image: ImageFile, *, max_dimension: int = DEFAULT_MAX_DIMENSION) -> list[VlmImagePNG]:

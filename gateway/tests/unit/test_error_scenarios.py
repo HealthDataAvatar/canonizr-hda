@@ -17,18 +17,20 @@ from tests.fakes import (
     FakeBlobStore,
     FakeEmitter,
     FakeImageCaptioner,
+    FakeImageExtractor,
     FakeJobStore,
     FakeOleConverter,
     FakeOoxmlExtractor,
     FakePageRenderer,
-    FakePdfExtractor,
+    FakePdfTextExtractor,
     FakeQueue,
     FakeRedis,
+    FakeTableExtractor,
     FakeUserResolver,
 )
 
 
-def _make_svc(*, pdf_extractor=None, captioner=None, ole_converter=None):
+def _make_svc(*, pdf_text_extractor=None, captioner=None, ole_converter=None):
     key = os.urandom(32)
     user = UserContext(user_id="user_1", encryption_key=key, price_per_unit=0.003, key_id="test")
     emitter = FakeEmitter()
@@ -40,7 +42,9 @@ def _make_svc(*, pdf_extractor=None, captioner=None, ole_converter=None):
         quota=QuotaService(FakeRedis()),
         telemetry=emitter,
         captioner=captioner or FakeImageCaptioner(),
-        pdf_extractor=pdf_extractor or FakePdfExtractor(),
+        pdf_text_extractor=pdf_text_extractor or FakePdfTextExtractor(),
+        pdf_image_extractor=FakeImageExtractor(),
+        pdf_table_extractor=FakeTableExtractor(),
         ole_converter=ole_converter or FakeOleConverter(),
         ooxml_extractor=FakeOoxmlExtractor(),
         page_renderer=FakePageRenderer(),
@@ -74,15 +78,15 @@ async def _seed_and_run(svc, user, job, file_bytes=None):
     return await dispatch_job(job, user, svc)
 
 
-class TestPdfExtractorErrors:
+class TestPdfTextExtractorErrors:
     @pytest.mark.asyncio
     async def test_transient_error_classifies_as_transient(self):
-        fake_pdf = FakePdfExtractor(
+        fake_pdf = FakePdfTextExtractor(
             responses=[
-                TransientUpstreamError("docling", 504, "service timeout"),
+                TransientUpstreamError("liteparse", 504, "service timeout"),
             ]
         )
-        svc, user, _ = _make_svc(pdf_extractor=fake_pdf)
+        svc, user, _ = _make_svc(pdf_text_extractor=fake_pdf)
         job = _make_job(mime_type="application/pdf", filename="test.pdf")
 
         proc = await _seed_and_run(svc, user, job)
@@ -93,14 +97,14 @@ class TestPdfExtractorErrors:
 
     @pytest.mark.asyncio
     async def test_success_returns_ok(self):
-        from app.types import ExtractedDocument, Markdown
+        from app.types import Markdown
 
-        fake_pdf = FakePdfExtractor(
+        fake_pdf = FakePdfTextExtractor(
             responses=[
-                ExtractedDocument(markdown=Markdown("# Hello world")),
+                Markdown("# Hello world"),
             ]
         )
-        svc, user, _ = _make_svc(pdf_extractor=fake_pdf, captioner=FakeImageCaptioner(available=False))
+        svc, user, _ = _make_svc(pdf_text_extractor=fake_pdf, captioner=FakeImageCaptioner(available=False))
         job = _make_job(mime_type="application/pdf", filename="test.pdf")
 
         proc = await _seed_and_run(svc, user, job)

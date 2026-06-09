@@ -248,7 +248,8 @@ class Queue(Protocol):
 # ---------------------------------------------------------------------------
 
 from .types import (
-    ExtractedDocument,
+    EmbeddedImage,
+    ExtractedTables,
     Markdown,
     OleOfficeDocument,
     OoxmlDocument,
@@ -265,10 +266,22 @@ class OleConverter(Protocol):
     async def convert(self, doc: OleOfficeDocument, deadline: float, span: Span) -> PdfContent: ...
 
 
-class PdfExtractor(Protocol):
-    """PDF → structured document with text and classified images."""
+class PdfTextExtractor(Protocol):
+    """PDF → markdown text with spatial layout (LiteParse)."""
 
-    async def extract(self, pdf: PdfContent, deadline: float, span: Span) -> ExtractedDocument: ...
+    async def extract(self, pdf: PdfContent, span: Span) -> Markdown: ...
+
+
+class ImageExtractor(Protocol):
+    """PDF → losslessly extracted embedded images (pikepdf)."""
+
+    async def extract(self, pdf: PdfContent, span: Span) -> list[EmbeddedImage]: ...
+
+
+class TableExtractor(Protocol):
+    """PDF → structured tables (Camelot)."""
+
+    async def extract(self, pdf: PdfContent, span: Span) -> ExtractedTables: ...
 
 
 class OoxmlExtractor(Protocol):
@@ -282,8 +295,6 @@ class ImageCaptioner(Protocol):
 
     def is_available(self) -> bool: ...
     async def caption(self, image: VlmImagePNG, deadline: float, span: Span) -> Markdown: ...
-
-    # TODO: add CaptionMode enum driven by ExtractedImage.classifications
 
 
 class PageRenderer(Protocol):

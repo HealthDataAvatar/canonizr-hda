@@ -7,18 +7,18 @@ No AI interpretation — that belongs in the describe pipeline.
 
 from __future__ import annotations
 
+import asyncio
 import logging
-import re
 
 from .artefacts import ArtefactStore
 from .context import Services
 from .errors import ServiceNotConfigured, UnsupportedFormat
 from .imageconv import to_vlm_png
 from .mimetypes import LIBREOFFICE_TYPES, MARKITDOWN_TYPES, PASSTHROUGH_TYPES
-from .protocols import OleConverter, OoxmlExtractor, PageRenderer, PdfExtractor
+from .protocols import OleConverter, OoxmlExtractor, PageRenderer
 from .tracing import Service, Span, Trace
 from .types import (
-    ExtractedDocument,
+    ExtractedTables,
     ImageFile,
     Markdown,
     OleOfficeDocument,
@@ -43,12 +43,6 @@ async def to_pdf(doc: OleOfficeDocument, deadline: float, span: Span, converter:
         return await converter.convert(doc, deadline, lo_span)
 
 
-async def extract_pdf(pdf: PdfContent, deadline: float, span: Span, extractor: PdfExtractor) -> ExtractedDocument:
-    """PDF → structured document with text and classified images."""
-    with span.span(Service.DOCLING) as docling_span:
-        return await extractor.extract(pdf, deadline, docling_span)
-
-
 async def extract_ooxml(doc: OoxmlDocument, span: Span, extractor: OoxmlExtractor) -> Markdown:
     """Modern office/HTML → markdown via MarkItDown."""
     with span.span(Service.MARKITDOWN) as md_span:
@@ -68,8 +62,21 @@ async def render_thumbnails(pdf: PdfContent, renderer: PageRenderer) -> list[byt
     return result.pages
 
 
-# Base64 image references inlined by Docling
-_IMAGE_RE = re.compile(r"!\[([^\]]*)\]\(data:(image/[^;]+);base64,([^)]+)\)")
+# ---------------------------------------------------------------------------
+# Table inlining — pure function
+# ---------------------------------------------------------------------------
+
+
+def _inline_tables(text: Markdown, tables: ExtractedTables) -> Markdown:
+    """Append extracted tables as markdown, grouped by source page."""
+    if not tables.tables:
+        return text
+    parts: list[str] = [text]
+    for tbl in sorted(tables.tables, key=lambda t: t.page):
+        md = tbl.to_markdown()
+        if md:
+            parts.append(f"\n\n<!-- Table from page {tbl.page + 1} -->\n{md}")
+    return Markdown("\n".join(parts))
 
 
 # ---------------------------------------------------------------------------
@@ -77,13 +84,64 @@ _IMAGE_RE = re.compile(r"!\[([^\]]*)\]\(data:(image/[^;]+);base64,([^)]+)\)")
 # ---------------------------------------------------------------------------
 
 
-def _strip_base64_images(markdown: Markdown) -> Markdown:
-    """Remove base64-inlined images from Docling markdown output.
+async def _extract_pdf_parallel(
+    pdf: PdfContent,
+    span: Span,
+    svc: Services,
+    artefacts: ArtefactStore | None,
+) -> Markdown:
+    """Run all four PDF extractions in parallel, store artefacts, return markdown."""
 
-    Images are already stored as separate artefacts; the inline base64
-    references are redundant and bloat the markdown.
-    """
-    return Markdown(_IMAGE_RE.sub("", markdown).strip())
+    async def _text():
+        with span.span(Service.LITEPARSE) as s:
+            return await svc.pdf_text_extractor.extract(pdf, s)
+
+    async def _pages():
+        with span.span(Service.THUMBNAILS) as s:
+            try:
+                result = await render_thumbnails(pdf, svc.page_renderer)
+                s.set(page_count=len(result))
+                return result
+            except Exception:
+                logger.warning("Thumbnail render failed", exc_info=True)
+                s.set(error="render failed")
+                return []
+
+    async def _images():
+        with span.span(Service.PIKEPDF) as s:
+            return await svc.pdf_image_extractor.extract(pdf, s)
+
+    async def _tables():
+        with span.span(Service.CAMELOT) as s:
+            return await svc.pdf_table_extractor.extract(pdf, s)
+
+    text, pages, images, tables = await asyncio.gather(_text(), _pages(), _images(), _tables())
+
+    # Inline tables into the markdown
+    text = _inline_tables(text, tables)
+
+    # Store artefacts
+    if artefacts:
+        with span.span(Service.ARTEFACTS) as art_span:
+            for png in pages:
+                name = artefacts.allocate("page")
+                await artefacts.put(name, png, "image/png", label=f"Page {int(name.split('-')[1]) + 1}")
+            for img in images:
+                name = artefacts.allocate("image")
+                await artefacts.put(name, img.data, img.mime_type, label=img.label)
+            for tbl in tables.tables:
+                name = artefacts.allocate("table")
+                await artefacts.put(
+                    name, tbl.to_json().encode(), "application/json", label=f"Table from page {tbl.page + 1}"
+                )
+            art_span.set(
+                artefact_count=len(artefacts.manifest),
+                image_count=len(images),
+                table_count=len(tables.tables),
+                total_bytes=sum(a.size_bytes for a in artefacts.manifest),
+            )
+
+    return text
 
 
 async def canonize(
@@ -95,7 +153,7 @@ async def canonize(
 ) -> Markdown:
     """Reduce a file to its canonical machine-readable forms.
 
-    Artefacts (thumbnails, converted PDF, extracted images, normalised PNGs)
+    Artefacts (thumbnails, converted PDF, extracted images, tables)
     are stored via the ArtefactStore. The return value is the extracted
     markdown text (empty string for image-only inputs).
     """
@@ -136,55 +194,10 @@ async def canonize(
         pdf = PdfContent(data=file.data, source_mime=mime)
 
     if pdf:
-        doc_ext = await extract_pdf(pdf, deadline, parent, svc.pdf_extractor)
-
-        # Store artefacts: thumbnails + extracted images
-        if artefacts:
-            await _store_pdf_artefacts(pdf, doc_ext, artefacts, parent, svc.page_renderer)
-
-        # Strip base64 image references — images are in artefacts
-        return _strip_base64_images(doc_ext.markdown)
+        return await _extract_pdf_parallel(pdf, parent, svc, artefacts)
 
     raise UnsupportedFormat(mime)
 
 
 # Keep old name as alias during migration
 convert = canonize
-
-
-# ---------------------------------------------------------------------------
-# Artefact helpers
-# ---------------------------------------------------------------------------
-
-
-async def _store_pdf_artefacts(
-    pdf: PdfContent,
-    doc: ExtractedDocument,
-    artefacts: ArtefactStore,
-    span: Span,
-    renderer: PageRenderer,
-) -> None:
-    """Store page thumbnails and extracted images as artefacts."""
-    with span.span(Service.ARTEFACTS) as art_span:
-        with art_span.span(Service.THUMBNAILS) as thumb_span:
-            try:
-                pages = await render_thumbnails(pdf, renderer)
-                for png in pages:
-                    name = artefacts.allocate("page")
-                    await artefacts.put(name, png, "image/png", label=f"Page {int(name.split('-')[1]) + 1}")
-                thumb_span.set(page_count=len(pages))
-            except Exception:
-                logger.warning("Failed to render page thumbnails", exc_info=True)
-                thumb_span.set(error="render failed")
-
-        image_count = 0
-        for img in doc.images:
-            name = artefacts.allocate("image")
-            await artefacts.put(name, img.data, img.mime_type, label=img.label)
-            image_count += 1
-
-        art_span.set(
-            artefact_count=len(artefacts.manifest),
-            image_count=image_count,
-            total_bytes=sum(a.size_bytes for a in artefacts.manifest),
-        )

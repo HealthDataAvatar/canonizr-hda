@@ -100,9 +100,6 @@ class OpenAIImageCaptioner:
     Token counts are recorded in the span, not the return value.
     """
 
-    # TODO: add CaptionMode enum driven by ExtractedImage.classifications
-    # to select different prompts for charts vs photos vs handwriting
-
     def is_available(self) -> bool:
         return is_available()
 

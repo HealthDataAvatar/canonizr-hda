@@ -6,6 +6,7 @@ Protocols and implementations both import from here.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from typing import NewType
 
@@ -69,21 +70,47 @@ class VlmImagePNG:
 
 
 @dataclass
-class ExtractedImage:
-    """Image extracted from a document by Docling, with classification metadata."""
+class EmbeddedImage:
+    """Image losslessly extracted from a PDF."""
 
     data: bytes
-    mime_type: str
-    label: str  # human-readable: "Bar Chart", "Logo"
-    classifications: frozenset[str] = field(default_factory=frozenset)  # Docling labels: "bar_chart", "logo"
+    mime_type: str  # image/jpeg, image/png, etc.
+    page: int  # 0-based page index
+    label: str = ""  # e.g. "Image from page 3"
 
 
 @dataclass
-class ExtractedDocument:
-    """Structured extraction from a PDF — markdown text with classified image references."""
+class ExtractedTable:
+    """A single table extracted from a PDF page."""
 
-    markdown: Markdown
-    images: list[ExtractedImage] = field(default_factory=list)
+    page: int  # 0-based page index
+    headers: list[str]  # column headers (may be empty)
+    rows: list[list[str]]  # data rows (excludes header row)
+    accuracy: float  # parser confidence 0-1
+
+    def to_markdown(self) -> str:
+        """Render as a pipe-delimited markdown table."""
+        if not self.headers and not self.rows:
+            return ""
+        cols = self.headers or [f"Col {i + 1}" for i in range(len(self.rows[0]))]
+        lines = [
+            "| " + " | ".join(cols) + " |",
+            "| " + " | ".join("---" for _ in cols) + " |",
+        ]
+        for row in self.rows:
+            lines.append("| " + " | ".join(row) + " |")
+        return "\n".join(lines)
+
+    def to_json(self) -> str:
+        """Structured JSON with headers + rows for programmatic use."""
+        return json.dumps({"page": self.page, "headers": self.headers, "rows": self.rows, "accuracy": self.accuracy})
+
+
+@dataclass
+class ExtractedTables:
+    """All tables extracted from a PDF."""
+
+    tables: list[ExtractedTable] = field(default_factory=list)
 
 
 @dataclass

@@ -23,11 +23,13 @@ from .queue import RedisQueue
 from .quota import QuotaService
 from .redis_client import get_redis
 from .sanitize import content_disposition
+from .services.camelot_tables import CamelotTableExtractor
 from .services.captioning import OpenAIImageCaptioner
-from .services.docling import DoclingPdfExtractor
 from .services.libreoffice import GotenbergOleConverter
+from .services.liteparse import LiteParsePdfTextExtractor
 from .services.markitdown import MarkItDownExtractor
-from .services.thumbnails import PyMuPdfRenderer
+from .services.pdfium_renderer import PdfiumPageRenderer
+from .services.pikepdf_images import PikepdfImageExtractor
 from .telemetry import PostHogEmitter
 from .user_resolver import TableUserResolver
 
@@ -54,10 +56,12 @@ async def lifespan(app: FastAPI):
         quota=QuotaService(r, table_service=table_svc),  # type: ignore[arg-type]
         telemetry=PostHogEmitter(),
         captioner=OpenAIImageCaptioner(),
-        pdf_extractor=DoclingPdfExtractor(),
+        pdf_text_extractor=LiteParsePdfTextExtractor(),
+        pdf_image_extractor=PikepdfImageExtractor(),
+        pdf_table_extractor=CamelotTableExtractor(),
         ole_converter=GotenbergOleConverter(),
         ooxml_extractor=MarkItDownExtractor(),
-        page_renderer=PyMuPdfRenderer(),
+        page_renderer=PdfiumPageRenderer(),
     )
     await queue.ensure_group()
     yield

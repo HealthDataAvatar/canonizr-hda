@@ -5,12 +5,14 @@ from dataclasses import dataclass
 from .protocols import (
     BlobStore,
     ImageCaptioner,
+    ImageExtractor,
     JobStore,
     OleConverter,
     OoxmlExtractor,
     PageRenderer,
-    PdfExtractor,
+    PdfTextExtractor,
     Queue,
+    TableExtractor,
     UserResolver,
 )
 from .quota import QuotaService
@@ -28,7 +30,9 @@ class Services:
     quota: QuotaService
     telemetry: TelemetryEmitter
     captioner: ImageCaptioner
-    pdf_extractor: PdfExtractor
+    pdf_text_extractor: PdfTextExtractor
+    pdf_image_extractor: ImageExtractor
+    pdf_table_extractor: TableExtractor
     ole_converter: OleConverter
     ooxml_extractor: OoxmlExtractor
     page_renderer: PageRenderer
