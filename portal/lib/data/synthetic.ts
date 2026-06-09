@@ -52,15 +52,19 @@ const ERROR_MESSAGES = [
 // Artefact manifests
 // ---------------------------------------------------------------------------
 
-function pdfArtefacts(pageCount: number, imageCount: number): ArtefactEntry[] {
+function pdfArtefacts(pageCount: number, imageCount: number, tableCount: number): ArtefactEntry[] {
   const entries: ArtefactEntry[] = [
     { name: "markdown", mime_type: "text/markdown", size_bytes: 8_420, label: "Extracted text" },
   ];
   for (let i = 0; i < pageCount; i++) {
     entries.push({ name: `page-${i}`, mime_type: "image/png", size_bytes: 140_000 + i * 2_000, label: `Page ${i + 1}` });
+    entries.push({ name: `preview-${i}`, mime_type: "image/webp", size_bytes: 8_000 + i * 500, label: `Page ${i + 1}` });
   }
   for (let i = 0; i < imageCount; i++) {
     entries.push({ name: `image-${i}`, mime_type: "image/png", size_bytes: 50_000 + i * 4_000, label: i === 0 ? "Figure" : "Chart" });
+  }
+  for (let i = 0; i < tableCount; i++) {
+    entries.push({ name: `table-${i}`, mime_type: "application/json", size_bytes: 2_000 + i * 800, label: `Table from page ${i + 2}` });
   }
   return entries;
 }
@@ -77,7 +81,8 @@ function artefactsForFile(mime: string, rand: () => number): string {
   if (mime === "application/pdf" || mime === "application/msword") {
     const pages = Math.floor(rand() * 8) + 1;
     const images = Math.floor(rand() * 4);
-    return JSON.stringify(pdfArtefacts(pages, images));
+    const tables = Math.floor(rand() * 3);
+    return JSON.stringify(pdfArtefacts(pages, images, tables));
   }
   if (mime.startsWith("image/")) return JSON.stringify(imageArtefact());
   return JSON.stringify(textArtefact());

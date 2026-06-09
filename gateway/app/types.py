@@ -114,7 +114,8 @@ class ExtractedTables:
 
 
 @dataclass
-class PageThumbnailPNGs:
-    """Rendered page thumbnails from a PDF."""
+class PageRenders:
+    """Rendered pages from a PDF — full-size PNGs and tiny WebP previews."""
 
-    pages: list[bytes]  # PNG bytes per page
+    pages: list[bytes]  # full-size PNG bytes per page
+    previews: list[bytes]  # small WebP bytes per page

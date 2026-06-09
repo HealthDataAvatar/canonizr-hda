@@ -67,6 +67,79 @@ function DeleteButton({ rowId, onDelete }: { rowId: string; onDelete: (id: strin
 // ---------------------------------------------------------------------------
 
 
+import type { ArtefactEntry } from "@/lib/pure/artefacts";
+
+function ArtefactRow({ entry, url }: { entry: ArtefactEntry; url?: string }) {
+  return (
+    <li className="flex items-center gap-2 text-sm">
+      <span>{entry.label}</span>
+      <span className="text-muted-foreground">{filesize(entry.size_bytes)}</span>
+      {url && <IconLink icon={Download} title={`Download ${entry.label}`} href={url} />}
+    </li>
+  );
+}
+
+function groupArtefacts(artefacts: ArtefactEntry[]) {
+  const previews: ArtefactEntry[] = [];
+  const pages: ArtefactEntry[] = [];
+  const images: ArtefactEntry[] = [];
+  const tables: ArtefactEntry[] = [];
+  const other: ArtefactEntry[] = [];
+
+  for (const a of artefacts) {
+    if (a.name.startsWith("preview-")) previews.push(a);
+    else if (a.name.startsWith("page-")) pages.push(a);
+    else if (a.name.startsWith("image-")) images.push(a);
+    else if (a.name.startsWith("table-")) tables.push(a);
+    else other.push(a);
+  }
+  return { previews, pages, images, tables, other };
+}
+
+function PreviewStrip({ previews, artefactUrl, jobId }: {
+  previews: ArtefactEntry[];
+  artefactUrl?: (jobId: string, name: string) => string;
+  jobId: string;
+}) {
+  return (
+    <div className="flex gap-2 overflow-x-auto pb-2">
+      {previews.map((p, i) => {
+        const pageUrl = artefactUrl?.(jobId, `page-${i}`);
+        return (
+          <div
+            key={p.name}
+            className="flex-none rounded border border-border bg-muted/30 overflow-hidden relative group"
+            title={p.label}
+          >
+            {artefactUrl ? (
+              <img
+                src={artefactUrl(jobId, p.name)}
+                alt={p.label}
+                className="h-24 w-auto object-contain"
+                loading="lazy"
+              />
+            ) : (
+              <div className="h-24 w-16 flex items-center justify-center text-xs text-muted-foreground">
+                {i + 1}
+              </div>
+            )}
+            {pageUrl && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/30 transition-colors">
+                <IconLink
+                  icon={Download}
+                  title={`Download ${p.label}`}
+                  href={pageUrl}
+                  className="opacity-0 group-hover:opacity-100 transition-opacity text-white"
+                />
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function CanonizeUserJobPanel({ row, artefactUrl }: { row: CanonizeJobRow; artefactUrl?: (jobId: string, name: string) => string }) {
   switch (row.status) {
     case "processing":
@@ -78,30 +151,48 @@ function CanonizeUserJobPanel({ row, artefactUrl }: { row: CanonizeJobRow; artef
     case "expired":
       return <p className="text-sm text-muted-foreground">Results expired</p>;
 
-    case "ok":
+    case "ok": {
       if (row.artefacts.length === 0) {
         return <p className="text-sm text-muted-foreground">No artefacts</p>;
       }
+
+      const { previews, pages, images, tables, other } = groupArtefacts(row.artefacts);
+      const url = (name: string) => artefactUrl?.(row.id, name);
+
       return (
-        <ul className="space-y-1">
-          {row.artefacts.map((a) => (
-            <li key={a.name} className="flex items-center gap-2 text-sm">
-              {artefactUrl ? (
-                <a
-                  href={artefactUrl(row.id, a.name)}
-                  className="inline-flex items-center gap-1 text-primary hover:underline"
-                >
-                  <Download className="h-3.5 w-3.5" />
-                  {a.label}
-                </a>
-              ) : (
-                <span>{a.label}</span>
-              )}
-              <span className="text-muted-foreground">{filesize(a.size_bytes)}</span>
-            </li>
-          ))}
-        </ul>
+        <div className="space-y-3">
+          {/* Page preview strip */}
+          {previews.length > 0 && (
+            <PreviewStrip previews={previews} artefactUrl={artefactUrl} jobId={row.id} />
+          )}
+
+          {/* Downloadable artefacts grouped by type */}
+          <ul className="space-y-1">
+            {other.map((a) => (
+              <ArtefactRow key={a.name} entry={a} url={url(a.name)} />
+            ))}
+            {images.length > 0 && (
+              <li className="pt-1 text-xs font-medium text-muted-foreground">Images</li>
+            )}
+            {images.map((a) => (
+              <ArtefactRow key={a.name} entry={a} url={url(a.name)} />
+            ))}
+            {tables.length > 0 && (
+              <li className="pt-1 text-xs font-medium text-muted-foreground">Tables</li>
+            )}
+            {tables.map((a) => (
+              <ArtefactRow key={a.name} entry={a} url={url(a.name)} />
+            ))}
+            {pages.length > 0 && (
+              <li className="pt-1 text-xs font-medium text-muted-foreground">Full-size pages</li>
+            )}
+            {pages.map((a) => (
+              <ArtefactRow key={a.name} entry={a} url={url(a.name)} />
+            ))}
+          </ul>
+        </div>
       );
+    }
   }
 }
 
@@ -262,7 +353,7 @@ export function CanonizeUserJobTable({
       emptyMessage="No requests yet."
       actions={<TableExport headers={headers} rows={rows} filenameBase="requests" />}
       sortable
-      defaultSort={[{ id: "timestamp", desc: true }]}
+      defaultSort={[{ id: "submittedAt", desc: true }]}
       pageSize={20}
       getRowId={(row) => row.id}
       expandedContent={(row) => <CanonizeUserJobPanel row={row} artefactUrl={artefactUrl} />}

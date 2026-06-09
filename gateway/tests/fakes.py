@@ -16,7 +16,7 @@ from app.types import (
     Markdown,
     OleOfficeDocument,
     OoxmlDocument,
-    PageThumbnailPNGs,
+    PageRenders,
     PdfContent,
     VlmImagePNG,
 )
@@ -309,10 +309,10 @@ class FakeOleConverter:
 
 
 class FakePageRenderer:
-    """Injectable PageRenderer. Returns PageThumbnailPNGs."""
+    """Injectable PageRenderer. Returns PageRenders."""
 
     def __init__(self, page_count: int = 0):
         self._page_count = page_count
 
-    async def render(self, pdf: PdfContent, dpi: int = 150) -> PageThumbnailPNGs:
-        return PageThumbnailPNGs(pages=[b"PNG-fake"] * self._page_count)
+    async def render(self, pdf: PdfContent, dpi: int = 150) -> PageRenders:
+        return PageRenders(pages=[b"PNG-fake"] * self._page_count, previews=[b"WEBP-fake"] * self._page_count)

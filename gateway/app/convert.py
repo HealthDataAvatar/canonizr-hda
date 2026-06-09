@@ -14,7 +14,7 @@ from .context import Services
 from .errors import ServiceNotConfigured, UnsupportedFormat
 from .imageconv import to_vlm_png
 from .mimetypes import LIBREOFFICE_TYPES, MARKITDOWN_TYPES, PASSTHROUGH_TYPES
-from .protocols import OleConverter, OoxmlExtractor, PageRenderer
+from .protocols import OleConverter, OoxmlExtractor
 from .tracing import Service, Span, Trace
 from .types import (
     ExtractedTables,
@@ -22,6 +22,7 @@ from .types import (
     Markdown,
     OleOfficeDocument,
     OoxmlDocument,
+    PageRenders,
     PdfContent,
     SubmittedFile,
 )
@@ -53,12 +54,6 @@ async def extract_ooxml(doc: OoxmlDocument, span: Span, extractor: OoxmlExtracto
 def extract_text(file: SubmittedFile) -> Markdown:
     """Passthrough — decode UTF-8."""
     return Markdown(file.data.decode("utf-8", errors="replace"))
-
-
-async def render_thumbnails(pdf: PdfContent, renderer: PageRenderer) -> list[bytes]:
-    """PDF → list of PNG page thumbnails."""
-    result = await renderer.render(pdf)
-    return result.pages
 
 
 # ---------------------------------------------------------------------------
@@ -95,16 +90,16 @@ async def _extract_pdf_parallel(
         with span.span(Service.LITEPARSE) as s:
             return await svc.pdf_text_extractor.extract(pdf, s)
 
-    async def _pages():
+    async def _pages() -> PageRenders:
         with span.span(Service.THUMBNAILS) as s:
             try:
-                result = await render_thumbnails(pdf, svc.page_renderer)
-                s.set(page_count=len(result))
+                result = await svc.page_renderer.render(pdf)
+                s.set(page_count=len(result.pages))
                 return result
             except Exception:
                 logger.warning("Thumbnail render failed", exc_info=True)
                 s.set(error="render failed")
-                return []
+                return PageRenders(pages=[], previews=[])
 
     async def _images():
         with span.span(Service.PIKEPDF) as s:
@@ -117,7 +112,7 @@ async def _extract_pdf_parallel(
     # Sequential: native C/Rust libraries (pypdfium2, pikepdf, liteparse) are
     # not guaranteed thread-safe when operating on the same PDF bytes concurrently.
     text = await _text()
-    pages = await _pages()
+    rendered = await _pages()
     images = await _images()
     tables = await _tables()
 
@@ -127,9 +122,11 @@ async def _extract_pdf_parallel(
     # Store artefacts
     if artefacts:
         with span.span(Service.ARTEFACTS) as art_span:
-            for png in pages:
-                name = artefacts.allocate("page")
-                await artefacts.put(name, png, "image/png", label=f"Page {int(name.split('-')[1]) + 1}")
+            for i, (png, webp) in enumerate(zip(rendered.pages, rendered.previews)):
+                page_name = artefacts.allocate("page")
+                await artefacts.put(page_name, png, "image/png", label=f"Page {i + 1}")
+                preview_name = artefacts.allocate("preview")
+                await artefacts.put(preview_name, webp, "image/webp", label=f"Page {i + 1}")
             for img in images:
                 name = artefacts.allocate("image")
                 await artefacts.put(name, img.data, img.mime_type, label=img.label)

@@ -253,7 +253,7 @@ from .types import (
     Markdown,
     OleOfficeDocument,
     OoxmlDocument,
-    PageThumbnailPNGs,
+    PageRenders,
     PdfContent,
     VlmImagePNG,
 )
@@ -300,4 +300,4 @@ class ImageCaptioner(Protocol):
 class PageRenderer(Protocol):
     """PDF → page thumbnail images."""
 
-    async def render(self, pdf: PdfContent, dpi: int = 150) -> PageThumbnailPNGs: ...
+    async def render(self, pdf: PdfContent, dpi: int = 150) -> PageRenders: ...

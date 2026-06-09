@@ -95,8 +95,8 @@ export interface DataTableProps<T> {
   // -- Sorting --
   /** Enable sorting. Columns opt in via enableSorting on each column def. */
   sortable?: boolean;
-  /** Initial sort state. */
-  defaultSort?: SortingState;
+  /** Initial sort state. Column IDs are checked against T's keys. */
+  defaultSort?: { id: keyof T & string; desc: boolean }[];
 
   // -- Pagination --
   /** Page size. Omit or set to 0 to disable pagination. */

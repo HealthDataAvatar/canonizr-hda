@@ -33,7 +33,7 @@ export function JobsPageContent({ initialRequests, initialCursor, uploadSlot }: 
       const res = await fetch("/api/jobs");
       if (!res.ok) return;
       const data = await res.json();
-      setRequests(data.requests);
+      setRequests(data.jobs);
       setCursor(data.nextCursor);
     } catch {
       // silently ignore — will retry next interval

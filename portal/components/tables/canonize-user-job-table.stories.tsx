@@ -42,6 +42,53 @@ export const NoRequests: Story = {
   args: { jobs: [] },
 };
 
+/** Single completed PDF job with every artefact type: text, pages, previews, images, tables. */
+const fullManifestRow: CanonizeJobRow = {
+  id: "demo-full-manifest",
+  keyId: "key-aaa",
+  filename: "annual-report-2025.pdf",
+  mimeType: "application/pdf",
+  inputBytes: 2_200_000,
+  pricePerUnit: 0.003,
+  submittedAt: new Date(now - 5 * MINUTE).toISOString(),
+  status: "ok",
+  completedAt: new Date(now - 4 * MINUTE).toISOString(),
+  expiresAt: new Date(now + 23 * HOUR).toISOString(),
+  artefacts: [
+    { name: "markdown", mime_type: "text/markdown", size_bytes: 21_400, label: "Extracted text" },
+    // Pages + previews (6 pages)
+    { name: "page-0", mime_type: "image/png", size_bytes: 387_590, label: "Page 1" },
+    { name: "preview-0", mime_type: "image/webp", size_bytes: 8_200, label: "Page 1" },
+    { name: "page-1", mime_type: "image/png", size_bytes: 470_770, label: "Page 2" },
+    { name: "preview-1", mime_type: "image/webp", size_bytes: 9_100, label: "Page 2" },
+    { name: "page-2", mime_type: "image/png", size_bytes: 371_760, label: "Page 3" },
+    { name: "preview-2", mime_type: "image/webp", size_bytes: 7_800, label: "Page 3" },
+    { name: "page-3", mime_type: "image/png", size_bytes: 283_380, label: "Page 4" },
+    { name: "preview-3", mime_type: "image/webp", size_bytes: 6_500, label: "Page 4" },
+    { name: "page-4", mime_type: "image/png", size_bytes: 123_410, label: "Page 5" },
+    { name: "preview-4", mime_type: "image/webp", size_bytes: 5_200, label: "Page 5" },
+    { name: "page-5", mime_type: "image/png", size_bytes: 592_640, label: "Page 6" },
+    { name: "preview-5", mime_type: "image/webp", size_bytes: 11_300, label: "Page 6" },
+    // Extracted images
+    { name: "image-0", mime_type: "image/png", size_bytes: 227_150, label: "Bar chart" },
+    { name: "image-1", mime_type: "image/png", size_bytes: 53_260, label: "Company logo" },
+    { name: "image-2", mime_type: "image/png", size_bytes: 156_050, label: "Photograph" },
+    { name: "image-3", mime_type: "image/png", size_bytes: 169_990, label: "Pie chart" },
+    // Extracted tables
+    { name: "table-0", mime_type: "application/json", size_bytes: 3_400, label: "Table from page 2" },
+    { name: "table-1", mime_type: "application/json", size_bytes: 5_800, label: "Table from page 4" },
+    { name: "table-2", mime_type: "application/json", size_bytes: 2_100, label: "Table from page 6" },
+  ],
+};
+
+export const FullManifest: Story = {
+  args: {
+    onDelete: (id: string) => alert(`Delete ${id}`),
+    artefactUrl: (jobId: string, name: string) => `#${jobId}/${name}`,
+    jobs: [fullManifestRow],
+  },
+};
+
 export const CSVPreview: Story = {
   args: { jobs: [] },
   render: () => {
