@@ -7,7 +7,7 @@ import { UsageBar } from "@/components/usage-bar";
 import { Upload, Loader, FileText } from "lucide-react";
 import { formatKB } from "@/lib/pure/format";
 
-const APIM_URL = "https://apim-canonizr-prod.azure-api.net";
+const APIM_URL = process.env.NEXT_PUBLIC_APIM_URL ?? "https://apim-canonizr-prod.azure-api.net";
 
 export interface KeyOption {
   id: string;

@@ -7,7 +7,6 @@ No AI interpretation — that belongs in the describe pipeline.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 
 from .artefacts import ArtefactStore
@@ -115,7 +114,12 @@ async def _extract_pdf_parallel(
         with span.span(Service.CAMELOT) as s:
             return await svc.pdf_table_extractor.extract(pdf, s)
 
-    text, pages, images, tables = await asyncio.gather(_text(), _pages(), _images(), _tables())
+    # Sequential: native C/Rust libraries (pypdfium2, pikepdf, liteparse) are
+    # not guaranteed thread-safe when operating on the same PDF bytes concurrently.
+    text = await _text()
+    pages = await _pages()
+    images = await _images()
+    tables = await _tables()
 
     # Inline tables into the markdown
     text = _inline_tables(text, tables)

@@ -101,11 +101,33 @@ services:
       retries: 10
       start_period: 5s
 
+  worker:
+    build:
+      context: ./gateway
+      dockerfile: gateway.dockerfile
+    command: ["uv", "run", "--no-project", "python", "-m", "app.worker"]
+    environment:
+      REDIS_URL: redis://redis:6379
+      BLOB_STORAGE_CONNECTION_STRING: "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite:10000/devstoreaccount1"
+      TABLE_STORAGE_CONNECTION_STRING: "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;TableEndpoint=http://azurite:10002/devstoreaccount1"
+      CAPTIONING_ENABLED: "false"
+    networks:
+      - portal-test
+    depends_on:
+      redis:
+        condition: service_healthy
+      azurite:
+        condition: service_healthy
+      gateway:
+        condition: service_healthy
+
   apim-stub:
     build:
       context: ./portal
       dockerfile: portal-tests.dockerfile
     command: ["node", "stubs/apim-stub.mjs"]
+    ports:
+      - "8080:8080"
     environment:
       AZURITE_TABLE_CONN: "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;TableEndpoint=http://azurite:10002/devstoreaccount1"
       GATEWAY_URL: "http://gateway:8000"

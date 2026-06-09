@@ -27,8 +27,19 @@ async function resolveKey(apiKey) {
   return null;
 }
 
+const CORS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Ocp-Apim-Subscription-Key",
+};
+
 const server = createServer(async (req, res) => {
   const url = new URL(req.url, "http://localhost");
+
+  if (req.method === "OPTIONS") {
+    res.writeHead(204, CORS);
+    return res.end();
+  }
 
   if (req.method === "GET" && url.pathname === "/health") {
     res.writeHead(200, { "Content-Type": "application/json" });
@@ -38,13 +49,13 @@ const server = createServer(async (req, res) => {
   // Resolve API key → subscription ID
   const apiKey = req.headers["ocp-apim-subscription-key"];
   if (!apiKey) {
-    res.writeHead(401, { "Content-Type": "application/json" });
+    res.writeHead(401, { "Content-Type": "application/json", ...CORS });
     return res.end(JSON.stringify({ error: "Missing Ocp-Apim-Subscription-Key" }));
   }
 
   const resolved = await resolveKey(apiKey);
   if (!resolved) {
-    res.writeHead(403, { "Content-Type": "application/json" });
+    res.writeHead(403, { "Content-Type": "application/json", ...CORS });
     return res.end(JSON.stringify({ error: "Invalid API key" }));
   }
 
@@ -69,10 +80,10 @@ const server = createServer(async (req, res) => {
     const respBody = await gwRes.arrayBuffer();
     const respHeaders = {};
     gwRes.headers.forEach((v, k) => { respHeaders[k] = v; });
-    res.writeHead(gwRes.status, respHeaders);
+    res.writeHead(gwRes.status, { ...respHeaders, ...CORS });
     res.end(Buffer.from(respBody));
   } catch (err) {
-    res.writeHead(502, { "Content-Type": "application/json" });
+    res.writeHead(502, { "Content-Type": "application/json", ...CORS });
     res.end(JSON.stringify({ error: `Gateway unreachable: ${err.message}` }));
   }
 });

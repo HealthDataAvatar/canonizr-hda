@@ -143,8 +143,8 @@ deploy: test gateway-push portal-push deploy-tofu
 # ---------------------------------------------------------------------------
 .PHONY: portal-dev
 portal-dev:
-	docker compose -f docker-compose.portal-test.yml up azurite redis mail-stub gateway apim-stub -d --wait
-	docker compose -f docker-compose.portal-test.yml logs -f mail-stub gateway &
+	docker compose -f docker-compose.portal-test.yml up azurite redis mail-stub gateway worker apim-stub -d --build --wait
+	docker compose -f docker-compose.portal-test.yml logs -f mail-stub gateway worker &
 	cd portal && npm run dev; \
 	docker compose -f docker-compose.portal-test.yml down
 

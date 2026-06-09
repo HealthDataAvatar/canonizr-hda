@@ -67,8 +67,6 @@ services:
         condition: service_healthy
       azurite:
         condition: service_healthy
-      docling:
-        condition: service_healthy
       gotenberg:
         condition: service_healthy
 
@@ -87,17 +85,6 @@ services:
       timeout: 5s
       retries: 10
       start_period: 10s
-
-  docling:
-    image: ghcr.io/docling-project/docling-serve-cpu:latest
-    networks:
-      - canonizr
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5001/docs')"]
-      interval: 5s
-      timeout: 5s
-      retries: 30
-      start_period: 30s
 
   tests:
     build:
