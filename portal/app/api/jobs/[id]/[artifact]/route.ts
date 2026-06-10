@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { requireUser, AuthError } from "@/lib/auth/session";
 import { getServices } from "@/lib/services";
 
-const GATEWAY_URL = process.env.GATEWAY_URL ?? "https://gateway.canonizr.com";
+const GATEWAY_URL = process.env.GATEWAY_URL ?? "https://api.canonizr.com";
 
 export async function GET(
   _request: Request,

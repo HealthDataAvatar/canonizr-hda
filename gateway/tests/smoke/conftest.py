@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 import requests
 
-GATEWAY_URL = os.environ.get("GATEWAY_URL", "https://gateway.canonizr.com")
+GATEWAY_URL = os.environ.get("GATEWAY_URL", "https://api.canonizr.com")
 API_KEY = os.environ.get("API_KEY", "")
 FIXTURES = Path(__file__).resolve().parent.parent / "fixtures"
 TIMEOUT = 120

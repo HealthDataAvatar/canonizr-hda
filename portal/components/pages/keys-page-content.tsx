@@ -95,12 +95,12 @@ export function KeysPageContent({ dataSlot }: { dataSlot: ReactNode }) {
             {
               language: "bash",
               code: `# Submit a document
-POLL_URL=$(curl -s -X POST https://gateway.canonizr.com/v1/jobs \\
+POLL_URL=$(curl -s -X POST https://api.canonizr.com/v1/jobs \\
   -H "Authorization: Bearer YOUR_API_KEY" \\
   -F "file=@document.pdf" | jq -r .poll_url)
 
 # Fetch the result
-curl -s https://gateway.canonizr.com$POLL_URL \\
+curl -s https://api.canonizr.com$POLL_URL \\
   -H "Authorization: Bearer YOUR_API_KEY" | jq .markdown`,
             },
             {
@@ -108,7 +108,7 @@ curl -s https://gateway.canonizr.com$POLL_URL \\
               code: `import requests
 
 API_KEY = "YOUR_API_KEY"
-BASE = "https://gateway.canonizr.com"
+BASE = "https://api.canonizr.com"
 HEADERS = {"Authorization": f"Bearer {API_KEY}"}
 
 # Submit a document
@@ -122,7 +122,7 @@ print(resp.json()["markdown"])`,
             {
               language: "javascript",
               code: `const API_KEY = "YOUR_API_KEY";
-const BASE = "https://gateway.canonizr.com";
+const BASE = "https://api.canonizr.com";
 
 // Submit a document
 const form = new FormData();

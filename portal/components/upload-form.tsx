@@ -7,7 +7,7 @@ import { UsageBar } from "@/components/usage-bar";
 import { Upload, Loader, FileText } from "lucide-react";
 import { formatKB } from "@/lib/pure/format";
 
-const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL ?? "https://gateway.canonizr.com";
+const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL ?? "https://api.canonizr.com";
 
 export interface KeyOption {
   id: string;

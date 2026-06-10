@@ -16,14 +16,14 @@ export const SingleLanguage: Story = {
       {
         language: "bash",
         code: `# Submit
-JOB_ID=$(curl -s -X POST https://gateway.canonizr.com/convert \\
+JOB_ID=$(curl -s -X POST https://api.canonizr.com/convert \\
   -H "Authorization: Bearer YOUR_API_KEY" \\
   -F "file=@document.pdf" | jq -r .job_id)
 
 # Poll for result
 while true; do
   RESULT=$(curl -s -w "\\n%{http_code}" \\
-    https://gateway.canonizr.com/result/$JOB_ID \\
+    https://api.canonizr.com/result/$JOB_ID \\
     -H "Authorization: Bearer YOUR_API_KEY")
   CODE=$(echo "$RESULT" | tail -1)
   [ "$CODE" = "200" ] && { echo "$RESULT" | head -1 | jq .markdown; break; }
@@ -41,14 +41,14 @@ export const MultiLanguage: Story = {
       {
         language: "bash",
         code: `# Submit
-JOB_ID=$(curl -s -X POST https://gateway.canonizr.com/convert \\
+JOB_ID=$(curl -s -X POST https://api.canonizr.com/convert \\
   -H "Authorization: Bearer YOUR_API_KEY" \\
   -F "file=@document.pdf" | jq -r .job_id)
 
 # Poll for result
 while true; do
   RESULT=$(curl -s -w "\\n%{http_code}" \\
-    https://gateway.canonizr.com/result/$JOB_ID \\
+    https://api.canonizr.com/result/$JOB_ID \\
     -H "Authorization: Bearer YOUR_API_KEY")
   CODE=$(echo "$RESULT" | tail -1)
   [ "$CODE" = "200" ] && { echo "$RESULT" | head -1 | jq .markdown; break; }
@@ -60,7 +60,7 @@ done`,
         code: `import requests, time
 
 API_KEY = "YOUR_API_KEY"
-BASE = "https://gateway.canonizr.com"
+BASE = "https://api.canonizr.com"
 HEADERS = {"Authorization": f"Bearer {API_KEY}"}
 
 # Submit
@@ -82,7 +82,7 @@ while True:
       {
         language: "javascript",
         code: `const API_KEY = "YOUR_API_KEY";
-const BASE = "https://gateway.canonizr.com";
+const BASE = "https://api.canonizr.com";
 
 const form = new FormData();
 form.append("file", fs.createReadStream("document.pdf"));
@@ -118,7 +118,7 @@ export const Overflow: Story = {
 from pathlib import Path
 
 API_KEY = "your-very-long-api-key-that-extends-well-beyond-the-visible-area-of-the-code-block-container"
-BASE = "https://gateway.canonizr.com"
+BASE = "https://api.canonizr.com"
 HEADERS = {"Authorization": f"Bearer {API_KEY}"}
 
 def convert_document(file_path: str, output_dir: str = "./output") -> dict:
@@ -155,7 +155,7 @@ export const Inset: Story = {
     samples: [
       {
         language: "bash",
-        code: `curl -s -X POST https://gateway.canonizr.com/convert \\
+        code: `curl -s -X POST https://api.canonizr.com/convert \\
   -H "Authorization: Bearer YOUR_API_KEY" \\
   -F "file=@document.pdf" | jq .`,
       },
