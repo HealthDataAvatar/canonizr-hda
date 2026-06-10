@@ -129,6 +129,11 @@ resource "azurerm_container_app" "gateway" {
       }
 
       env {
+        name  = "CORS_ORIGINS"
+        value = "https://portal.canonizr.com"
+      }
+
+      env {
         name  = "DEPLOY_TIME"
         value = var.deploy_time
       }
