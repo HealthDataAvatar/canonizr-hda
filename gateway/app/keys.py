@@ -72,6 +72,11 @@ def dedupe(*, sub_id: str, doc_hash: str) -> str:
     return f"dedupe:{sub_id}:{doc_hash}"
 
 
+def api_key_cache(*, key_hash: str) -> str:
+    """Cache: API key hash → sub_id mapping."""
+    return f"apikey:{key_hash}:sub_id"
+
+
 def sweep_lock() -> str:
     """Lock: prevents concurrent sweep runs across workers."""
     return "sweep:lock"

@@ -3,7 +3,7 @@ import { ensureAllTables } from "@/lib/data/ensure-tables";
 import { TableName } from "@/lib/data/table-interface";
 
 export const PORTAL_URL = process.env.PORTAL_URL ?? "http://localhost:3000";
-export const APIM_STUB_URL = process.env.APIM_STUB_URL ?? "http://localhost:8080";
+export const GATEWAY_URL = process.env.GATEWAY_URL ?? "http://localhost:8000";
 
 const AZURITE_CONN =
   process.env.AZURITE_TABLE_CONN ??
@@ -213,9 +213,9 @@ export async function submitAndPoll(
   const formData = new FormData();
   formData.append("file", new Blob([file.content], { type: file.type }), file.name);
 
-  const submit = await fetch(`${APIM_STUB_URL}/v1/jobs`, {
+  const submit = await fetch(`${GATEWAY_URL}/v1/jobs`, {
     method: "POST",
-    headers: { "Ocp-Apim-Subscription-Key": apiKey },
+    headers: { Authorization: `Bearer ${apiKey}` },
     body: formData,
   });
 
@@ -228,8 +228,8 @@ export async function submitAndPoll(
   const deadline = Date.now() + timeoutMs;
   let result: Response | null = null;
   while (Date.now() < deadline) {
-    result = await fetch(`${APIM_STUB_URL}${poll_url}`, {
-      headers: { "Ocp-Apim-Subscription-Key": apiKey },
+    result = await fetch(`${GATEWAY_URL}${poll_url}`, {
+      headers: { Authorization: `Bearer ${apiKey}` },
     });
     if (result.status !== 202) return { submitBody, submitStatus: submit.status, result };
     await new Promise((r) => setTimeout(r, 1000));

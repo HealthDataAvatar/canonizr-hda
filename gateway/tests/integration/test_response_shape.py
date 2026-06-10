@@ -24,7 +24,7 @@ class TestSubmitResponse:
     def test_202_includes_required_fields(self, test_sub):
         submit, _ = submit_and_poll(
             files={"file": ("test.txt", b"hello", "text/plain")},
-            sub_id=test_sub,
+            api_key=test_sub.api_key,
         )
         body = submit.json()
         assert submit.status_code == 202
@@ -41,7 +41,7 @@ class TestTextPassthroughShape:
     def test_plain_text_produces_markdown_artefact(self, test_sub):
         _, result = submit_and_poll(
             files={"file": ("test.txt", b"hello", "text/plain")},
-            sub_id=test_sub,
+            api_key=test_sub.api_key,
         )
         assert result.status_code == 200
         artefacts = assert_canonize_ok(result.json())
@@ -52,7 +52,7 @@ class TestTextPassthroughShape:
     def test_json_produces_markdown_artefact(self, test_sub):
         _, result = submit_and_poll(
             files={"file": ("test.json", b'{"key": "value"}', "application/json")},
-            sub_id=test_sub,
+            api_key=test_sub.api_key,
         )
         artefacts = assert_canonize_ok(result.json())
         assert find_artefact(artefacts, "markdown") is not None
@@ -63,7 +63,7 @@ class TestPdfShape:
         pdf_bytes = make_pdf("Test content.", pages=2)
         _, result = submit_and_poll(
             files={"file": ("test.pdf", io.BytesIO(pdf_bytes), "application/pdf")},
-            sub_id=test_sub,
+            api_key=test_sub.api_key,
         )
         artefacts = assert_canonize_ok(result.json())
         names = artefact_names(artefacts)
@@ -75,7 +75,7 @@ class TestPdfShape:
         pdf_bytes = make_pdf_with_image()
         _, result = submit_and_poll(
             files={"file": ("with-image.pdf", io.BytesIO(pdf_bytes), "application/pdf")},
-            sub_id=test_sub,
+            api_key=test_sub.api_key,
         )
         artefacts = assert_canonize_ok(result.json())
         names = artefact_names(artefacts)
@@ -88,7 +88,7 @@ class TestPdfShape:
         pdf_bytes = make_pdf("Metadata test.")
         _, result = submit_and_poll(
             files={"file": ("test.pdf", io.BytesIO(pdf_bytes), "application/pdf")},
-            sub_id=test_sub,
+            api_key=test_sub.api_key,
         )
         data = result.json()
         assert_canonize_ok(data)
@@ -106,7 +106,7 @@ class TestOoxmlShape:
                     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                 )
             },
-            sub_id=test_sub,
+            api_key=test_sub.api_key,
         )
         artefacts = assert_canonize_ok(result.json())
         assert find_artefact(artefacts, "markdown") is not None
@@ -121,7 +121,7 @@ class TestOoxmlShape:
                     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 )
             },
-            sub_id=test_sub,
+            api_key=test_sub.api_key,
         )
         artefacts = assert_canonize_ok(result.json())
         assert find_artefact(artefacts, "markdown") is not None
@@ -132,7 +132,7 @@ class TestImageShape:
         png_bytes = make_png("Test")
         _, result = submit_and_poll(
             files={"file": ("test.png", io.BytesIO(png_bytes), "image/png")},
-            sub_id=test_sub,
+            api_key=test_sub.api_key,
         )
         artefacts = assert_canonize_ok(result.json())
         img = find_artefact(artefacts, "image-0")

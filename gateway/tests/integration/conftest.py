@@ -1,7 +1,9 @@
 """Shared fixtures for gateway integration tests."""
 
+import hashlib
 import io
 import os
+import secrets
 import time
 import uuid
 from collections import namedtuple
@@ -22,6 +24,7 @@ from reportlab.pdfgen import canvas
 # the e2e tests in portal/tests/integration/e2e.test.ts will catch it.
 GW_SUBSCRIPTIONS = "GwSubscriptions"
 GW_ENCRYPTION_KEYS = "GwEncryptionKeys"
+GW_API_KEYS = "GwApiKeys"
 GW_JOBS = "GwJobs"
 GW_USER_JOBS = "GwUserJobs"
 USER_PERMISSIONS = "UserPermissions"
@@ -62,6 +65,7 @@ def seed_azurite():
     ts = TableServiceClient.from_connection_string(AZURITE_TABLE_CONN)
     ts.create_table_if_not_exists(GW_SUBSCRIPTIONS)
     ts.create_table_if_not_exists(GW_ENCRYPTION_KEYS)
+    ts.create_table_if_not_exists(GW_API_KEYS)
     ts.create_table_if_not_exists(GW_JOBS)
     ts.create_table_if_not_exists(GW_USER_JOBS)
     ts.create_table_if_not_exists(USER_PERMISSIONS)
@@ -75,18 +79,33 @@ def seed_azurite():
         pass  # already exists
 
 
+TestSub = namedtuple("TestSub", ["sub_id", "api_key"])
+
+
 @pytest.fixture
 def test_sub():
     """Create an isolated test subscription for this test.
 
-    Each test gets a unique sub_id + user_id, seeded into Azurite.
+    Each test gets a unique sub_id + user_id + API key, seeded into Azurite.
     No test can interfere with another.
     """
     suffix = uuid.uuid4().hex[:8]
     sub_id = f"test_sub_{suffix}"
     user_id = f"test_user_{suffix}"
+    api_key = f"pk_{secrets.token_hex(16)}"
+    key_hash = hashlib.sha256(api_key.encode()).hexdigest()
 
     ts = TableServiceClient.from_connection_string(AZURITE_TABLE_CONN)
+
+    # Seed API key hash -> subscription mapping
+    ts.get_table_client(GW_API_KEYS).upsert_entity(
+        {
+            "PartitionKey": "key",
+            "RowKey": key_hash,
+            "sub_id": sub_id,
+            "user_id": user_id,
+        }
+    )
 
     # Seed subscription -> user mapping
     ts.get_table_client(GW_SUBSCRIPTIONS).upsert_entity(
@@ -121,21 +140,18 @@ def test_sub():
         }
     )
 
-    return sub_id
-
-
-DEFAULT_HEADERS: dict[str, str] = {}  # overridden per-test via test_sub fixture
+    return TestSub(sub_id=sub_id, api_key=api_key)
 
 
 def submit_and_poll(
-    files: dict, sub_id: str, headers: dict[str, str] | None = None, timeout: float = TIMEOUT
+    files: dict, api_key: str, headers: dict[str, str] | None = None, timeout: float = TIMEOUT
 ) -> tuple[requests.Response, requests.Response]:
     """Submit a file and poll until the result is ready.
 
-    sub_id is required — use the test_sub fixture for isolation.
+    api_key is required — use the test_sub fixture for isolation.
     Raises AssertionError if the result never arrives.
     """
-    merged_headers = {"X-Subscription-Id": sub_id, **(headers or {})}
+    merged_headers = {"Authorization": f"Bearer {api_key}", **(headers or {})}
     submit = requests.post(f"{GATEWAY_URL}/v1/jobs", files=files, headers=merged_headers, timeout=timeout)
     if submit.status_code != 202:
         pytest.fail(f"Expected 202 from POST /v1/jobs, got {submit.status_code}: {submit.text}")

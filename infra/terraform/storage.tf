@@ -66,7 +66,7 @@ resource "azurerm_role_assignment" "worker_table_contributor" {
 }
 
 # ---------------------------------------------------------------------------
-# Key Vault — kept for portal secrets, APIM credentials, etc.
+# Key Vault — kept for portal secrets, etc.
 # Shared encryption key removed — per-user keys live in Table Storage.
 # ---------------------------------------------------------------------------
 resource "azurerm_key_vault" "this" {

@@ -19,13 +19,6 @@ resource "azurerm_user_assigned_identity" "portal" {
   resource_group_name = azurerm_resource_group.this.name
 }
 
-# Portal identity can manage APIM subscriptions (create/list/delete/rotate keys)
-resource "azurerm_role_assignment" "portal_apim_contributor" {
-  scope                = azurerm_api_management.this.id
-  role_definition_name = "API Management Service Contributor"
-  principal_id         = azurerm_user_assigned_identity.portal.principal_id
-}
-
 # Portal identity can read/write Table Storage (managed identity instead of connection string)
 resource "azurerm_role_assignment" "portal_table_data" {
   scope                = azurerm_storage_account.portal.id
@@ -203,16 +196,6 @@ resource "azurerm_container_app" "portal" {
       env {
         name  = "AZURE_CLIENT_ID"
         value = azurerm_user_assigned_identity.portal.client_id
-      }
-
-      env {
-        name  = "APIM_RESOURCE_GROUP"
-        value = azurerm_resource_group.this.name
-      }
-
-      env {
-        name  = "APIM_SERVICE_NAME"
-        value = azurerm_api_management.this.name
       }
 
       env {

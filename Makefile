@@ -60,7 +60,7 @@ test-focus:
 	docker compose -f docker-compose.test.yml down -v
 
 test-smoke: check-uv
-	@test -n "$$APIM_KEY" || { echo "Error: set GATEWAY_URL and APIM_KEY"; exit 1; }
+	@test -n "$$API_KEY" || { echo "Error: set GATEWAY_URL and API_KEY"; exit 1; }
 	cd gateway && uv run pytest tests/smoke -q --timeout=120
 
 test: test-unit test-integration
@@ -143,7 +143,7 @@ deploy: test gateway-push portal-push deploy-tofu
 # ---------------------------------------------------------------------------
 .PHONY: portal-dev
 portal-dev:
-	docker compose -f docker-compose.portal-test.yml up azurite redis mail-stub gateway worker apim-stub -d --build --wait
+	docker compose -f docker-compose.portal-test.yml up azurite redis mail-stub gateway worker -d --build --wait
 	docker compose -f docker-compose.portal-test.yml logs -f mail-stub gateway worker &
 	cd portal && npm run dev; \
 	docker compose -f docker-compose.portal-test.yml down

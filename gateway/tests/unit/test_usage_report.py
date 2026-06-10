@@ -15,16 +15,14 @@ from app.usage_report import (
 )
 
 
-def make_record(sub_id="sub1", doc_hash="hash1", size=100_000):
-    return UsageRecord(sub_id, datetime(2025, 6, 1, 12, 0, 0, tzinfo=UTC), size, doc_hash, 200)
+def make_record(sub_id="sub1", job_id="job1", size=100_000):
+    return UsageRecord(sub_id, datetime(2025, 6, 1, 12, 0, 0, tzinfo=UTC), size, job_id)
 
 
 def make_config(
-    log_analytics_workspace_id: str = "ws-123",
     stripe_secret_key: str = "sk_test_xxx",
 ) -> ReporterConfig:
     return ReporterConfig(
-        log_analytics_workspace_id=log_analytics_workspace_id,
         stripe_secret_key=stripe_secret_key,
         table_service=MagicMock(),
     )
@@ -39,26 +37,16 @@ class TestReporterConfig:
     @patch("app.usage_report.get_table_service", return_value=MagicMock())
     def test_from_env_with_all_vars(self, _mock_ts):
         env = {
-            "LOG_ANALYTICS_WORKSPACE_ID": "ws-1",
             "STRIPE_SECRET_KEY": "sk_test_1",
         }
         with patch.dict("os.environ", env, clear=False):
             cfg = ReporterConfig.from_env()
-        assert cfg.log_analytics_workspace_id == "ws-1"
         assert cfg.stripe_secret_key == "sk_test_1"
 
     def test_from_env_missing_vars_raises(self):
         with patch.dict("os.environ", {}, clear=True):
-            with pytest.raises(ConfigError, match="LOG_ANALYTICS_WORKSPACE_ID"):
+            with pytest.raises(ConfigError, match="STRIPE_SECRET_KEY"):
                 ReporterConfig.from_env()
-
-    def test_from_env_reports_all_missing(self):
-        with patch.dict("os.environ", {}, clear=True):
-            with pytest.raises(ConfigError) as exc_info:
-                ReporterConfig.from_env()
-            msg = str(exc_info.value)
-            assert "LOG_ANALYTICS_WORKSPACE_ID" in msg
-            assert "STRIPE_SECRET_KEY" in msg
 
 
 # ---------------------------------------------------------------------------
@@ -68,29 +56,29 @@ class TestReporterConfig:
 
 class TestUsageRecord:
     def test_billable_units_rounds_up(self):
-        r = UsageRecord("sub1", datetime.now(UTC), 1, "hash1", 200)
+        r = UsageRecord("sub1", datetime.now(UTC), 1, "job1")
         assert r.billable_units == 1
 
     def test_billable_units_100kb(self):
-        r = UsageRecord("sub1", datetime.now(UTC), 100_000, "hash1", 200)
+        r = UsageRecord("sub1", datetime.now(UTC), 100_000, "job1")
         assert r.billable_units == 1
 
     def test_billable_units_100kb_plus_one(self):
-        r = UsageRecord("sub1", datetime.now(UTC), 100_001, "hash1", 200)
+        r = UsageRecord("sub1", datetime.now(UTC), 100_001, "job1")
         assert r.billable_units == 2
 
     def test_billable_units_large_file(self):
-        r = UsageRecord("sub1", datetime.now(UTC), 2_100_000, "hash1", 200)
+        r = UsageRecord("sub1", datetime.now(UTC), 2_100_000, "job1")
         assert r.billable_units == 21
 
     def test_event_identifier_deterministic(self):
         ts = datetime(2025, 6, 1, 12, 0, 0, tzinfo=UTC)
-        r = UsageRecord("sub1", ts, 100_000, "abc123", 200)
-        assert r.event_identifier == f"sub1:{int(ts.timestamp())}:abc123"
+        r = UsageRecord("sub1", ts, 100_000, "job_abc")
+        assert r.event_identifier == f"sub1:{int(ts.timestamp())}:job_abc"
 
     def test_event_identifier_stable_across_calls(self):
         ts = datetime(2025, 6, 1, 12, 0, 0, tzinfo=UTC)
-        r = UsageRecord("sub1", ts, 100_000, "abc123", 200)
+        r = UsageRecord("sub1", ts, 100_000, "job_abc")
         assert r.event_identifier == r.event_identifier
 
 
@@ -103,37 +91,32 @@ class TestComputeWindow:
     def test_uses_watermark_as_start(self):
         now = datetime(2025, 6, 1, 14, 0, 0, tzinfo=UTC)
         wm = datetime(2025, 6, 1, 13, 0, 0, tzinfo=UTC)
-        start, end = compute_window(wm, now, ingestion_delay_minutes=10, max_window_hours=24)
+        start, end = compute_window(wm, now, max_window_hours=24)
         assert start == wm
-        assert end == now - timedelta(minutes=10)
+        assert end == now
 
     def test_no_watermark_defaults_to_2_hours(self):
         now = datetime(2025, 6, 1, 14, 0, 0, tzinfo=UTC)
-        start, end = compute_window(None, now, ingestion_delay_minutes=10, max_window_hours=24)
+        start, end = compute_window(None, now, max_window_hours=24)
         assert start == end - timedelta(hours=2)
 
     def test_caps_window_to_max(self):
         now = datetime(2025, 6, 5, 14, 0, 0, tzinfo=UTC)
         wm = datetime(2025, 6, 1, 0, 0, 0, tzinfo=UTC)  # 4+ days ago
-        start, end = compute_window(wm, now, ingestion_delay_minutes=10, max_window_hours=24)
+        start, end = compute_window(wm, now, max_window_hours=24)
         assert (end - start) == timedelta(hours=24)
-
-    def test_ingestion_delay_applied(self):
-        now = datetime(2025, 6, 1, 14, 0, 0, tzinfo=UTC)
-        _, end = compute_window(None, now, ingestion_delay_minutes=15, max_window_hours=24)
-        assert end == now - timedelta(minutes=15)
 
     def test_recent_watermark_produces_small_window(self):
         now = datetime(2025, 6, 1, 14, 0, 0, tzinfo=UTC)
         wm = datetime(2025, 6, 1, 13, 45, 0, tzinfo=UTC)
-        start, end = compute_window(wm, now, ingestion_delay_minutes=10, max_window_hours=24)
+        start, end = compute_window(wm, now, max_window_hours=24)
         assert start == wm
-        assert (end - start) == timedelta(minutes=5)
+        assert (end - start) == timedelta(minutes=15)
 
-    def test_watermark_after_end_produces_empty_window(self):
+    def test_watermark_at_now_produces_empty_window(self):
         now = datetime(2025, 6, 1, 14, 0, 0, tzinfo=UTC)
-        wm = datetime(2025, 6, 1, 14, 0, 0, tzinfo=UTC)  # same as now, after delay subtraction start >= end
-        start, end = compute_window(wm, now, ingestion_delay_minutes=10, max_window_hours=24)
+        wm = now
+        start, end = compute_window(wm, now, max_window_hours=24)
         assert start >= end
 
 
@@ -145,7 +128,7 @@ class TestComputeWindow:
 class TestPushMeterEvents:
     @patch("app.usage_report.stripe")
     def test_pushes_mapped_records(self, mock_stripe):
-        records = [make_record("sub1", "h1"), make_record("sub1", "h2")]
+        records = [make_record("sub1", "j1"), make_record("sub1", "j2")]
         pushed, skipped = push_meter_events(records, {"sub1": "cus_abc"})
         assert pushed == 2
         assert skipped == 0
@@ -215,7 +198,9 @@ class TestRun:
         mocks = {}
         mocks["get_watermark"] = stack.enter_context(patch("app.usage_report.get_watermark", return_value=watermark))
         mocks["set_watermark"] = stack.enter_context(patch("app.usage_report.set_watermark"))
-        mocks["query_usage"] = stack.enter_context(patch("app.usage_report.query_usage", return_value=records or []))
+        mocks["query_usage"] = stack.enter_context(
+            patch("app.usage_report.query_usage_from_jobs", return_value=records or [])
+        )
         mocks["load_subscription_map"] = stack.enter_context(
             patch("app.usage_report.load_subscription_map", return_value=sub_map or {})
         )
@@ -236,7 +221,7 @@ class TestRun:
 
     def test_noop_when_start_after_end(self):
         cfg = make_config()
-        # Watermark is in the future relative to now-delay
+        # Watermark is in the future relative to now
         future_wm = datetime.now(UTC) + timedelta(hours=1)
         stack, mocks = self._patch_externals(watermark=future_wm)
         with stack:
@@ -247,7 +232,7 @@ class TestRun:
 
     def test_with_records_pushes_and_advances(self):
         cfg = make_config()
-        records = [make_record("sub1", "h1"), make_record("sub2", "h2", size=200_000)]
+        records = [make_record("sub1", "j1"), make_record("sub2", "j2", size=200_000)]
         stack, mocks = self._patch_externals(records=records, sub_map={"sub1": "cus_1", "sub2": "cus_2"})
         mocks["push_meter_events"].return_value = (2, 0)
         with stack:
@@ -316,7 +301,7 @@ class TestRun:
     def test_query_failure_propagates(self):
         cfg = make_config()
         stack, mocks = self._patch_externals()
-        mocks["query_usage"].side_effect = RuntimeError("KQL failed")
+        mocks["query_usage"].side_effect = RuntimeError("Query failed")
         with stack:
-            with pytest.raises(RuntimeError, match="KQL failed"):
+            with pytest.raises(RuntimeError, match="Query failed"):
                 run(cfg)

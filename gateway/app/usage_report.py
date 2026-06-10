@@ -1,4 +1,4 @@
-"""Usage reporter — queries App Insights for completed conversions and pushes
+"""Usage reporter — queries GwJobs for completed conversions and pushes
 billable units to Stripe as meter events.
 
 Runs as a Container App Job on a cron schedule (hourly). Same container image
@@ -6,12 +6,11 @@ as gateway/worker, different entrypoint: `python -m app.usage_report`.
 
 Idempotency:
 - Each Stripe meter event uses a deterministic identifier:
-    {subscription_id}:{timestamp_epoch}:{document_hash}
+    {subscription_id}:{timestamp_epoch}:{job_id}
   Stripe deduplicates on this, so re-running the same window is safe.
 
 - A high-water mark (last reported timestamp) is stored in Azure Table Storage.
-  On startup, the reporter queries from that point forward (with a buffer for
-  log ingestion delay). This handles catch-up after outages.
+  On startup, the reporter queries from that point forward.
 
 Race conditions:
 - Container App Job runs with parallelism=1, so only one instance at a time.
@@ -27,10 +26,9 @@ from datetime import UTC, datetime, timedelta
 
 import stripe
 from azure.data.tables import TableServiceClient
-from azure.identity import DefaultAzureCredential
-from azure.monitor.query import LogsQueryClient, LogsQueryStatus  # pyright: ignore[reportPrivateImportUsage]
 
 from .azure_clients import get_table_service
+from .tables import Table
 
 logger = logging.getLogger(__name__)
 
@@ -46,27 +44,18 @@ METER_EVENT_NAME = "conversion_bytes"
 class ReporterConfig:
     """All external config needed by the reporter. Built from env vars in main()."""
 
-    log_analytics_workspace_id: str
     stripe_secret_key: str
     table_service: TableServiceClient
-    ingestion_delay_minutes: int = 10
     max_window_hours: int = 24
 
     @classmethod
     def from_env(cls) -> "ReporterConfig":
-        workspace = os.environ.get("LOG_ANALYTICS_WORKSPACE_ID", "")
         stripe_key = os.environ.get("STRIPE_SECRET_KEY", "")
 
-        missing = []
-        if not workspace:
-            missing.append("LOG_ANALYTICS_WORKSPACE_ID")
         if not stripe_key:
-            missing.append("STRIPE_SECRET_KEY")
-        if missing:
-            raise ConfigError(f"Missing required env vars: {', '.join(missing)}")
+            raise ConfigError("Missing required env var: STRIPE_SECRET_KEY")
 
         return cls(
-            log_analytics_workspace_id=workspace,
             stripe_secret_key=stripe_key,
             table_service=get_table_service(),
         )
@@ -83,13 +72,12 @@ class ConfigError(Exception):
 
 @dataclass
 class UsageRecord:
-    """A single billable request from App Insights."""
+    """A single billable job from GwJobs."""
 
     subscription_id: str
     timestamp: datetime
     input_size_bytes: int
-    document_hash: str
-    status_code: int
+    job_id: str
 
     @property
     def billable_units(self) -> int:
@@ -100,7 +88,7 @@ class UsageRecord:
     def event_identifier(self) -> str:
         """Deterministic ID for Stripe deduplication."""
         epoch = int(self.timestamp.timestamp())
-        return f"{self.subscription_id}:{epoch}:{self.document_hash}"
+        return f"{self.subscription_id}:{epoch}:{self.job_id}"
 
 
 @dataclass
@@ -121,56 +109,47 @@ class RunResult:
 
 
 # ---------------------------------------------------------------------------
-# App Insights query
+# GwJobs query (replaces KQL/App Insights)
 # ---------------------------------------------------------------------------
 
-KQL_QUERY = """
-ApiManagementGatewayLogs
-| where ResponseCode == 200
-| where TimeGenerated >= datetime('{start}') and TimeGenerated < datetime('{end}')
-| where OperationId != ""
-| extend inputBytes = toint(ResponseHeaders["X-Input-Size-Bytes"])
-| extend docHash = tostring(ResponseHeaders["X-Document-Hash"])
-| where isnotnull(inputBytes) and inputBytes > 0
-| project TimeGenerated, ApimSubscriptionId, inputBytes, docHash, ResponseCode
-| order by TimeGenerated asc
-"""
 
+def query_usage_from_jobs(ts: TableServiceClient, start: datetime, end: datetime) -> list[UsageRecord]:
+    """Query GwJobs table for completed jobs in the given time window."""
+    table = ts.get_table_client(Table.GW_JOBS)
 
-def query_usage(workspace_id: str, start: datetime, end: datetime) -> list[UsageRecord]:
-    """Query App Insights for billable requests in the given window."""
-    credential = DefaultAzureCredential()
-    client = LogsQueryClient(credential)
+    start_iso = start.strftime("%Y-%m-%dT%H:%M:%SZ")
+    end_iso = end.strftime("%Y-%m-%dT%H:%M:%SZ")
 
-    query = KQL_QUERY.format(
-        start=start.strftime("%Y-%m-%dT%H:%M:%SZ"),
-        end=end.strftime("%Y-%m-%dT%H:%M:%SZ"),
+    # Cross-partition scan with server-side filter
+    filter_expr = (
+        f"completed_at ge '{start_iso}' and completed_at lt '{end_iso}' and status eq 'ok' and input_bytes gt 0"
     )
 
-    response = client.query_workspace(workspace_id, query, timespan=(start, end))
+    records: list[UsageRecord] = []
+    seen_jobs: set[str] = set()  # GwJobs is append-only; dedupe by job_id
 
-    if response.status == LogsQueryStatus.FAILURE:
-        raise RuntimeError(f"KQL query failed: {response}")
+    for entity in table.query_entities(filter_expr):
+        job_id = str(entity.get("job_id", ""))
+        if not job_id or job_id in seen_jobs:
+            continue
+        seen_jobs.add(job_id)
 
-    if response.status == LogsQueryStatus.PARTIAL:
-        logger.warning("KQL query returned partial results")
-        tables = response.partial_data
-    else:
-        tables = response.tables
+        completed_at_str = str(entity.get("completed_at", ""))
+        try:
+            completed_at = datetime.fromisoformat(completed_at_str).replace(tzinfo=UTC)
+        except (ValueError, TypeError):
+            continue
 
-    records = []
-    for table in tables:
-        for row in table.rows:
-            records.append(
-                UsageRecord(
-                    subscription_id=str(row[1]),
-                    timestamp=row[0] if isinstance(row[0], datetime) else datetime.fromisoformat(str(row[0])),
-                    input_size_bytes=int(row[2]),
-                    document_hash=str(row[3]),
-                    status_code=int(row[4]),
-                )
+        records.append(
+            UsageRecord(
+                subscription_id=str(entity.get("sub_id", "")),
+                timestamp=completed_at,
+                input_size_bytes=int(entity.get("input_bytes", 0)),
+                job_id=job_id,
             )
+        )
 
+    records.sort(key=lambda r: r.timestamp)
     return records
 
 
@@ -180,17 +159,17 @@ def query_usage(workspace_id: str, start: datetime, end: datetime) -> list[Usage
 
 
 def load_subscription_map(ts: TableServiceClient) -> dict[str, str]:
-    """Load APIM subscription ID → Stripe customer ID mapping from Table Storage."""
-    table = ts.get_table_client("users")
+    """Load subscription ID → Stripe customer ID mapping from GwSubscriptions."""
+    table = ts.get_table_client(Table.GW_SUBSCRIPTIONS)
 
     mapping: dict[str, str] = {}
     try:
         entities = table.query_entities("PartitionKey eq 'subscription'")
         for entity in entities:
-            apim_sub_id = entity["RowKey"]
+            sub_id = entity["RowKey"]
             stripe_cust_id = entity.get("stripe_customer_id", "")
             if stripe_cust_id:
-                mapping[apim_sub_id] = stripe_cust_id
+                mapping[sub_id] = stripe_cust_id
     except Exception:
         logger.warning("Could not read subscription mappings — no mappings loaded", exc_info=True)
 
@@ -317,11 +296,10 @@ def push_meter_events(records: list[UsageRecord], sub_map: dict[str, str]) -> tu
 def compute_window(
     watermark: datetime | None,
     now: datetime,
-    ingestion_delay_minutes: int,
     max_window_hours: int,
 ) -> tuple[datetime, datetime]:
     """Compute the query window (start, end) based on watermark and config."""
-    end = now - timedelta(minutes=ingestion_delay_minutes)
+    end = now
 
     if watermark:
         start = watermark
@@ -344,14 +322,14 @@ def run(cfg: ReporterConfig) -> RunResult:
     now = datetime.now(UTC)
 
     watermark = get_watermark(cfg.table_service)
-    start, end = compute_window(watermark, now, cfg.ingestion_delay_minutes, cfg.max_window_hours)
+    start, end = compute_window(watermark, now, cfg.max_window_hours)
 
     if start >= end:
         logger.info("Nothing to report (start >= end)")
         return RunResult(window_start=start, window_end=end, status="noop", duration_seconds=time.monotonic() - t0)
 
-    logger.info("Querying App Insights: %s → %s", start.isoformat(), end.isoformat())
-    records = query_usage(cfg.log_analytics_workspace_id, start, end)
+    logger.info("Querying GwJobs: %s → %s", start.isoformat(), end.isoformat())
+    records = query_usage_from_jobs(cfg.table_service, start, end)
     logger.info("Found %d billable records", len(records))
 
     result = RunResult(

@@ -9,7 +9,7 @@ def test_pdf_text(test_sub):
     pdf_bytes = make_pdf("Extract this sentence from the PDF.")
     _, result = submit_and_poll(
         files={"file": ("test.pdf", io.BytesIO(pdf_bytes), "application/pdf")},
-        sub_id=test_sub,
+        api_key=test_sub.api_key,
     )
     assert result.status_code == 200
     artefacts = assert_canonize_ok(result.json())
@@ -21,7 +21,7 @@ def test_pdf_multipage(test_sub):
     pdf_bytes = make_pdf("Page content here.", pages=3)
     _, result = submit_and_poll(
         files={"file": ("multipage.pdf", io.BytesIO(pdf_bytes), "application/pdf")},
-        sub_id=test_sub,
+        api_key=test_sub.api_key,
     )
     assert result.status_code == 200
     artefacts = assert_canonize_ok(result.json())

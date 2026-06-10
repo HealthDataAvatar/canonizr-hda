@@ -1,8 +1,8 @@
 /**
  * Service interfaces for the portal.
  *
- * Production: ApimKeyStore + StripeBillingStore
- * Local/test: TableKeyStore + TableBillingStore (both backed by Azurite)
+ * Keys: TableKeyStore (all environments — writes GwApiKeys hash table for gateway auth)
+ * Billing: StripeBillingStore (production) / TableBillingStore (local/test)
  */
 
 // ---------------------------------------------------------------------------
@@ -69,20 +69,18 @@ let _services: Services | null = null;
 export function getServices(): Services {
   if (_services) return _services;
 
+  const { TableKeyStore } = require("./keys-table") as typeof import("./keys-table");
+
   if (process.env.USE_LOCAL_SERVICES === "true") {
-    // Local/test — Table Storage implementations
-    const { TableKeyStore } = require("./keys-table") as typeof import("./keys-table");
     const { TableBillingStore } = require("./billing-table") as typeof import("./billing-table");
     _services = {
       keys: new TableKeyStore(),
       billing: new TableBillingStore(),
     };
   } else {
-    // Production — APIM + Stripe
-    const { ApimKeyStore } = require("./keys-apim") as typeof import("./keys-apim");
     const { StripeBillingStore } = require("./billing-stripe") as typeof import("./billing-stripe");
     _services = {
-      keys: new ApimKeyStore(),
+      keys: new TableKeyStore(),
       billing: new StripeBillingStore(),
     };
   }

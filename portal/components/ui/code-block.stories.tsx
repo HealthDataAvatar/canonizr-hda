@@ -16,15 +16,15 @@ export const SingleLanguage: Story = {
       {
         language: "bash",
         code: `# Submit
-JOB_ID=$(curl -s -X POST https://apim-canonizr-prod.azure-api.net/convert \\
-  -H "Ocp-Apim-Subscription-Key: YOUR_API_KEY" \\
+JOB_ID=$(curl -s -X POST https://gateway.canonizr.com/convert \\
+  -H "Authorization: Bearer YOUR_API_KEY" \\
   -F "file=@document.pdf" | jq -r .job_id)
 
 # Poll for result
 while true; do
   RESULT=$(curl -s -w "\\n%{http_code}" \\
-    https://apim-canonizr-prod.azure-api.net/result/$JOB_ID \\
-    -H "Ocp-Apim-Subscription-Key: YOUR_API_KEY")
+    https://gateway.canonizr.com/result/$JOB_ID \\
+    -H "Authorization: Bearer YOUR_API_KEY")
   CODE=$(echo "$RESULT" | tail -1)
   [ "$CODE" = "200" ] && { echo "$RESULT" | head -1 | jq .markdown; break; }
   [ "$CODE" = "202" ] && sleep 2 || { echo "Error: $RESULT"; break; }
@@ -41,15 +41,15 @@ export const MultiLanguage: Story = {
       {
         language: "bash",
         code: `# Submit
-JOB_ID=$(curl -s -X POST https://apim-canonizr-prod.azure-api.net/convert \\
-  -H "Ocp-Apim-Subscription-Key: YOUR_API_KEY" \\
+JOB_ID=$(curl -s -X POST https://gateway.canonizr.com/convert \\
+  -H "Authorization: Bearer YOUR_API_KEY" \\
   -F "file=@document.pdf" | jq -r .job_id)
 
 # Poll for result
 while true; do
   RESULT=$(curl -s -w "\\n%{http_code}" \\
-    https://apim-canonizr-prod.azure-api.net/result/$JOB_ID \\
-    -H "Ocp-Apim-Subscription-Key: YOUR_API_KEY")
+    https://gateway.canonizr.com/result/$JOB_ID \\
+    -H "Authorization: Bearer YOUR_API_KEY")
   CODE=$(echo "$RESULT" | tail -1)
   [ "$CODE" = "200" ] && { echo "$RESULT" | head -1 | jq .markdown; break; }
   [ "$CODE" = "202" ] && sleep 2 || { echo "Error: $RESULT"; break; }
@@ -60,8 +60,8 @@ done`,
         code: `import requests, time
 
 API_KEY = "YOUR_API_KEY"
-BASE = "https://apim-canonizr-prod.azure-api.net"
-HEADERS = {"Ocp-Apim-Subscription-Key": API_KEY}
+BASE = "https://gateway.canonizr.com"
+HEADERS = {"Authorization": f"Bearer {API_KEY}"}
 
 # Submit
 with open("document.pdf", "rb") as f:
@@ -82,7 +82,7 @@ while True:
       {
         language: "javascript",
         code: `const API_KEY = "YOUR_API_KEY";
-const BASE = "https://apim-canonizr-prod.azure-api.net";
+const BASE = "https://gateway.canonizr.com";
 
 const form = new FormData();
 form.append("file", fs.createReadStream("document.pdf"));
@@ -90,14 +90,14 @@ form.append("file", fs.createReadStream("document.pdf"));
 // Submit
 const { job_id, poll_url } = await fetch(\`\${BASE}/convert\`, {
   method: "POST",
-  headers: { "Ocp-Apim-Subscription-Key": API_KEY },
+  headers: { "Authorization": \`Bearer \${API_KEY}\` },
   body: form,
 }).then(r => r.json());
 
 // Poll for result
 while (true) {
   const poll = await fetch(\`\${BASE}\${poll_url}\`, {
-    headers: { "Ocp-Apim-Subscription-Key": API_KEY },
+    headers: { "Authorization": \`Bearer \${API_KEY}\` },
   });
   if (poll.status === 200) { console.log((await poll.json()).markdown); break; }
   if (poll.status !== 202) throw new Error(await poll.text());
@@ -118,8 +118,8 @@ export const Overflow: Story = {
 from pathlib import Path
 
 API_KEY = "your-very-long-api-key-that-extends-well-beyond-the-visible-area-of-the-code-block-container"
-BASE = "https://apim-canonizr-prod.azure-api.net"
-HEADERS = {"Ocp-Apim-Subscription-Key": API_KEY}
+BASE = "https://gateway.canonizr.com"
+HEADERS = {"Authorization": f"Bearer {API_KEY}"}
 
 def convert_document(file_path: str, output_dir: str = "./output") -> dict:
     """Convert a single document to markdown with full polling loop."""
@@ -155,8 +155,8 @@ export const Inset: Story = {
     samples: [
       {
         language: "bash",
-        code: `curl -s -X POST https://apim-canonizr-prod.azure-api.net/convert \\
-  -H "Ocp-Apim-Subscription-Key: YOUR_API_KEY" \\
+        code: `curl -s -X POST https://gateway.canonizr.com/convert \\
+  -H "Authorization: Bearer YOUR_API_KEY" \\
   -F "file=@document.pdf" | jq .`,
       },
     ],

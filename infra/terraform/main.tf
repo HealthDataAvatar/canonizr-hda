@@ -13,7 +13,7 @@ resource "azurerm_resource_group" "this" {
 }
 
 # ---------------------------------------------------------------------------
-# Log Analytics (shared by Container Apps and APIM)
+# Log Analytics (shared by Container Apps)
 # ---------------------------------------------------------------------------
 resource "azurerm_log_analytics_workspace" "this" {
   name                = "log-${local.prefix}"

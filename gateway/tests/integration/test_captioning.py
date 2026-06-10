@@ -19,7 +19,7 @@ def test_image_produces_png_artefact(test_sub):
     png_bytes = make_png("Hello World")
     _, result = submit_and_poll(
         files={"file": ("test.png", io.BytesIO(png_bytes), "image/png")},
-        sub_id=test_sub,
+        api_key=test_sub.api_key,
     )
     assert result.status_code == 200
     artefacts = assert_canonize_ok(result.json())

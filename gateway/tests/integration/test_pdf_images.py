@@ -17,7 +17,7 @@ def test_fixture_pdf_image_is_processed(test_sub):
         pdf_bytes = f.read()
     _, result = submit_and_poll(
         files={"file": ("rising-bars.pdf", io.BytesIO(pdf_bytes), "application/pdf")},
-        sub_id=test_sub,
+        api_key=test_sub.api_key,
     )
     assert result.status_code == 200
     artefacts = assert_canonize_ok(result.json())
@@ -32,7 +32,7 @@ def test_generated_small_image_is_skipped(test_sub):
     pdf_bytes = make_pdf_with_images([EmbeddedImage("tiny", 30, 30)])
     _, result = submit_and_poll(
         files={"file": ("small_img.pdf", io.BytesIO(pdf_bytes), "application/pdf")},
-        sub_id=test_sub,
+        api_key=test_sub.api_key,
     )
     assert result.status_code == 200
     assert_canonize_ok(result.json())

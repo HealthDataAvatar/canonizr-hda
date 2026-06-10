@@ -15,7 +15,7 @@ def test_docx(test_sub):
                 "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             )
         },
-        sub_id=test_sub,
+        api_key=test_sub.api_key,
     )
     assert result.status_code == 200
     artefacts = assert_canonize_ok(result.json())
@@ -32,7 +32,7 @@ def test_xlsx(test_sub):
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             )
         },
-        sub_id=test_sub,
+        api_key=test_sub.api_key,
     )
     assert result.status_code == 200
     artefacts = assert_canonize_ok(result.json())

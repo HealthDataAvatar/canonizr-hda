@@ -11,7 +11,7 @@ import type { TestUser } from "./helpers";
 import {
   authenticate,
   createFetcher,
-  APIM_STUB_URL,
+  GATEWAY_URL,
 } from "./helpers";
 import { getTableClient } from "@/lib/data/table-client";
 import { TableName } from "@/lib/data/table-interface";
@@ -59,9 +59,9 @@ describe("gateway accepts portal-issued key", () => {
     const formData = new FormData();
     formData.append("file", new Blob(["Hello from e2e"], { type: "text/plain" }), "test.txt");
 
-    const res = await fetch(`${APIM_STUB_URL}/v1/jobs`, {
+    const res = await fetch(`${GATEWAY_URL}/v1/jobs`, {
       method: "POST",
-      headers: { "Ocp-Apim-Subscription-Key": apiKey },
+      headers: { Authorization: `Bearer ${apiKey}` },
       body: formData,
     });
 
@@ -88,9 +88,9 @@ describe("per-key quota enforcement", () => {
     // 2. Submit a file — should be rejected (429)
     const formData1 = new FormData();
     formData1.append("file", new Blob(["quota test"], { type: "text/plain" }), "quota.txt");
-    const blocked = await fetch(`${APIM_STUB_URL}/v1/jobs`, {
+    const blocked = await fetch(`${GATEWAY_URL}/v1/jobs`, {
       method: "POST",
-      headers: { "Ocp-Apim-Subscription-Key": apiKey },
+      headers: { Authorization: `Bearer ${apiKey}` },
       body: formData1,
     });
     expect(blocked.status).toBe(429);
@@ -106,9 +106,9 @@ describe("per-key quota enforcement", () => {
     // 4. Submit again — should be accepted (202)
     const formData2 = new FormData();
     formData2.append("file", new Blob(["quota test ok"], { type: "text/plain" }), "quota-ok.txt");
-    const allowed = await fetch(`${APIM_STUB_URL}/v1/jobs`, {
+    const allowed = await fetch(`${GATEWAY_URL}/v1/jobs`, {
       method: "POST",
-      headers: { "Ocp-Apim-Subscription-Key": apiKey },
+      headers: { Authorization: `Bearer ${apiKey}` },
       body: formData2,
     });
     expect(allowed.status).toBe(202);

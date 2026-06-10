@@ -12,7 +12,7 @@ def test_unsupported_format(test_sub):
     r = requests.post(
         f"{GATEWAY_URL}/v1/jobs",
         files={"file": ("test.xyz", io.BytesIO(garbage), "application/octet-stream")},
-        headers={"X-Subscription-Id": test_sub},
+        headers={"Authorization": f"Bearer {test_sub.api_key}"},
         timeout=TIMEOUT,
     )
     assert r.status_code == 400
@@ -23,7 +23,7 @@ def test_file_too_large(test_sub):
     r = requests.post(
         f"{GATEWAY_URL}/v1/jobs",
         files={"file": ("large.pdf", io.BytesIO(large_data), "application/pdf")},
-        headers={"X-Subscription-Id": test_sub},
+        headers={"Authorization": f"Bearer {test_sub.api_key}"},
         timeout=TIMEOUT,
     )
     assert r.status_code == 413
@@ -32,7 +32,7 @@ def test_file_too_large(test_sub):
 def test_empty_file(test_sub):
     submit, result = submit_and_poll(
         files={"file": ("empty.txt", io.BytesIO(b""), "text/plain")},
-        sub_id=test_sub,
+        api_key=test_sub.api_key,
     )
     assert submit.status_code == 202
     assert result.status_code == 200
@@ -62,7 +62,7 @@ class TestArchiveRejection:
         return requests.post(
             f"{GATEWAY_URL}/v1/jobs",
             files={"file": (filename, b"fake-archive-bytes", mime)},
-            headers={"X-Subscription-Id": test_sub},
+            headers={"Authorization": f"Bearer {test_sub.api_key}"},
             timeout=TIMEOUT,
         )
 

@@ -121,29 +121,6 @@ services:
       gateway:
         condition: service_healthy
 
-  apim-stub:
-    build:
-      context: ./portal
-      dockerfile: portal-tests.dockerfile
-    command: ["node", "stubs/apim-stub.mjs"]
-    ports:
-      - "8080:8080"
-    environment:
-      AZURITE_TABLE_CONN: "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;TableEndpoint=http://azurite:10002/devstoreaccount1"
-      GATEWAY_URL: "http://gateway:8000"
-    networks:
-      - portal-test
-    depends_on:
-      azurite:
-        condition: service_healthy
-      gateway:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:8080/health').then(r=>{if(!r.ok)throw r.status})"]
-      interval: 2s
-      timeout: 2s
-      retries: 10
-
   tests:
     build:
       context: ./portal
@@ -151,7 +128,7 @@ services:
     environment:
       PORTAL_URL: http://portal:3000
       MAIL_STUB_URL: http://mail-stub:4300
-      APIM_STUB_URL: http://apim-stub:8080
+      GATEWAY_URL: http://gateway:8000
       AZURITE_TABLE_CONN: "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;TableEndpoint=http://azurite:10002/devstoreaccount1"
       REDIS_URL: redis://redis:6379
       DEFAULT_FREE_UNITS: "500"
@@ -167,7 +144,7 @@ services:
         condition: service_healthy
       mail-stub:
         condition: service_healthy
-      apim-stub:
+      gateway:
         condition: service_healthy
 
 networks:

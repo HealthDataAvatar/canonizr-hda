@@ -13,7 +13,7 @@ class TestPolling:
     def test_successful_conversion_is_pollable(self, test_sub):
         submit, result = submit_and_poll(
             files={"file": ("test.txt", b"Polling test", "text/plain")},
-            sub_id=test_sub,
+            api_key=test_sub.api_key,
         )
         assert submit.status_code == 202
         assert result.status_code == 200
@@ -22,7 +22,7 @@ class TestPolling:
     def test_result_available_on_repeated_poll(self, test_sub):
         submit, result = submit_and_poll(
             files={"file": ("test.txt", b"Repeat poll test", "text/plain")},
-            sub_id=test_sub,
+            api_key=test_sub.api_key,
         )
         assert result.status_code == 200
 
@@ -37,14 +37,14 @@ class TestDelete:
     def test_delete_returns_204(self, test_sub):
         submit, result = submit_and_poll(
             files={"file": ("test.txt", b"Delete me", "text/plain")},
-            sub_id=test_sub,
+            api_key=test_sub.api_key,
         )
         assert result.status_code == 200
 
         job_id = submit.json()["job_id"]
         resp = requests.delete(
             f"{GATEWAY_URL}/v1/jobs/{job_id}",
-            headers={"X-Subscription-Id": test_sub},
+            headers={"Authorization": f"Bearer {test_sub.api_key}"},
             timeout=TIMEOUT,
         )
         assert resp.status_code == 204
@@ -52,14 +52,14 @@ class TestDelete:
     def test_poll_after_delete_returns_410(self, test_sub):
         submit, result = submit_and_poll(
             files={"file": ("test.txt", b"Delete then poll", "text/plain")},
-            sub_id=test_sub,
+            api_key=test_sub.api_key,
         )
         assert result.status_code == 200
 
         job_id = submit.json()["job_id"]
         requests.delete(
             f"{GATEWAY_URL}/v1/jobs/{job_id}",
-            headers={"X-Subscription-Id": test_sub},
+            headers={"Authorization": f"Bearer {test_sub.api_key}"},
             timeout=TIMEOUT,
         )
 
@@ -69,7 +69,7 @@ class TestDelete:
     def test_delete_nonexistent_returns_404(self, test_sub):
         resp = requests.delete(
             f"{GATEWAY_URL}/v1/jobs/nonexistent_job_id",
-            headers={"X-Subscription-Id": test_sub},
+            headers={"Authorization": f"Bearer {test_sub.api_key}"},
             timeout=TIMEOUT,
         )
         assert resp.status_code == 404

@@ -14,3 +14,4 @@ class Table(StrEnum):
     GW_USER_JOBS = "GwUserJobs"
     USER_CONFIG = "UserConfig"
     USER_PERMISSIONS = "UserPermissions"
+    GW_API_KEYS = "GwApiKeys"

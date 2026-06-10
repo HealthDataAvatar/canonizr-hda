@@ -36,7 +36,7 @@ def _make_heif(color="orange", size=(200, 200)) -> bytes:
 class TestAvifSupport:
     def test_avif_produces_png_artefact(self, test_sub):
         avif_bytes = _make_avif()
-        _, result = submit_and_poll({"file": ("test.avif", avif_bytes, "image/avif")}, test_sub)
+        _, result = submit_and_poll({"file": ("test.avif", avif_bytes, "image/avif")}, test_sub.api_key)
         assert result.status_code == 200
         artefacts = assert_canonize_ok(result.json())
         img = find_artefact(artefacts, "image-0")
@@ -45,7 +45,7 @@ class TestAvifSupport:
 
     def test_heif_produces_png_artefact(self, test_sub):
         heif_bytes = _make_heif()
-        _, result = submit_and_poll({"file": ("test.heic", heif_bytes, "image/heif")}, test_sub)
+        _, result = submit_and_poll({"file": ("test.heic", heif_bytes, "image/heif")}, test_sub.api_key)
         assert result.status_code == 200
         artefacts = assert_canonize_ok(result.json())
         img = find_artefact(artefacts, "image-0")

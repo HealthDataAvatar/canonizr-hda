@@ -3,11 +3,15 @@
  * Used for local dev and integration tests (against Azurite).
  */
 
-import { randomUUID } from "crypto";
+import { createHash, randomUUID } from "crypto";
 import { getTableClient } from "@/lib/data/table-client";
 import { TableName } from "@/lib/data/table-interface";
 import { getRedis } from "@/lib/redis";
 import type { ApiKey, KeyStore } from ".";
+
+function hashApiKey(key: string): string {
+  return createHash("sha256").update(key).digest("hex");
+}
 
 export class TableKeyStore implements KeyStore {
   async list(userId: string): Promise<ApiKey[]> {
@@ -43,22 +47,33 @@ export class TableKeyStore implements KeyStore {
   async create(userId: string, name: string): Promise<{ id: string; primaryKey: string }> {
     const client = getTableClient(TableName.API_KEYS);
     const gwSubs = getTableClient(TableName.GW_SUBSCRIPTIONS);
+    const gwApiKeys = getTableClient(TableName.GW_API_KEYS);
 
     const id = `key-${Date.now()}-${randomUUID().slice(0, 8)}`;
     const primaryKey = `pk_${randomUUID().replace(/-/g, "")}`;
-    await client.upsertEntity({
-      partitionKey: userId,
-      rowKey: id,
-      displayName: name,
-      primaryKey,
-      createdDate: new Date().toISOString(),
-    });
-    await gwSubs.upsertEntity({
-      partitionKey: "subscription",
-      rowKey: id,
-      user_id: userId,
-      key_name: name,
-    });
+    const keyHash = hashApiKey(primaryKey);
+    await Promise.all([
+      client.upsertEntity({
+        partitionKey: userId,
+        rowKey: id,
+        displayName: name,
+        primaryKey,
+        createdDate: new Date().toISOString(),
+      }),
+      gwSubs.upsertEntity({
+        partitionKey: "subscription",
+        rowKey: id,
+        user_id: userId,
+        key_name: name,
+      }),
+      gwApiKeys.upsertEntity({
+        partitionKey: "key",
+        rowKey: keyHash,
+        sub_id: id,
+        user_id: userId,
+        created_at: new Date().toISOString(),
+      }),
+    ]);
     return { id, primaryKey };
   }
 
@@ -75,18 +90,35 @@ export class TableKeyStore implements KeyStore {
 
   async rotate(subscriptionId: string): Promise<string> {
     const client = getTableClient(TableName.API_KEYS);
+    const gwApiKeys = getTableClient(TableName.GW_API_KEYS);
+    const redis = getRedis();
     const entities = client.listEntities({
       queryOptions: { filter: `RowKey eq '${subscriptionId}'` },
     });
     for await (const e of entities) {
+      const oldKey = e.primaryKey as string;
+      const oldHash = hashApiKey(oldKey);
       const newKey = `pk_${randomUUID().replace(/-/g, "")}`;
-      await client.upsertEntity({
-        partitionKey: e.partitionKey as string,
-        rowKey: e.rowKey as string,
-        displayName: e.displayName,
-        primaryKey: newKey,
-        createdDate: e.createdDate,
-      });
+      const newHash = hashApiKey(newKey);
+      await Promise.all([
+        client.upsertEntity({
+          partitionKey: e.partitionKey as string,
+          rowKey: e.rowKey as string,
+          displayName: e.displayName,
+          primaryKey: newKey,
+          createdDate: e.createdDate,
+        }),
+        gwApiKeys.deleteEntity("key", oldHash).catch(() => {}),
+        gwApiKeys.upsertEntity({
+          partitionKey: "key",
+          rowKey: newHash,
+          sub_id: subscriptionId,
+          user_id: e.partitionKey as string,
+          created_at: new Date().toISOString(),
+        }),
+      ]);
+      // Invalidate old cache entry
+      if (redis) await redis.del(`apikey:${oldHash}:sub_id`);
       return newKey;
     }
     throw new Error(`Key ${subscriptionId} not found`);
@@ -95,12 +127,19 @@ export class TableKeyStore implements KeyStore {
   async delete(subscriptionId: string): Promise<void> {
     const client = getTableClient(TableName.API_KEYS);
     const gwSubs = getTableClient(TableName.GW_SUBSCRIPTIONS);
+    const gwApiKeys = getTableClient(TableName.GW_API_KEYS);
+    const redis = getRedis();
     const entities = client.listEntities({
       queryOptions: { filter: `RowKey eq '${subscriptionId}'` },
     });
     for await (const e of entities) {
-      await client.deleteEntity(e.partitionKey as string, e.rowKey as string);
-      await gwSubs.deleteEntity("subscription", subscriptionId).catch(() => {});
+      const keyHash = hashApiKey(e.primaryKey as string);
+      await Promise.all([
+        client.deleteEntity(e.partitionKey as string, e.rowKey as string),
+        gwSubs.deleteEntity("subscription", subscriptionId).catch(() => {}),
+        gwApiKeys.deleteEntity("key", keyHash).catch(() => {}),
+      ]);
+      if (redis) await redis.del(`apikey:${keyHash}:sub_id`);
       return;
     }
   }

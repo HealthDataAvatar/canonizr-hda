@@ -28,6 +28,7 @@ const ALL_TABLES = [
   TableName.GW_ENCRYPTION_KEYS,
   TableName.GW_JOBS,
   TableName.GW_USER_JOBS,
+  TableName.GW_API_KEYS,
 ] as const;
 
 let _done = false;

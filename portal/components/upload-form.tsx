@@ -7,7 +7,7 @@ import { UsageBar } from "@/components/usage-bar";
 import { Upload, Loader, FileText } from "lucide-react";
 import { formatKB } from "@/lib/pure/format";
 
-const APIM_URL = process.env.NEXT_PUBLIC_APIM_URL ?? "https://apim-canonizr-prod.azure-api.net";
+const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL ?? "https://gateway.canonizr.com";
 
 export interface KeyOption {
   id: string;
@@ -106,9 +106,9 @@ export function UploadForm({ keySelectorSlot }: UploadFormProps) {
       form.append("file", file);
 
       setStatus("submitting");
-      const submitRes = await fetch(`${APIM_URL}/v1/jobs`, {
+      const submitRes = await fetch(`${GATEWAY_URL}/v1/jobs`, {
         method: "POST",
-        headers: { "Ocp-Apim-Subscription-Key": apiKey },
+        headers: { Authorization: `Bearer ${apiKey}` },
         body: form,
       });
 

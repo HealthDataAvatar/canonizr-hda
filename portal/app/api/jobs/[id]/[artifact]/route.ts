@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { requireUser, AuthError } from "@/lib/auth/session";
 import { getServices } from "@/lib/services";
 
-const APIM_URL = process.env.APIM_URL ?? "https://apim-canonizr-prod.azure-api.net";
+const GATEWAY_URL = process.env.GATEWAY_URL ?? "https://gateway.canonizr.com";
 
 export async function GET(
   _request: Request,
@@ -25,9 +25,9 @@ export async function GET(
     }
     const apiKey = await keys.get(userKeys[0].id);
 
-    // Proxy to the gateway via APIM
-    const res = await fetch(`${APIM_URL}/v1/jobs/${id}/${artifact}`, {
-      headers: { "Ocp-Apim-Subscription-Key": apiKey },
+    // Proxy to the gateway
+    const res = await fetch(`${GATEWAY_URL}/v1/jobs/${id}/${artifact}`, {
+      headers: { Authorization: `Bearer ${apiKey}` },
     });
 
     if (!res.ok) {

@@ -11,13 +11,6 @@ resource "azurerm_user_assigned_identity" "usage_reporter" {
   resource_group_name = azurerm_resource_group.this.name
 }
 
-# Log Analytics Reader — needed for KQL queries against App Insights
-resource "azurerm_role_assignment" "usage_reporter_log_reader" {
-  scope                = azurerm_log_analytics_workspace.this.id
-  role_definition_name = "Log Analytics Reader"
-  principal_id         = azurerm_user_assigned_identity.usage_reporter.principal_id
-}
-
 # Table Storage access — reads subscription mappings, watermark, audit log
 resource "azurerm_role_assignment" "usage_reporter_table_data" {
   scope                = azurerm_storage_account.portal.id
@@ -90,11 +83,6 @@ resource "azurerm_container_app_job" "usage_reporter" {
       env {
         name  = "TABLE_STORAGE_URL"
         value = azurerm_storage_account.portal.primary_table_endpoint
-      }
-
-      env {
-        name  = "LOG_ANALYTICS_WORKSPACE_ID"
-        value = azurerm_log_analytics_workspace.this.id
       }
 
       env {

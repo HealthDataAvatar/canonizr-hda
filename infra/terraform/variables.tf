@@ -21,23 +21,6 @@ variable "project" {
   default     = "canonizr"
 }
 
-# APIM
-variable "apim_publisher_name" {
-  description = "Publisher name shown in the APIM developer portal"
-  type        = string
-}
-
-variable "apim_publisher_email" {
-  description = "Publisher email for APIM notifications"
-  type        = string
-}
-
-variable "apim_sku" {
-  description = "APIM SKU. Use Consumption for low-cost start, Standard for production."
-  type        = string
-  default     = "Consumption_0"
-}
-
 # Container Apps
 variable "gateway_cpu" {
   type    = number

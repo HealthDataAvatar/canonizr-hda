@@ -25,6 +25,7 @@ export const TableName = {
   GW_ENCRYPTION_KEYS: "GwEncryptionKeys",
   GW_JOBS: "GwJobs",
   GW_USER_JOBS: "GwUserJobs",
+  GW_API_KEYS: "GwApiKeys",
 } as const;
 
 export type JobType = "canonize" | "describe" | "";

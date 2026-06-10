@@ -14,6 +14,7 @@ from fastapi import FastAPI, File, Header, HTTPException, Query, Request, Upload
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 
+from .auth import resolve_api_key
 from .azure_clients import get_blob_service, get_table_service
 from .blob_azure import AzureBlobStore
 from .context import Services
@@ -39,7 +40,7 @@ logging.getLogger("azure").setLevel(logging.WARNING)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global _svc
+    global _svc, _table_service, _redis
     r = await get_redis()
     if r is None:
         raise RuntimeError("REDIS_URL is required")
@@ -63,6 +64,8 @@ async def lifespan(app: FastAPI):
         ooxml_extractor=MarkItDownExtractor(),
         page_renderer=PdfiumPageRenderer(),
     )
+    _table_service = table_svc
+    _redis = r
     await queue.ensure_group()
     yield
     from . import redis_client
@@ -87,6 +90,21 @@ if CORS_ORIGINS:
     app.add_middleware(CORSMiddleware, allow_origins=CORS_ORIGINS, allow_methods=["*"], allow_headers=["*"])
 
 _svc: Services | None = None
+_table_service = None
+_redis = None
+
+
+async def _get_sub_id(request: Request) -> str:
+    """Extract and validate API key from Authorization header, return sub_id."""
+    auth = request.headers.get("authorization", "")
+    key = auth.removeprefix("Bearer ").strip() if auth else ""
+    if not key:
+        raise HTTPException(status_code=401, detail="Missing API key")
+    assert _table_service is not None and _redis is not None
+    sub_id = await resolve_api_key(key, _table_service, _redis)  # type: ignore[arg-type]
+    if not sub_id:
+        raise HTTPException(status_code=401, detail="Invalid API key")
+    return sub_id
 
 
 @app.exception_handler(HTTPException)
@@ -118,9 +136,7 @@ async def _accept_and_respond(request: Request, file: UploadFile, base_path: str
     assert _svc is not None
 
     file_bytes = await _read_file(file)
-    sub_id = request.headers.get("x-subscription-id", "")
-    if not sub_id:
-        raise HTTPException(status_code=401, detail="Missing subscription ID")
+    sub_id = await _get_sub_id(request)
 
     # Trust client MIME type if provided and specific; fall back to magic detection
     client_mime = file.content_type or ""
@@ -186,9 +202,7 @@ async def get_canonize_job(job_id: str):
 @app.delete("/v1/canonize/{job_id}")
 async def delete_canonize_job(request: Request, job_id: str):
     assert _svc is not None
-    sub_id = request.headers.get("x-subscription-id", "")
-    if not sub_id:
-        raise HTTPException(status_code=401, detail="Missing subscription ID")
+    sub_id = await _get_sub_id(request)
     try:
         found = await delete_result(job_id, sub_id, _svc)
     except Rejected as e:
@@ -201,9 +215,7 @@ async def delete_canonize_job(request: Request, job_id: str):
 @app.get("/v1/canonize/{job_id}/artefacts/{name}")
 async def get_canonize_artefact(request: Request, job_id: str, name: str):
     assert _svc is not None
-    sub_id = request.headers.get("x-subscription-id", "")
-    if not sub_id:
-        raise HTTPException(status_code=401, detail="Missing subscription ID")
+    sub_id = await _get_sub_id(request)
     try:
         result = await download_artefact(job_id, sub_id, name, _svc)
     except Rejected as e:
@@ -237,9 +249,7 @@ async def get_job(job_id: str):
 async def delete_job(request: Request, job_id: str):
     assert _svc is not None
 
-    sub_id = request.headers.get("x-subscription-id", "")
-    if not sub_id:
-        raise HTTPException(status_code=401, detail="Missing subscription ID")
+    sub_id = await _get_sub_id(request)
 
     try:
         found = await delete_result(job_id, sub_id, _svc)
@@ -256,9 +266,7 @@ async def delete_job(request: Request, job_id: str):
 async def get_artifact(request: Request, job_id: str, artifact: str):
     assert _svc is not None
 
-    sub_id = request.headers.get("x-subscription-id", "")
-    if not sub_id:
-        raise HTTPException(status_code=401, detail="Missing subscription ID")
+    sub_id = await _get_sub_id(request)
 
     try:
         result = await download_artifact(job_id, sub_id, artifact, _svc)
@@ -276,9 +284,7 @@ async def get_artifact(request: Request, job_id: str, artifact: str):
 async def get_artefact(request: Request, job_id: str, name: str):
     assert _svc is not None
 
-    sub_id = request.headers.get("x-subscription-id", "")
-    if not sub_id:
-        raise HTTPException(status_code=401, detail="Missing subscription ID")
+    sub_id = await _get_sub_id(request)
 
     try:
         result = await download_artefact(job_id, sub_id, name, _svc)
