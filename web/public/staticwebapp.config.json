@@ -1,0 +1,22 @@
+{
+  "navigationFallback": {
+    "rewrite": "/index.html"
+  },
+  "routes": [
+    {
+      "route": "/portal",
+      "redirect": "https://portal.canonizr.com",
+      "statusCode": 301
+    },
+    {
+      "route": "/docs",
+      "redirect": "https://api.canonizr.com/docs",
+      "statusCode": 301
+    }
+  ],
+  "globalHeaders": {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "strict-origin-when-cross-origin"
+  }
+}

@@ -33,3 +33,12 @@ output "portal_key_vault_name" {
 output "results_storage_account" {
   value = azurerm_storage_account.results.name
 }
+
+output "website_deployment_token" {
+  value     = azurerm_static_web_app.website.api_key
+  sensitive = true
+}
+
+output "website_default_hostname" {
+  value = azurerm_static_web_app.website.default_host_name
+}

@@ -149,6 +149,20 @@ portal-dev:
 	docker compose -f docker-compose.portal-test.yml down
 
 # ---------------------------------------------------------------------------
+# Website (static marketing site)
+# ---------------------------------------------------------------------------
+.PHONY: web-dev web-build web-deploy
+web-dev:
+	cd web && npm run dev
+
+web-build:
+	cd web && npm run build
+
+web-deploy: web-build
+	@test -n "$$SWA_DEPLOYMENT_TOKEN" || { echo "Error: set SWA_DEPLOYMENT_TOKEN (from tofu output -raw website_deployment_token)"; exit 1; }
+	npx @azure/static-web-apps-cli deploy web/dist --deployment-token $$SWA_DEPLOYMENT_TOKEN --env production
+
+# ---------------------------------------------------------------------------
 # Logs
 # ---------------------------------------------------------------------------
 .PHONY: log-gateway log-worker log-portal
