@@ -1,9 +1,12 @@
+import Redis from "ioredis";
 import { setConnectionString, getTableClient } from "@/lib/data/table-client";
 import { ensureAllTables } from "@/lib/data/ensure-tables";
 import { TableName } from "@/lib/data/table-interface";
+import { currentPeriodStart, quotaUsageKey } from "@/lib/pure/billing-period";
 
 export const PORTAL_URL = process.env.PORTAL_URL ?? "http://localhost:3000";
 export const GATEWAY_URL = process.env.GATEWAY_URL ?? "http://localhost:8000";
+const REDIS_URL = process.env.REDIS_URL ?? "redis://localhost:6379";
 
 const AZURITE_CONN =
   process.env.AZURITE_TABLE_CONN ??
@@ -71,8 +74,6 @@ export async function seedTestUser(user: TestUser, opts?: { isAdmin?: boolean })
     isAdmin: opts?.isAdmin ?? false,
     blocked: false,
     stripeCustomerId: user.stripeCustomerId,
-    billingStatus: "",
-    hasPaymentMethod: false,
     changedBy: "system",
   });
 
@@ -235,4 +236,53 @@ export async function submitAndPoll(
     await new Promise((r) => setTimeout(r, 1000));
   }
   return { submitBody, submitStatus: submit.status, result };
+}
+
+// ---------------------------------------------------------------------------
+// Redis helpers
+// ---------------------------------------------------------------------------
+
+let _redis: Redis | null = null;
+
+export function getTestRedis(): Redis {
+  if (!_redis) {
+    _redis = new Redis(REDIS_URL);
+  }
+  return _redis;
+}
+
+/**
+ * Seed period-scoped usage bytes for a key in Redis.
+ * Uses the billing anchor to compute the correct period-scoped key.
+ */
+export async function seedUsage(
+  keyId: string,
+  bytes: number,
+  anchorDay: number = 1,
+) {
+  const redis = getTestRedis();
+  const ps = currentPeriodStart(anchorDay);
+  await redis.set(quotaUsageKey(keyId, ps), String(bytes));
+}
+
+/** Delete a period-scoped usage key from Redis. */
+export async function clearUsage(keyId: string, anchorDay: number = 1) {
+  const redis = getTestRedis();
+  const ps = currentPeriodStart(anchorDay);
+  await redis.del(quotaUsageKey(keyId, ps));
+}
+
+// ---------------------------------------------------------------------------
+// GwBilling helpers
+// ---------------------------------------------------------------------------
+
+export async function seedBilling(userId: string, stripeCustomerId: string, anchorDay: number = 1) {
+  await initTables();
+  const client = getTableClient(TableName.GW_BILLING);
+  await client.upsertEntity({
+    partitionKey: "billing",
+    rowKey: userId,
+    stripe_customer_id: stripeCustomerId,
+    billing_anchor_day: anchorDay,
+  });
 }

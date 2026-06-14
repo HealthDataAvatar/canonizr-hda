@@ -82,7 +82,7 @@ async def _handle_job(job: Job, svc: Services, sem: asyncio.Semaphore) -> None:
 
         # On failure: refund quota and call error hook
         if proc.job_result.status == "error" and job.sub_id and proc.file_size > 0:
-            await svc.quota.refund(job.sub_id, proc.file_size)
+            await svc.quota.refund(job.sub_id, proc.file_size, user.billing_anchor_day)
             logger.info("Job %s failed — refunded %d bytes", job.job_id, proc.file_size)
             on_job_error(job, proc)
 

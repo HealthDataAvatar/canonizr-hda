@@ -9,26 +9,26 @@ No f-string key construction elsewhere in the codebase.
 
 
 def user_id_cache(*, sub_id: str) -> str:
-    """Cache: subscription → user_id mapping."""
+    """Cache: subscription -> user_id mapping."""
     return f"sub:{sub_id}:user_id"
 
 
 def key_name_cache(*, sub_id: str) -> str:
-    """Cache: subscription → API key name."""
+    """Cache: subscription -> API key name."""
     return f"sub:{sub_id}:key_name"
 
 
 def encryption_key_cache(*, user_id: str) -> str:
-    """Cache: user → encryption key hex."""
+    """Cache: user -> encryption key hex."""
     return f"userkey:{user_id}"
 
 
 # -- Quota --
 
 
-def quota_usage(*, sub_id: str) -> str:
-    """Counter: cumulative bytes used this billing period."""
-    return f"sub:{sub_id}:bytes"
+def quota_usage(*, sub_id: str, period_start: str) -> str:
+    """Counter: bytes used in the billing period starting on period_start."""
+    return f"sub:{sub_id}:bytes:{period_start}"
 
 
 def quota_limit(*, sub_id: str) -> str:
@@ -49,14 +49,14 @@ def user_blocked(*, user_id: str) -> str:
     return f"user:{user_id}:blocked"
 
 
-def billing_status(*, user_id: str) -> str:
-    """Cache: user billing status (short TTL)."""
-    return f"user:{user_id}:billing_status"
-
-
 def price_per_unit_cache(*, user_id: str) -> str:
     """Cache: user price per unit (long TTL, admin-changed)."""
     return f"user:{user_id}:price_per_unit"
+
+
+def billing_anchor_cache(*, user_id: str) -> str:
+    """Cache: user billing anchor day (immutable after signup)."""
+    return f"user:{user_id}:billing_anchor_day"
 
 
 # -- Job queue --
@@ -68,12 +68,12 @@ def job_result(*, job_id: str) -> str:
 
 
 def dedupe(*, sub_id: str, doc_hash: str) -> str:
-    """Mapping: identical file → existing job_id."""
+    """Mapping: identical file -> existing job_id."""
     return f"dedupe:{sub_id}:{doc_hash}"
 
 
 def api_key_cache(*, key_hash: str) -> str:
-    """Cache: API key hash → sub_id mapping."""
+    """Cache: API key hash -> sub_id mapping."""
     return f"apikey:{key_hash}:sub_id"
 
 

@@ -29,6 +29,7 @@ const ALL_TABLES = [
   TableName.GW_JOBS,
   TableName.GW_USER_JOBS,
   TableName.GW_API_KEYS,
+  TableName.GW_BILLING,
 ] as const;
 
 let _done = false;

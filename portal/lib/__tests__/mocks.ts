@@ -15,7 +15,6 @@ export function mockServices() {
       getInvoices: vi.fn().mockResolvedValue([]),
       createCustomer: vi.fn().mockResolvedValue({ customerId: "cus_1", subscriptionId: "sub_1", isReturning: false }),
       createBillingPortalSession: vi.fn().mockResolvedValue("https://billing.example.com"),
-      hasPaymentMethod: vi.fn().mockResolvedValue(false),
     },
   };
 }

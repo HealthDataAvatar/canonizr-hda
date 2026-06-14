@@ -52,7 +52,6 @@ export interface BillingStore {
   getInvoices(customerId: string): Promise<Invoice[]>;
   createCustomer(email: string): Promise<{ customerId: string; subscriptionId: string; isReturning: boolean }>;
   createBillingPortalSession(customerId: string, returnUrl: string): Promise<string>;
-  hasPaymentMethod(customerId: string): Promise<boolean>;
 }
 
 // ---------------------------------------------------------------------------

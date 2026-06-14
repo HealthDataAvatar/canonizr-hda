@@ -1,8 +1,9 @@
 """Azure Table Storage + Redis implementation of UserResolver protocol.
 
 Lookup chain:
-  sub_id → user_id (Redis cache, then Table Storage)
-  user_id → encryption key (Redis cache, then Table Storage)
+  sub_id -> user_id (Redis cache, then Table Storage)
+  user_id -> encryption key (Redis cache, then Table Storage)
+  user_id -> billing_anchor_day (Redis cache, then GwBilling table)
 """
 
 import logging
@@ -10,9 +11,7 @@ import logging
 from azure.data.tables import TableServiceClient
 
 from .keys import (
-    billing_status as billing_status_key,
-)
-from .keys import (
+    billing_anchor_cache,
     encryption_key_cache,
     key_name_cache,
     price_per_unit_cache,
@@ -39,7 +38,7 @@ class TableUserResolver:
         """Resolve a subscription to a user context.
 
         Returns UserContext on success, None if unknown, ResolveRejected if
-        blocked/billing, or ResolveMisconfigured if account is broken.
+        blocked, or ResolveMisconfigured if account is broken.
         """
         uid = await self._get_user_id(sub_id)
         if not uid:
@@ -48,11 +47,6 @@ class TableUserResolver:
         if await self._is_blocked(uid):
             logger.warning("Blocked user %s attempted request", uid)
             return ResolveRejected("Account is blocked", 403)
-
-        billing_err = await self._check_billing_status(uid)
-        if billing_err:
-            logger.warning("Billing block for user %s: %s", uid, billing_err)
-            return ResolveRejected(billing_err, 402)
 
         key_hex = await self._get_user_key(uid)
         if not key_hex:
@@ -65,7 +59,15 @@ class TableUserResolver:
             logger.error("User %s has no price_per_unit in UserConfig", uid)
             return ResolveMisconfigured("No price_per_unit in UserConfig")
 
-        return UserContext(user_id=uid, encryption_key=bytes.fromhex(key_hex), key_id=kname, price_per_unit=ppu)
+        anchor = await self._get_billing_anchor(uid)
+
+        return UserContext(
+            user_id=uid,
+            encryption_key=bytes.fromhex(key_hex),
+            key_id=kname,
+            price_per_unit=ppu,
+            billing_anchor_day=anchor,
+        )
 
     async def _is_blocked(self, user_id: str) -> bool:
         ck = user_blocked(user_id=user_id)
@@ -77,23 +79,6 @@ class TableUserResolver:
         is_blocked = blocked is True or blocked == "true"
         await self._r.set(ck, "1" if is_blocked else "0", ex=BLOCKED_CACHE_TTL)
         return is_blocked
-
-    _BILLING_ERRORS: dict[str, str] = {
-        "past_due": "BILLING:Payment failed — update your payment method at the billing portal",
-        "canceled": "BILLING:Subscription canceled — please resubscribe to continue",
-        "free_exhausted": "BILLING:Free tier exhausted — add a payment method to continue",
-    }
-
-    async def _check_billing_status(self, user_id: str) -> str | None:
-        ck = billing_status_key(user_id=user_id)
-        cached = await self._r.get(ck)
-        if cached is not None:
-            status = cached
-        else:
-            status = self._get_latest_permission(user_id, "billingStatus") or ""
-            await self._r.set(ck, status, ex=BLOCKED_CACHE_TTL)
-
-        return self._BILLING_ERRORS.get(status)
 
     async def _get_user_id(self, sub_id: str) -> str | None:
         ck = user_id_cache(sub_id=sub_id)
@@ -138,6 +123,17 @@ class TableUserResolver:
         ppu = float(val) if val is not None else 0.003
         await self._r.set(ck, str(ppu), ex=CACHE_TTL)
         return ppu
+
+    async def _get_billing_anchor(self, user_id: str) -> int:
+        ck = billing_anchor_cache(user_id=user_id)
+        cached = await self._r.get(ck)
+        if cached is not None:
+            return int(cached)
+
+        val = self._table_lookup(Table.GW_BILLING, "billing", user_id, "billing_anchor_day")
+        anchor = int(val) if val is not None else 1
+        await self._r.set(ck, str(anchor), ex=CACHE_TTL)
+        return anchor
 
     def _get_latest_config(self, user_id: str, field: str):
         """Read a field from the latest UserConfig row (append-only, newest first)."""

@@ -1,6 +1,7 @@
 """Unit tests for Redis key construction."""
 
 from app.keys import (
+    billing_anchor_cache,
     dedupe,
     encryption_key_cache,
     job_result,
@@ -23,7 +24,7 @@ class TestKeyFormats:
         assert encryption_key_cache(user_id="user_abc") == "userkey:user_abc"
 
     def test_quota_usage(self):
-        assert quota_usage(sub_id="sub_123") == "sub:sub_123:bytes"
+        assert quota_usage(sub_id="sub_123", period_start="2026-06-15") == "sub:sub_123:bytes:2026-06-15"
 
     def test_quota_limit(self):
         assert quota_limit(sub_id="sub_123") == "sub:sub_123:quota:bytes"
@@ -36,6 +37,9 @@ class TestKeyFormats:
 
     def test_dedupe(self):
         assert dedupe(sub_id="sub_1", doc_hash="hash_xyz") == "dedupe:sub_1:hash_xyz"
+
+    def test_billing_anchor_cache(self):
+        assert billing_anchor_cache(user_id="user_abc") == "user:user_abc:billing_anchor_day"
 
     def test_all_use_keyword_args(self):
         """Verify positional args are rejected (keyword-only enforcement)."""
@@ -50,6 +54,7 @@ class TestKeyFormats:
             quota_rejected,
             job_result,
             dedupe,
+            billing_anchor_cache,
         ]:
             sig = inspect.signature(fn)
             for param in sig.parameters.values():

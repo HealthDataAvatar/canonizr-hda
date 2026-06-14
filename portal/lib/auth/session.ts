@@ -24,7 +24,7 @@ export async function requireUser(
     if (opts.autoRedirect) redirect("/auth");
     throw new AuthError();
   }
-  await ensureUserSetup(session.user.id, session.user.email);
+  await ensureUserSetup(session.user.id);
   return { userId: session.user.id, email: session.user.email };
 }
 

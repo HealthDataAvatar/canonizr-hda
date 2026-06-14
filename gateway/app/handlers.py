@@ -99,11 +99,11 @@ async def accept_canonize(
     if not is_known_mime_type(mime_type):
         raise Rejected(400, f"Unsupported file type: {mime_type}")
 
-    # Quota check + immediate reservation
-    rejection = await svc.quota.check(sub_id, len(file_bytes))
+    # Quota check + immediate reservation (period-scoped to billing anchor)
+    rejection = await svc.quota.check(sub_id, len(file_bytes), user.billing_anchor_day)
     if rejection:
         raise Rejected(429, rejection)
-    await svc.quota.record(sub_id, len(file_bytes))
+    await svc.quota.record(sub_id, len(file_bytes), user.billing_anchor_day)
 
     doc_hash = document_hash(file_bytes)
     job = Job.create(

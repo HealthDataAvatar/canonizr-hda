@@ -13,7 +13,7 @@ Sign up
 Normal usage
   Gateway enforces per-key quota only (period-scoped Redis counter)
   Usage reporter (hourly) pushes meter events to Stripe
-  Billing page reads Stripe meter summaries, shows usage
+  Billing page reads real-time usage from Redis, invoices from Stripe
 
 Month end
   Stripe generates invoice
@@ -25,73 +25,63 @@ Month end
 
 The gateway has no concept of billing status, free tier exhaustion, or payment methods. If a user doesn't pay, that's between them and Stripe.
 
-## Current State
+## Implementation
 
-### What works
+### GwBilling lookup table
 
-- **Customer creation** (`portal/lib/auth/on-create-user.ts`) -- Stripe customer + subscription created at sign-up. Handles returning customers (email lookup).
-- **Usage metering** (`gateway/app/usage_report.py`) -- Hourly cron queries GwJobs table for successful conversions, pushes meter events to Stripe. Idempotent (deterministic event identifiers), with watermark-based catch-up after outages.
-- **Billing page** (`portal/components/pages/billing-page-content.tsx`) -- Shows usage stats (processed KB, free remaining, estimated cost), invoice history, and "Manage billing" button for Stripe Billing Portal.
-- **Redis caching** (`portal/lib/services/billing-stripe.ts`) -- Usage and invoice data cached 5 min.
-- **Per-key quota** (`gateway/app/quota.py`) -- Redis-backed byte quota per API key. User-configured.
-- **Stripe infrastructure** (`infra/stripe/setup.py`) -- Idempotent meter/product/price creation. $0.003 per 100KB, 500 free units/month.
-
-### What's broken
-
-**Usage reporter cannot map subscriptions to Stripe customers.** The reporter calls `load_subscription_map()` which reads `stripe_customer_id` from `GwSubscriptions`. But `TableKeyStore.create()` never writes `stripe_customer_id` to that table -- it only writes `user_id` and `key_name`. The mapping is always empty. Every record is logged as "unmapped subscription" and skipped. Zero meter events reach Stripe. The billing page shows 0 usage.
-
-**Per-key quotas are lifetime counters, not monthly.** The Redis key `sub:{sub_id}:bytes` has a 31-day TTL from first write, not aligned to billing periods. Users expect "10GB per month", not "10GB total".
-
-**Stripe customer creation is non-fatal.** If it fails, `stripeCustomerId` is stored as `""` and the user still gets an API key. These users can never be billed.
-
-### Dead code to remove
-
-The following were built around a billing-status-gating model we're no longer using:
-
-- **Webhook endpoint** (`portal/app/api/stripe/webhook/route.ts`) -- Syncs billing status to UserPermissions. No longer needed since the gateway doesn't check billing status.
-- **Billing-level access control** (`gateway/app/user_resolver.py` `_check_billing_status()`) -- Gateway 402 blocks for `past_due`, `canceled`, `free_exhausted`. Remove.
-- **Free tier exhaustion detection** (`portal/lib/data/user-page-data.ts`) -- Auto-sets/clears `free_exhausted` status, syncs `hasPaymentMethod` from Stripe. Remove.
-- **`billingStatus` and `hasPaymentMethod` fields** in UserPermissions -- No longer used for access control.
-- **`billing_status()` Redis key** (`gateway/app/keys.py`) -- Gateway billing status cache. Remove.
-- **Retry failed Stripe setup** (`portal/lib/auth/ensure-user-setup.ts`) -- Replaced by mandatory Stripe at signup.
-
-## Fix: GwBilling Lookup Table
-
-Introduce a single user-level lookup table that holds the Stripe mapping and billing period anchor.
-
-### Schema
+Single user-level table holding the Stripe mapping and billing period anchor.
 
 - **Table**: `GwBilling`
 - **PartitionKey**: `"billing"`
 - **RowKey**: `user_id`
 - **Fields**: `stripe_customer_id`, `billing_anchor_day` (1-31)
-- **Written by**: portal at signup (when Stripe customer is created)
-- **Read by**: gateway (quota period calculation), usage reporter (customer mapping)
+- **Written by**: portal at signup (`on-create-user.ts`)
+- **Read by**: gateway (quota period calculation, cached via `user_resolver.py`), usage reporter (customer mapping via `load_subscription_map()`)
 - **Immutable** after creation. Aggressively cacheable.
 
-### Changes required
+### Signup flow
 
-**Portal -- mandatory Stripe at signup:**
-- `on-create-user.ts`: Make `createCustomer` failure fatal (no key issued without Stripe)
-- Write `stripe_customer_id` + `billing_anchor_day` to `GwBilling` at signup
+Stripe customer creation is mandatory. If Stripe is down, signup fails -- no key is issued.
 
-**Gateway -- period-scoped quotas:**
-- `user_resolver.py`: Read `billing_anchor_day` from `GwBilling` (cached alongside user resolution)
-- `quota.py`: Compute current period start from anchor day. Use period-scoped Redis key: `sub:{sub_id}:bytes:{period_start}` (e.g. `sub:key-123:bytes:2026-06-15`)
-- Old keys expire naturally via TTL set to remaining period duration. No reset logic needed.
+- `portal/lib/auth/on-create-user.ts` -- `createCustomer()` failure is fatal (throws)
+- Writes `GwBilling` entry with `stripe_customer_id` + `billing_anchor_day` (UTC day of signup)
+- Then appends UserConfig, UserPermissions, creates default API key
 
-**Usage reporter -- resolve via user_id:**
-- `usage_report.py`: Replace `load_subscription_map()`. Resolve `sub_id -> user_id` (from `GwSubscriptions`) then `user_id -> stripe_customer_id` (from `GwBilling`).
-- Remove `stripe_customer_id` field from `GwSubscriptions` (never populated, not needed).
+### Period-scoped quotas
 
-**Backfill:**
-- One-time script to populate `GwBilling` for existing users from `UserPermissions.stripeCustomerId` + Stripe subscription `billing_cycle_anchor`.
+Per-key quotas are aligned to the user's Stripe billing period via `billing_anchor_day`. All keys for a user share the same anchor.
 
-### Billing period alignment
+- **Redis key**: `sub:{sub_id}:bytes:{period_start}` (e.g. `sub:key-123:bytes:2026-06-15`)
+- **Period start**: computed by `current_period_start(anchor_day, now)` in `gateway/app/quota.py`. Accepts an explicit UTC date for testability. Clamps anchor day to last day of month (e.g. anchor 31 in Feb -> 28).
+- **TTL**: set to remaining days in the current period. Old keys expire naturally.
+- **All period calculations use UTC** to match Stripe's billing cycle anchor.
 
-All keys for a user share the same billing anchor (the day of month the Stripe subscription was created). This aligns per-key quota resets with Stripe's billing period, so the billing page and key quotas always agree.
+### Cache miss fallback
 
-Stripe's metered billing resets per billing period automatically. The 500 free units/month are handled entirely by Stripe's pricing tier -- the gateway doesn't track free tier usage.
+If the Redis usage key is missing (flush, new period, cold start), usage is reconstructed from Table Storage and seeded back into Redis:
+
+- **Gateway** (`quota.py`): `_reconstruct_usage_from_table()` queries GwJobs for `sub_id` where `status=ok` and `completed_at >= period_start`. Deduplicates by `job_id` (GwJobs is append-only). Runs once per cache miss, subsequent reads are fast.
+- **Portal** (`user-page-data.ts`): `reconstructUsageFromTable()` queries GwUserJobs for `user_id` where `status=ok` and `completed_at >= period_start`. Accumulates per-key, seeds Redis per-key.
+
+### Billing page
+
+Shows real-time usage from Redis (not Stripe meter summaries, which lag up to an hour behind the usage reporter cron). Falls back to Table Storage on Redis miss.
+
+- `portal/lib/data/user-page-data.ts` -- `getCurrentUsageUnits()` sums `sub:{sub_id}:bytes:{period_start}` across all keys
+- Invoices still read from Stripe (historical data)
+- "Manage billing" button opens Stripe Billing Portal (existing `ManageBillingButton` component)
+
+### Usage reporter
+
+Hourly Container App Job that pushes meter events to Stripe.
+
+- `gateway/app/usage_report.py` -- `load_subscription_map()` resolves `sub_id -> user_id` (GwSubscriptions) then `user_id -> stripe_customer_id` (GwBilling)
+- Queries GwJobs for completed jobs in the time window, pushes billable units to Stripe
+- Idempotent: deterministic event identifiers + watermark tracking + append-only dedup
+
+### User resolver
+
+`gateway/app/user_resolver.py` reads `billing_anchor_day` from GwBilling (cached in Redis, 1h TTL) and populates `UserContext.billing_anchor_day`. The quota service and worker use this for period-scoped operations.
 
 ## Stripe Metering: How It Works
 
@@ -100,21 +90,28 @@ Stripe's metered billing resets per billing period automatically. The 500 free u
 - At period end: invoice = `(total_units - 500 free) * $0.003`
 - Next period starts at zero automatically
 - Meter events are permanent records; aggregation is per-period
-- Portal reads `listEventSummaries(meter_id, { start_time, end_time })` for current period usage
+
+## Test Coverage
+
+### Gateway unit tests (264 passing)
+
+- `test_quota.py` -- period-scoped check/record/refund, anchor day cycle (different dates passed via `now` param), period boundary resets, cache miss triggers table reconstruction, sparse history dedup (duplicates, errors, zero-byte, wrong sub, before-period all excluded), cache hit skips reconstruction
+- `test_keys.py` -- period-scoped key format, billing anchor cache key
+- `test_handlers.py` -- quota enforcement through full accept flow
+- `test_usage_report.py` -- subscription mapping, meter event push, watermark
+
+### Portal unit tests (133 passing)
+
+- `on-create-user.test.ts` -- mandatory Stripe, GwBilling write, idempotent key creation, fatal on missing user/email
+- `key-usage.test.ts` -- period-scoped Redis keys, billing anchor lookup, zero/multi-key/partial-KB cases
+- `billing-calc.test.ts` -- pure billing calculations
+
+### Integration tests
+
+- `gateway/tests/integration/test_quota.py` -- period-scoped Redis keys against real gateway + Redis + Azurite
+- `portal/tests/integration/portal.test.ts` -- billing page shows 0 with no usage, shows real-time usage from Redis, reconstructs from Table Storage on Redis cache miss
 
 ## Remaining Work
-
-### P0: Fix metering pipeline (GwBilling table + period-scoped quotas)
-
-See "Fix: GwBilling Lookup Table" above. Without this, no usage reaches Stripe and billing is completely broken.
-
-### P1: Remove dead billing-status code
-
-See "Dead code to remove" above. Strip out webhook handler, billing status checks, free tier exhaustion logic, `hasPaymentMethod` syncing.
-
-### P1: Simplify billing page
-
-Remove billing status banners (past_due, canceled, free_exhausted warnings). The page just shows usage from Stripe and a "Manage billing" link. Stripe handles everything else.
 
 ### P2: Approaching-limit notifications
 

@@ -154,24 +154,52 @@ def query_usage_from_jobs(ts: TableServiceClient, start: datetime, end: datetime
 
 
 # ---------------------------------------------------------------------------
-# Subscription → Stripe customer mapping (Azure Table Storage)
+# Subscription → Stripe customer mapping (via GwSubscriptions + GwBilling)
 # ---------------------------------------------------------------------------
 
 
 def load_subscription_map(ts: TableServiceClient) -> dict[str, str]:
-    """Load subscription ID → Stripe customer ID mapping from GwSubscriptions."""
-    table = ts.get_table_client(Table.GW_SUBSCRIPTIONS)
+    """Load subscription ID → Stripe customer ID mapping.
 
-    mapping: dict[str, str] = {}
+    Resolution path: GwSubscriptions (sub_id → user_id) then GwBilling
+    (user_id → stripe_customer_id). GwBilling is the single source of
+    truth for Stripe customer IDs.
+    """
+    # Step 1: sub_id → user_id from GwSubscriptions
+    sub_to_user: dict[str, str] = {}
     try:
-        entities = table.query_entities("PartitionKey eq 'subscription'")
-        for entity in entities:
+        subs_table = ts.get_table_client(Table.GW_SUBSCRIPTIONS)
+        for entity in subs_table.query_entities("PartitionKey eq 'subscription'"):
             sub_id = entity["RowKey"]
-            stripe_cust_id = entity.get("stripe_customer_id", "")
-            if stripe_cust_id:
-                mapping[sub_id] = stripe_cust_id
+            user_id = entity.get("user_id", "")
+            if user_id:
+                sub_to_user[sub_id] = user_id
     except Exception:
-        logger.warning("Could not read subscription mappings — no mappings loaded", exc_info=True)
+        logger.warning("Could not read GwSubscriptions — no mappings loaded", exc_info=True)
+        return {}
+
+    if not sub_to_user:
+        return {}
+
+    # Step 2: user_id → stripe_customer_id from GwBilling
+    user_to_customer: dict[str, str] = {}
+    try:
+        billing_table = ts.get_table_client(Table.GW_BILLING)
+        for entity in billing_table.query_entities("PartitionKey eq 'billing'"):
+            user_id = entity["RowKey"]
+            cust_id = entity.get("stripe_customer_id", "")
+            if cust_id:
+                user_to_customer[user_id] = cust_id
+    except Exception:
+        logger.warning("Could not read GwBilling — no customer mappings loaded", exc_info=True)
+        return {}
+
+    # Step 3: combine
+    mapping: dict[str, str] = {}
+    for sub_id, user_id in sub_to_user.items():
+        cust_id = user_to_customer.get(user_id)
+        if cust_id:
+            mapping[sub_id] = cust_id
 
     return mapping
 

@@ -5,8 +5,8 @@
  * Authenticates via the full magic link flow.
  */
 
-import { describe, it, expect, beforeAll } from "vitest";
-import { authenticate, createFetcher, createTestUser, seedTestUser, seedJob, seedInvoice, initTables, PORTAL_URL } from "./helpers";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { authenticate, createFetcher, createTestUser, seedTestUser, seedJob, seedInvoice, seedBilling, seedUsage, clearUsage, getTestRedis, initTables, PORTAL_URL } from "./helpers";
 import { getCurrentPermissions } from "@/lib/data/tables";
 import { getTableClient } from "@/lib/data/table-client";
 import { TableName } from "@/lib/data/table-interface";
@@ -267,5 +267,73 @@ describe("admin (authenticated as admin)", () => {
     // The user was seeded but has no keys created via the portal, so keys section may be empty
     // Just verify the page doesn't crash
     expect(html).toContain(targetUser.email);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Billing usage from Redis
+// ---------------------------------------------------------------------------
+
+describe("billing page usage (authenticated)", () => {
+  let fetchBilling: ReturnType<typeof createFetcher>;
+  let billingUser: ReturnType<typeof createTestUser>;
+  let keyId: string;
+
+  beforeAll(async () => {
+    const { cookie, user } = await authenticate();
+    billingUser = user;
+    fetchBilling = createFetcher(cookie);
+
+    // Seed GwBilling anchor
+    await seedBilling(billingUser.id, billingUser.stripeCustomerId, 1);
+
+    // Create a key so we have a sub_id to attach usage to
+    const res = await fetchBilling("/api/keys", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "billing-test-key" }),
+    });
+    const body = await res.json();
+    keyId = body.id;
+  }, 30_000);
+
+  afterAll(async () => {
+    await clearUsage(keyId);
+    getTestRedis().disconnect();
+  });
+
+  it("shows 0 KB when no usage exists anywhere", async () => {
+    await clearUsage(keyId);
+    const res = await fetchBilling("/dashboard/billing");
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain("0 KB");
+  });
+
+  it("shows real-time usage from Redis when cache is warm", async () => {
+    // 512,000 bytes = 6 units (ceil(512000/100000)) = 600 KB
+    await seedUsage(keyId, 512_000);
+    const res = await fetchBilling("/dashboard/billing");
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain("600 KB");
+    await clearUsage(keyId);
+  });
+
+  it("reconstructs usage from Table Storage when Redis cache is empty", async () => {
+    // Seed a completed job in GwUserJobs (the table the portal reads)
+    await seedJob(billingUser.id, {
+      key_id: keyId,
+      input_bytes: 300_000,
+      status: "ok",
+    });
+    // Ensure Redis is empty for this key
+    await clearUsage(keyId);
+
+    const res = await fetchBilling("/dashboard/billing");
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    // 300,000 bytes = 3 units = 300 KB
+    expect(html).toContain("300 KB");
   });
 });

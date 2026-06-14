@@ -5,6 +5,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { currentPeriodStart, quotaUsageKey } from "@/lib/pure/billing-period";
 
 // ---------------------------------------------------------------------------
 // Mock Table Storage
@@ -71,6 +72,9 @@ const { TableKeyStore } = await import("@/lib/services/keys-table");
 // Helpers
 // ---------------------------------------------------------------------------
 
+const ANCHOR = 1;
+const PS = currentPeriodStart(ANCHOR);
+
 function seedKey(userId: string, keyId: string, name: string) {
   store.set(`${userId}:${keyId}`, {
     partitionKey: userId,
@@ -87,6 +91,14 @@ function seedKey(userId: string, keyId: string, name: string) {
   });
 }
 
+function seedBillingAnchor(userId: string, anchorDay: number = ANCHOR) {
+  store.set(`billing:${userId}`, {
+    partitionKey: "billing",
+    rowKey: userId,
+    billing_anchor_day: anchorDay,
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -97,12 +109,14 @@ describe("KeyStore.list() usage from Redis", () => {
   beforeEach(() => {
     store.clear();
     redisStore.clear();
+    mockRedis.get.mockClear();
     keyStore = new TableKeyStore();
   });
 
   it("returns usage from Redis when bytes are recorded", async () => {
     seedKey("user1", "key-1", "my-key");
-    redisStore.set("sub:key-1:bytes", "512000"); // 500 KB
+    seedBillingAnchor("user1");
+    redisStore.set(quotaUsageKey("key-1", PS), "512000"); // 500 KB
 
     const keys = await keyStore.list("user1");
 
@@ -112,6 +126,7 @@ describe("KeyStore.list() usage from Redis", () => {
 
   it("returns 0 when no Redis usage exists", async () => {
     seedKey("user1", "key-1", "my-key");
+    seedBillingAnchor("user1");
     // No Redis entry
 
     const keys = await keyStore.list("user1");
@@ -123,8 +138,9 @@ describe("KeyStore.list() usage from Redis", () => {
   it("returns per-key usage for multiple keys", async () => {
     seedKey("user1", "key-a", "first");
     seedKey("user1", "key-b", "second");
-    redisStore.set("sub:key-a:bytes", "1048576"); // 1024 KB
-    redisStore.set("sub:key-b:bytes", "2048");     // 2 KB
+    seedBillingAnchor("user1");
+    redisStore.set(quotaUsageKey("key-a", PS), "1048576"); // 1024 KB
+    redisStore.set(quotaUsageKey("key-b", PS), "2048");     // 2 KB
 
     const keys = await keyStore.list("user1");
 
@@ -135,17 +151,19 @@ describe("KeyStore.list() usage from Redis", () => {
 
   it("rounds up partial KB", async () => {
     seedKey("user1", "key-1", "my-key");
-    redisStore.set("sub:key-1:bytes", "1"); // 1 byte = ceil to 1 KB
+    seedBillingAnchor("user1");
+    redisStore.set(quotaUsageKey("key-1", PS), "1"); // 1 byte = ceil to 1 KB
 
     const keys = await keyStore.list("user1");
 
     expect(keys[0].usageKB).toBe(1);
   });
 
-  it("reads the correct Redis key pattern (sub:{id}:bytes)", async () => {
+  it("reads the correct period-scoped Redis key", async () => {
     seedKey("user1", "key-42", "test");
+    seedBillingAnchor("user1");
     await keyStore.list("user1");
 
-    expect(mockRedis.get).toHaveBeenCalledWith("sub:key-42:bytes");
+    expect(mockRedis.get).toHaveBeenCalledWith(quotaUsageKey("key-42", PS));
   });
 });

@@ -62,8 +62,4 @@ export class TableBillingStore implements BillingStore {
   ): Promise<string> {
     return returnUrl;
   }
-
-  async hasPaymentMethod(_customerId: string): Promise<boolean> {
-    return false;
-  }
 }

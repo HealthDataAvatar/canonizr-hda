@@ -7,6 +7,7 @@ import { createHash, randomUUID } from "crypto";
 import { getTableClient } from "@/lib/data/table-client";
 import { TableName } from "@/lib/data/table-interface";
 import { getRedis } from "@/lib/redis";
+import { currentPeriodStart, quotaUsageKey } from "@/lib/pure/billing-period";
 import type { ApiKey, KeyStore } from ".";
 
 function hashApiKey(key: string): string {
@@ -25,12 +26,21 @@ export class TableKeyStore implements KeyStore {
     for await (const e of entities) {
       rawKeys.push(e);
     }
+    // Read billing anchor for period-scoped usage keys
+    const gwBilling = getTableClient(TableName.GW_BILLING);
+    let anchorDay = 1;
+    try {
+      const billingEntity = await gwBilling.getEntity("billing", userId);
+      anchorDay = (billingEntity.billing_anchor_day as number) ?? 1;
+    } catch { /* no billing record yet */ }
+    const ps = currentPeriodStart(anchorDay);
+
     const keys = await Promise.all(
       rawKeys.map(async (e) => {
         const id = e.rowKey as string;
         const [subEntity, usageBytes] = await Promise.all([
           gwSubs.getEntity("subscription", id).catch(() => null),
-          redis ? redis.get(`sub:${id}:bytes`) : null,
+          redis ? redis.get(quotaUsageKey(id, ps)) : null,
         ]);
         let quotaKB: number | null = null;
         if (subEntity) {

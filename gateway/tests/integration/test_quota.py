@@ -2,6 +2,7 @@
 
 Quota limits are set in Table Storage (source of truth). The gateway reads
 from Redis cache first, falling back to Table Storage on cache miss.
+Usage counters are period-scoped: sub:{sub_id}:bytes:{period_start}.
 Tests cover both the Table-backed path and the natural exhaustion flow.
 """
 
@@ -10,6 +11,8 @@ import os
 import pytest
 import redis
 from azure.data.tables import TableServiceClient
+
+from app.quota import current_period_start
 
 GATEWAY_URL = os.environ.get("GATEWAY_URL", "http://gateway:8000")
 REDIS_URL = os.environ.get("REDIS_URL", "redis://redis:6379")
@@ -21,6 +24,13 @@ AZURITE_TABLE_CONN = os.environ.get(
 )
 GW_SUBSCRIPTIONS = "GwSubscriptions"
 TIMEOUT = 120
+
+# All test users have billing_anchor_day=1 (default)
+PS = current_period_start(1)
+
+
+def _usage_key(sub_id: str) -> str:
+    return f"sub:{sub_id}:bytes:{PS}"
 
 
 @pytest.fixture
@@ -62,7 +72,7 @@ def _convert(file_bytes, api_key):
 
 class TestQuotaEnforcement:
     def test_no_quota_allows_request(self, test_sub, r):
-        """No quota_bytes in Table Storage → unlimited."""
+        """No quota_bytes in Table Storage -> unlimited."""
         resp = _convert(b"hello", test_sub.api_key)
         assert resp.status_code == 202
 
@@ -73,23 +83,23 @@ class TestQuotaEnforcement:
         assert resp.status_code == 202
 
     def test_over_quota_rejects(self, test_sub, r, table):
-        """Usage already at limit → 429."""
+        """Usage already at limit -> 429."""
         _set_quota_in_table(table, test_sub.sub_id, 1)
-        r.set(f"sub:{test_sub.sub_id}:bytes", "1")
+        r.set(_usage_key(test_sub.sub_id), "1")
         resp = _convert(b"hello", test_sub.api_key)
         assert resp.status_code == 429
 
     def test_usage_increments_on_accept(self, test_sub, r, table):
         _set_quota_in_table(table, test_sub.sub_id, 100_000)
-        before = int(r.get(f"sub:{test_sub.sub_id}:bytes") or 0)
+        before = int(r.get(_usage_key(test_sub.sub_id)) or 0)
         resp = _convert(b"hello", test_sub.api_key)
         assert resp.status_code == 202
-        after = int(r.get(f"sub:{test_sub.sub_id}:bytes") or 0)
+        after = int(r.get(_usage_key(test_sub.sub_id)) or 0)
         assert after > before
 
     def test_repeated_rejections_block(self, test_sub, r, table):
         _set_quota_in_table(table, test_sub.sub_id, 1)
-        r.set(f"sub:{test_sub.sub_id}:bytes", "1")
+        r.set(_usage_key(test_sub.sub_id), "1")
         r.set(f"sub:{test_sub.sub_id}:rejected", "50")
         resp = _convert(b"hello", test_sub.api_key)
         assert resp.status_code == 429
@@ -101,12 +111,12 @@ class TestQuotaEnforcement:
         # First: 5 bytes
         resp1 = _convert(b"hello", test_sub.api_key)
         assert resp1.status_code == 202
-        usage = int(r.get(f"sub:{test_sub.sub_id}:bytes") or 0)
+        usage = int(r.get(_usage_key(test_sub.sub_id)) or 0)
         assert usage == 5
         # Fill up the rest
         resp2 = _convert(b"x" * 95, test_sub.api_key)
         assert resp2.status_code == 202
-        # Now at 100/100 — next request should be rejected
+        # Now at 100/100 -- next request should be rejected
         resp3 = _convert(b"y", test_sub.api_key)
         assert resp3.status_code == 429
 
@@ -117,7 +127,7 @@ class TestQuotaEnforcement:
         assert resp.status_code == 429
         assert "file too large" in resp.json()["detail"].lower()
         # Usage should not have been recorded
-        usage = int(r.get(f"sub:{test_sub.sub_id}:bytes") or 0)
+        usage = int(r.get(_usage_key(test_sub.sub_id)) or 0)
         assert usage == 0
 
     def test_quota_loaded_from_table_on_cache_miss(self, test_sub, r, table):
@@ -125,7 +135,7 @@ class TestQuotaEnforcement:
         _set_quota_in_table(table, test_sub.sub_id, 10)
         # Ensure no cached quota in Redis
         r.delete(f"sub:{test_sub.sub_id}:quota:bytes")
-        # File is larger than quota — should still be rejected via table fallback
+        # File is larger than quota -- should still be rejected via table fallback
         resp = _convert(b"x" * 100, test_sub.api_key)
         assert resp.status_code == 429
         # After the check, the limit should now be cached in Redis

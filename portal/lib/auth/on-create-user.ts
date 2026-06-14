@@ -1,4 +1,5 @@
-import { logger } from "@/lib/logger";
+import { getTableClient } from "@/lib/data/table-client";
+import { TableName } from "@/lib/data/table-interface";
 import type { KeyStore, BillingStore } from "@/lib/services";
 
 export interface AppendConfig {
@@ -10,28 +11,38 @@ export interface AppendPermissions {
 }
 
 /**
- * Called when a new user first signs in. Idempotent — safe to re-run
- * if a previous attempt partially failed.
+ * Called when a new user first signs in. Stripe customer creation is
+ * mandatory -- if it fails, the whole signup fails (no key issued).
  *
- * 1. Tries to create a Stripe customer (non-fatal if it fails)
- * 2. Appends initial UserConfig and UserPermissions
- * 3. Creates a default API key if the user has none
+ * 1. Creates a Stripe customer + subscription (fatal on failure)
+ * 2. Writes GwBilling lookup (stripe_customer_id + billing_anchor_day)
+ * 3. Appends initial UserConfig and UserPermissions
+ * 4. Creates a default API key if the user has none
  */
 export async function onCreateUser(
   user: { id?: string; email?: string | null },
   services: { keys: KeyStore; billing: BillingStore },
   appendInitialConfig: AppendConfig,
   appendInitialPermissions: AppendPermissions,
-): Promise<{ customerId: string; keyId: string | null } | null> {
-  if (!user.id || !user.email) return null;
-
-  let customerId = "";
-  try {
-    const result = await services.billing.createCustomer(user.email);
-    customerId = result.customerId;
-  } catch (e) {
-    logger.error({ err: e, email: user.email }, "Failed to create Stripe customer");
+): Promise<{ customerId: string; keyId: string | null }> {
+  if (!user.id || !user.email) {
+    throw new Error("User ID and email are required for account setup");
   }
+
+  // Stripe is mandatory — let this throw on failure
+  const { customerId, subscriptionId } = await services.billing.createCustomer(user.email);
+
+  // Derive billing anchor day from subscription creation (today)
+  const billingAnchorDay = new Date().getUTCDate();
+
+  // Write GwBilling lookup (gateway + usage reporter read this)
+  const gwBilling = getTableClient(TableName.GW_BILLING);
+  await gwBilling.upsertEntity({
+    partitionKey: "billing",
+    rowKey: user.id,
+    stripe_customer_id: customerId,
+    billing_anchor_day: billingAnchorDay,
+  });
 
   await appendInitialConfig(user.id, "system");
   await appendInitialPermissions(user.id, customerId, "system");

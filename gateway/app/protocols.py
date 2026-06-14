@@ -104,6 +104,7 @@ class UserContext:
     encryption_key: bytes  # 32-byte AES-256 key
     price_per_unit: float
     key_id: str = ""
+    billing_anchor_day: int = 1  # day of month (1-31) for billing period start
 
 
 @dataclass

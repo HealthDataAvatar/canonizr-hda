@@ -9,7 +9,7 @@ from app.context import Services
 from app.handlers import AcceptResult, Rejected, accept_job, delete_result, poll_result
 from app.keys import quota_limit, quota_usage
 from app.protocols import JobResult, JobStatus, UserContext
-from app.quota import QuotaService
+from app.quota import QuotaService, current_period_start
 from tests.fakes import (
     FakeBlobStore,
     FakeEmitter,
@@ -132,8 +132,9 @@ class TestAcceptJob:
     @pytest.mark.asyncio
     async def test_quota_exceeded_rejected(self):
         svc, _, quota_redis = _make_svc()
+        ps = current_period_start(1)  # default billing_anchor_day
         quota_redis.seed(quota_limit(sub_id="sub_1"), "10")
-        quota_redis.seed(quota_usage(sub_id="sub_1"), "10")
+        quota_redis.seed(quota_usage(sub_id="sub_1", period_start=ps), "10")
         with pytest.raises(Rejected) as exc_info:
             await accept_job(b"hello", "test.txt", "text/plain", "sub_1", svc)
         assert exc_info.value.status_code == 429
@@ -141,9 +142,11 @@ class TestAcceptJob:
     @pytest.mark.asyncio
     async def test_quota_recorded_on_accept(self):
         svc, _, quota_redis = _make_svc()
+        ps = current_period_start(1)
         quota_redis.seed(quota_limit(sub_id="sub_1"), "100000")
         await accept_job(b"hello world", "test.txt", "text/plain", "sub_1", svc)
-        usage = int(quota_redis._data.get("sub:sub_1:bytes", "0"))
+        key = quota_usage(sub_id="sub_1", period_start=ps)
+        usage = int(quota_redis._data.get(key, "0"))
         assert usage == 11
 
     @pytest.mark.asyncio
@@ -151,11 +154,11 @@ class TestAcceptJob:
         """Submit files until quota is naturally consumed, then verify rejection."""
         svc, _, quota_redis = _make_svc()
         quota_redis.seed(quota_limit(sub_id="sub_1"), "20")
-        # First: 10 bytes, usage → 10, under quota
+        # First: 10 bytes, usage -> 10, under quota
         await accept_job(b"0123456789", "a.txt", "text/plain", "sub_1", svc)
-        # Second: 10 bytes, usage → 20, exactly fills quota
+        # Second: 10 bytes, usage -> 20, exactly fills quota
         await accept_job(b"abcdefghij", "b.txt", "text/plain", "sub_1", svc)
-        # Third: even 1 byte should be rejected — quota fully consumed
+        # Third: even 1 byte should be rejected -- quota fully consumed
         with pytest.raises(Rejected) as exc_info:
             await accept_job(b"x", "c.txt", "text/plain", "sub_1", svc)
         assert exc_info.value.status_code == 429
@@ -165,6 +168,7 @@ class TestAcceptJob:
     async def test_file_larger_than_total_quota(self):
         """Upload a file larger than the entire quota from zero usage."""
         svc, _, quota_redis = _make_svc()
+        ps = current_period_start(1)
         quota_redis.seed(quota_limit(sub_id="sub_1"), "10")
         # 100 bytes > 10 byte quota, with 0 usage
         with pytest.raises(Rejected) as exc_info:
@@ -172,7 +176,8 @@ class TestAcceptJob:
         assert exc_info.value.status_code == 429
         assert "File too large" in exc_info.value.detail
         # Usage should NOT have been recorded
-        usage = int(quota_redis._data.get("sub:sub_1:bytes", "0"))
+        key = quota_usage(sub_id="sub_1", period_start=ps)
+        usage = int(quota_redis._data.get(key, "0"))
         assert usage == 0
 
     @pytest.mark.asyncio

@@ -1,15 +1,13 @@
 /** UserPermissions table — append-only permission and account state. */
 
 import { getTableClient } from "@/lib/data/table-client";
-import { TableName, BillingStatus, UserPermissionsRecord } from "@/lib/data/table-interface";
+import { TableName, UserPermissionsRecord } from "@/lib/data/table-interface";
 import { invertedTimestampRK, getLatest } from "./append-only";
 
 const DEFAULTS: Omit<UserPermissionsRecord, "changedBy" | "timestamp"> = {
   isAdmin: false,
   blocked: false,
   stripeCustomerId: "",
-  billingStatus: "",
-  hasPaymentMethod: false,
 };
 
 export async function getCurrentPermissions(userId: string): Promise<UserPermissionsRecord> {
@@ -24,8 +22,6 @@ export async function getCurrentPermissions(userId: string): Promise<UserPermiss
     isAdmin: (row.isAdmin as boolean) ?? false,
     blocked: (row.blocked as boolean) ?? false,
     stripeCustomerId: (row.stripeCustomerId as string) ?? "",
-    billingStatus: ((row.billingStatus as string) ?? "") as BillingStatus,
-    hasPaymentMethod: (row.hasPaymentMethod as boolean) ?? false,
     changedBy: (row.changedBy as string) ?? "system",
     timestamp: (row.timestamp as string) ?? "",
   };
@@ -43,8 +39,6 @@ export async function appendPermissions(
     isAdmin: perms.isAdmin,
     blocked: perms.blocked,
     stripeCustomerId: perms.stripeCustomerId,
-    billingStatus: perms.billingStatus,
-    hasPaymentMethod: perms.hasPaymentMethod,
     changedBy: perms.changedBy,
   });
 }

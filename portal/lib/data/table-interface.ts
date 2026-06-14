@@ -26,6 +26,7 @@ export const TableName = {
   GW_JOBS: "GwJobs",
   GW_USER_JOBS: "GwUserJobs",
   GW_API_KEYS: "GwApiKeys",
+  GW_BILLING: "GwBilling",
 } as const;
 
 export type JobType = "canonize" | "describe" | "";
@@ -62,14 +63,10 @@ export interface UserConfigRecord {
   timestamp: string;
 }
 
-export type BillingStatus = "active" | "past_due" | "canceled" | "free_exhausted" | "";
-
 export interface UserPermissionsRecord {
   isAdmin: boolean;
   blocked: boolean;
   stripeCustomerId: string;
-  billingStatus: BillingStatus;
-  hasPaymentMethod: boolean;
   changedBy: string;
   timestamp: string;
 }

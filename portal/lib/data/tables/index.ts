@@ -2,9 +2,8 @@
 
 export { getCurrentConfig, appendConfig } from "./user-config";
 export { getCurrentPermissions, appendPermissions } from "./user-permissions";
-export { getUserIdByStripeCustomerId } from "./user-permissions-lookup";
 export { listJobsForUser } from "./jobs";
 export { getJobTrace } from "./job-trace";
 export { getUser } from "./users";
 
-export type { UserConfigRecord, UserPermissionsRecord, BillingStatus, JobRecord, JobPage, UserRecord } from "@/lib/data/table-interface";
+export type { UserConfigRecord, UserPermissionsRecord, JobRecord, JobPage, UserRecord } from "@/lib/data/table-interface";
