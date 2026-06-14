@@ -26,8 +26,8 @@ check-hooks:
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
-.PHONY: fmt lint test-gateway-unit test-portal-unit test-unit \
-        test-gateway-integration test-portal-integration test-integration \
+.PHONY: fmt lint test-gateway-unit test-portal-unit test-sdk-unit test-unit \
+        test-gateway-integration test-portal-integration test-sdk-integration test-integration \
         test-focus test-smoke test
 fmt: check-uv
 	cd gateway && uv sync --extra lint && uv run ruff format app/ tests/
@@ -42,7 +42,10 @@ test-portal-unit:
 	cd portal && npx tsc --noEmit
 	cd portal && npx vitest run --project unit
 
-test-unit: test-gateway-unit test-portal-unit
+test-sdk-unit: check-uv
+	cd sdks/python && uv run --extra test --extra mcp pytest tests/ -q --ignore=tests/integration
+
+test-unit: test-gateway-unit test-portal-unit test-sdk-unit
 
 test-gateway-integration:
 	docker compose -f docker-compose.test.yml up --build --abort-on-container-exit --exit-code-from tests
@@ -53,7 +56,11 @@ test-portal-integration:
 	docker compose -f docker-compose.portal-test.yml up --build --abort-on-container-exit --exit-code-from tests
 	docker compose -f docker-compose.portal-test.yml down -v
 
-test-integration: test-gateway-integration test-portal-integration
+test-sdk-integration:
+	docker compose -f docker-compose.sdk-test.yml up --build --abort-on-container-exit --exit-code-from tests
+	docker compose -f docker-compose.sdk-test.yml down -v
+
+test-integration: test-gateway-integration test-portal-integration test-sdk-integration
 
 test-focus:
 	FOCUS_TESTS=1 docker compose -f docker-compose.test.yml up --build --abort-on-container-exit --exit-code-from tests

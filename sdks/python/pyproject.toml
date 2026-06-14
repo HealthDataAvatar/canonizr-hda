@@ -1,0 +1,53 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/canonizr"]
+
+[project]
+name = "canonizr"
+version = "0.1.0"
+description = "Python SDK for the Canonizr document conversion API"
+requires-python = ">=3.10"
+license = "MIT"
+dependencies = [
+    "httpx>=0.27",
+    "xxhash>=3.0",
+]
+
+[project.optional-dependencies]
+mcp = [
+    "mcp>=1.0",
+]
+test = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+]
+integration = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "azure-data-tables>=12.5",
+    "azure-storage-blob>=12.20",
+]
+lint = [
+    "ruff>=0.8",
+    "pyright>=1.1",
+]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[tool.pyright]
+pythonVersion = "3.10"
+typeCheckingMode = "basic"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+markers = [
+    "integration: requires docker-compose.sdk-test.yml services",
+]

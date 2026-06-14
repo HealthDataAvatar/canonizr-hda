@@ -1,0 +1,171 @@
+"""Disk cache for canonize results.
+
+Keyed by xxhash of file content (same algorithm as the gateway).
+Stores manifest JSON + artefact files in per-hash directories.
+LRU eviction tracked via access timestamps in a manifest file.
+
+Structure:
+    ~/.cache/canonizr/
+        {hash}/
+            manifest.json     # JobStatus serialized
+            {artefact_name}   # raw artefact bytes
+        _index.json           # hash -> last_access_epoch, for LRU eviction
+"""
+
+from __future__ import annotations
+
+import json
+import time
+from pathlib import Path
+from typing import Protocol
+
+import xxhash
+
+from .models import ArtefactMeta, JobStatus
+
+DEFAULT_CACHE_DIR = Path.home() / ".cache" / "canonizr"
+DEFAULT_MAX_ENTRIES = 500
+
+
+class Clock(Protocol):
+    """Abstraction over time for testing."""
+
+    def now(self) -> float: ...
+
+
+class _SystemClock:
+    def now(self) -> float:
+        return time.time()
+
+
+class DiskCache:
+    """File-system cache for canonize results.
+
+    Thread safety: not guaranteed — intended for single-process use
+    (CLI, MCP server). The worst case of a race is a redundant API call.
+    """
+
+    def __init__(
+        self,
+        cache_dir: Path = DEFAULT_CACHE_DIR,
+        max_entries: int = DEFAULT_MAX_ENTRIES,
+        clock: Clock | None = None,
+    ):
+        self._dir = cache_dir
+        self._max_entries = max_entries
+        self._clock = clock or _SystemClock()
+
+    def file_hash(self, data: bytes) -> str:
+        """Hash file content (same as gateway's document_hash)."""
+        return xxhash.xxh3_64_hexdigest(data)
+
+    def get_status(self, file_hash: str) -> JobStatus | None:
+        """Look up a cached manifest by file hash. Returns None on miss."""
+        manifest_path = self._dir / file_hash / "manifest.json"
+        if not manifest_path.exists():
+            return None
+        try:
+            data = json.loads(manifest_path.read_text())
+            self._touch(file_hash)
+            return _deserialize_status(data)
+        except (json.JSONDecodeError, KeyError, TypeError):
+            return None
+
+    def put_status(self, file_hash: str, status: JobStatus) -> None:
+        """Cache a job manifest."""
+        entry_dir = self._dir / file_hash
+        entry_dir.mkdir(parents=True, exist_ok=True)
+        manifest_path = entry_dir / "manifest.json"
+        manifest_path.write_text(json.dumps(_serialize_status(status), indent=2))
+        self._touch(file_hash)
+        self._evict_if_needed()
+
+    def get_artefact(self, file_hash: str, name: str) -> bytes | None:
+        """Look up a cached artefact. Returns None on miss."""
+        path = self._dir / file_hash / name
+        if not path.exists():
+            return None
+        self._touch(file_hash)
+        return path.read_bytes()
+
+    def put_artefact(self, file_hash: str, name: str, data: bytes) -> None:
+        """Cache an artefact's content."""
+        entry_dir = self._dir / file_hash
+        entry_dir.mkdir(parents=True, exist_ok=True)
+        (entry_dir / name).write_bytes(data)
+        self._touch(file_hash)
+
+    def artefact_path(self, file_hash: str, name: str) -> Path | None:
+        """Return the filesystem path to a cached artefact, or None if not cached."""
+        path = self._dir / file_hash / name
+        return path if path.exists() else None
+
+    def evict(self, file_hash: str) -> None:
+        """Remove a cache entry entirely."""
+        import shutil
+
+        entry_dir = self._dir / file_hash
+        if entry_dir.exists():
+            shutil.rmtree(entry_dir)
+        index = self._load_index()
+        index.pop(file_hash, None)
+        self._save_index(index)
+
+    # -- internals --
+
+    def _index_path(self) -> Path:
+        return self._dir / "_index.json"
+
+    def _load_index(self) -> dict[str, float]:
+        path = self._index_path()
+        if not path.exists():
+            return {}
+        try:
+            return json.loads(path.read_text())
+        except (json.JSONDecodeError, TypeError):
+            return {}
+
+    def _save_index(self, index: dict[str, float]) -> None:
+        self._dir.mkdir(parents=True, exist_ok=True)
+        self._index_path().write_text(json.dumps(index))
+
+    def _touch(self, file_hash: str) -> None:
+        index = self._load_index()
+        index[file_hash] = self._clock.now()
+        self._save_index(index)
+
+    def _evict_if_needed(self) -> None:
+        index = self._load_index()
+        if len(index) <= self._max_entries:
+            return
+        # Evict oldest entries
+        sorted_hashes = sorted(index, key=lambda h: index[h])
+        to_evict = sorted_hashes[: len(index) - self._max_entries]
+        for h in to_evict:
+            self.evict(h)
+
+
+def _serialize_status(status: JobStatus) -> dict:
+    return {
+        "job_id": status.job_id,
+        "status": status.status,
+        "metadata": status.metadata,
+        "artefacts": [
+            {"name": a.name, "mime_type": a.mime_type, "size_bytes": a.size_bytes, "label": a.label}
+            for a in status.artefacts
+        ],
+        "expires_at": status.expires_at,
+        "detail": status.detail,
+    }
+
+
+def _deserialize_status(data: dict) -> JobStatus:
+    artefacts = tuple(ArtefactMeta(**a) for a in data.get("artefacts", []))
+    return JobStatus(
+        job_id=data["job_id"],
+        status=data["status"],
+        metadata=data.get("metadata"),
+        artefacts=artefacts,
+        expires_at=data.get("expires_at"),
+        detail=data.get("detail"),
+    )
