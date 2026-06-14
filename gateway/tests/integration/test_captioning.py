@@ -23,7 +23,7 @@ def test_image_produces_png_artefact(test_sub):
     )
     assert result.status_code == 200
     artefacts = assert_canonize_ok(result.json())
-    img = find_artefact(artefacts, "image-0")
+    img = find_artefact(artefacts, "image-1")
     assert img is not None
     assert img["mime_type"] == "image/png"
     # No markdown for image-only jobs

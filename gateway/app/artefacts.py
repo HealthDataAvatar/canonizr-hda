@@ -18,7 +18,7 @@ _VALID_NAME = re.compile(r"^[a-z0-9]([a-z0-9-]*[a-z0-9])?$")
 
 @dataclass
 class ArtefactMeta:
-    name: str  # e.g. "pdf", "page-0", "image-2"
+    name: str  # e.g. "pdf", "page-1", "image-1"
     mime_type: str
     size_bytes: int
     label: str = ""  # human-readable: "Converted PDF", "Page 1", "Bar Chart"
@@ -41,11 +41,11 @@ class ArtefactStore:
     def allocate(self, prefix: str) -> str:
         """Allocate a unique name for the given prefix.
 
-        First call with "page" returns "page-0", second returns "page-1", etc.
+        First call with "page" returns "page-1", second returns "page-2", etc.
         For singleton artefacts (e.g. "pdf", "markdown"), just use put() directly.
         """
-        count = self._counters.get(prefix, 0)
-        self._counters[prefix] = count + 1
+        count = self._counters.get(prefix, 0) + 1
+        self._counters[prefix] = count
         return f"{prefix}-{count}"
 
     async def put(self, name: str, data: bytes, mime_type: str, label: str = "") -> None:

@@ -12,7 +12,7 @@ from ..types import PageRenders, PdfContent
 PREVIEW_MAX_WIDTH = 200
 
 
-def _render_pages_sync(pdf_bytes: bytes, dpi: int) -> tuple[list[bytes], list[bytes]]:
+def _render_pages_sync(pdf_bytes: bytes, dpi: int) -> tuple[list[bytes], list[bytes], list[str]]:
     import pypdfium2 as pdfium
     from PIL import Image
 
@@ -20,6 +20,7 @@ def _render_pages_sync(pdf_bytes: bytes, dpi: int) -> tuple[list[bytes], list[by
     scale = dpi / 72
     pages: list[bytes] = []
     previews: list[bytes] = []
+    page_labels: list[str] = []
     try:
         for i in range(len(pdf)):
             page = pdf[i]
@@ -40,9 +41,16 @@ def _render_pages_sync(pdf_bytes: bytes, dpi: int) -> tuple[list[bytes], list[by
             buf = BytesIO()
             preview.save(buf, format="WEBP", quality=60)
             previews.append(buf.getvalue())
+
+            # Document-defined page label
+            try:
+                lbl = pdf.get_page_label(i)
+                page_labels.append(lbl.replace("\n", " ").strip() if lbl else str(i + 1))
+            except Exception:
+                page_labels.append(str(i + 1))
     finally:
         pdf.close()
-    return pages, previews
+    return pages, previews, page_labels
 
 
 class PdfiumPageRenderer:
@@ -50,5 +58,7 @@ class PdfiumPageRenderer:
 
     async def render(self, pdf: PdfContent, dpi: int = 150) -> PageRenders:
         loop = asyncio.get_running_loop()
-        pages, previews = await loop.run_in_executor(None, functools.partial(_render_pages_sync, pdf.data, dpi))
-        return PageRenders(pages=pages, previews=previews)
+        pages, previews, page_labels = await loop.run_in_executor(
+            None, functools.partial(_render_pages_sync, pdf.data, dpi)
+        )
+        return PageRenders(pages=pages, previews=previews, page_labels=page_labels)

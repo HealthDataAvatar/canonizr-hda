@@ -52,6 +52,19 @@ export function JobsPageContent({ initialRequests, initialCursor, uploadSlot }: 
     refresh();
   }, [refresh]);
 
+  const handleDelete = useCallback(async (jobId: string) => {
+    const res = await fetch(`/api/jobs/${jobId}`, { method: "DELETE" });
+    if (res.ok) {
+      setRequests((prev) =>
+        prev.map((r) => {
+          if (r.id !== jobId) return r;
+          const completedAt = "completedAt" in r ? r.completedAt : new Date().toISOString();
+          return { ...r, status: "expired" as const, completedAt, expiredAt: new Date().toISOString() };
+        })
+      );
+    }
+  }, []);
+
   const loadMore = useCallback(async () => {
     if (!cursorRef.current || loadingMore) return;
     setLoadingMore(true);
@@ -79,6 +92,8 @@ export function JobsPageContent({ initialRequests, initialCursor, uploadSlot }: 
       <CanonizeUserJobTable
         jobs={requests}
         highlightIds={sessionJobIds}
+        artefactUrl={(jobId, name) => `/api/jobs/${jobId}/artefacts/${name}`}
+        onDelete={handleDelete}
       />
 
       {cursor && (

@@ -10,6 +10,7 @@ Two tables:
 import logging
 import secrets
 import time
+from datetime import UTC, datetime
 
 from azure.core.paging import PageIterator
 from azure.data.tables import TableServiceClient
@@ -74,6 +75,9 @@ class TableJobStore:
         if meta is None:
             return False
         meta.status = JobStatus.DELETED
+        now = datetime.now(UTC)
+        if not meta.retention_expires or datetime.fromisoformat(meta.retention_expires) > now:
+            meta.retention_expires = now.isoformat()
         self.update(meta)
         return True
 

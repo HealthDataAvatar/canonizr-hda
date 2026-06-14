@@ -36,14 +36,14 @@ function StatusIcon({ row }: { row: CanonizeJobRow }) {
     return <IconHint icon={Loader} title={`Submitted ${new Date(row.submittedAt).toLocaleString()}`} isSpinning />;
   }
   if (row.status === "error") {
-    return <IconHint icon={TriangleAlert} title={`Error ${row.completedAt}`} tone="destructive" />;
+    return <IconHint icon={TriangleAlert} title={`Error ${new Date(row.completedAt).toLocaleString()}`} tone="destructive" />;
   }
   if (row.status === "ok") {
     return <IconHint icon={Check} title={row.submittedAt ? `Completed ${new Date(row.completedAt).toLocaleString()}` : "Success"} />;
 
   }
   if (row.status === "expired") {
-    return <IconHint icon={ShieldOff} title={`Expired ${row.expiredAt}`} tone="muted" />;
+    return <IconHint icon={ShieldOff} title={`Expired ${new Date(row.expiredAt).toLocaleString()}`} tone="muted" />;
   }
 }
 
@@ -103,8 +103,10 @@ function PreviewStrip({ previews, artefactUrl, jobId }: {
 }) {
   return (
     <div className="flex gap-2 overflow-x-auto pb-2">
-      {previews.map((p, i) => {
-        const pageUrl = artefactUrl?.(jobId, `page-${i}`);
+      {previews.map((p) => {
+        const pageNum = p.name.replace("preview-", "");
+        const pageName = `page-${pageNum}`;
+        const pageUrl = artefactUrl?.(jobId, pageName);
         return (
           <div
             key={p.name}
@@ -115,12 +117,12 @@ function PreviewStrip({ previews, artefactUrl, jobId }: {
               <img
                 src={artefactUrl(jobId, p.name)}
                 alt={p.label}
-                className="h-24 w-auto object-contain"
+                className="h-24 w-[68px] object-contain"
                 loading="lazy"
               />
             ) : (
-              <div className="h-24 w-16 flex items-center justify-center text-xs text-muted-foreground">
-                {i + 1}
+              <div className="h-24 w-[68px] flex items-center justify-center text-xs text-muted-foreground">
+                {pageNum}
               </div>
             )}
             {pageUrl && (
@@ -129,6 +131,7 @@ function PreviewStrip({ previews, artefactUrl, jobId }: {
                   icon={Download}
                   title={`Download ${p.label}`}
                   href={pageUrl}
+                  download={`${pageName}.png`}
                   className="opacity-0 group-hover:opacity-100 transition-opacity text-white"
                 />
               </div>
@@ -156,7 +159,7 @@ function CanonizeUserJobPanel({ row, artefactUrl }: { row: CanonizeJobRow; artef
         return <p className="text-sm text-muted-foreground">No artefacts</p>;
       }
 
-      const { previews, pages, images, tables, other } = groupArtefacts(row.artefacts);
+      const { previews, images, tables, other } = groupArtefacts(row.artefacts);
       const url = (name: string) => artefactUrl?.(row.id, name);
 
       return (
@@ -181,12 +184,6 @@ function CanonizeUserJobPanel({ row, artefactUrl }: { row: CanonizeJobRow; artef
               <li className="pt-1 text-xs font-medium text-muted-foreground">Tables</li>
             )}
             {tables.map((a) => (
-              <ArtefactRow key={a.name} entry={a} url={url(a.name)} />
-            ))}
-            {pages.length > 0 && (
-              <li className="pt-1 text-xs font-medium text-muted-foreground">Full-size pages</li>
-            )}
-            {pages.map((a) => (
               <ArtefactRow key={a.name} entry={a} url={url(a.name)} />
             ))}
           </ul>

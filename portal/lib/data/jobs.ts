@@ -47,8 +47,7 @@ export function toCanonizeJobRow(job: JobRecord): CanonizeJobRow {
       return { ...submission, status: "error", completedAt: job.completedAt ?? "", error: job.detail ?? "Unknown error" };
 
     case "deleted":
-      // TODO: Check how this is set
-      return { ...submission, status: "expired", completedAt: job.completedAt ?? "", expiredAt: "TODO" };
+      return { ...submission, status: "expired", completedAt: job.completedAt ?? "", expiredAt: job.retentionExpires ?? job.completedAt ?? job.timestamp };
   }
 }
 

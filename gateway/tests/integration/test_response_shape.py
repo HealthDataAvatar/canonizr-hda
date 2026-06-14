@@ -135,7 +135,7 @@ class TestImageShape:
             api_key=test_sub.api_key,
         )
         artefacts = assert_canonize_ok(result.json())
-        img = find_artefact(artefacts, "image-0")
+        img = find_artefact(artefacts, "image-1")
         assert img is not None
         assert img["mime_type"] == "image/png"
         # Images produce no markdown

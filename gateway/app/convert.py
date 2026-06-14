@@ -99,7 +99,7 @@ async def _extract_pdf_parallel(
             except Exception:
                 logger.warning("Thumbnail render failed", exc_info=True)
                 s.set(error="render failed")
-                return PageRenders(pages=[], previews=[])
+                return PageRenders(pages=[], previews=[], page_labels=[])
 
     async def _images():
         with span.span(Service.PIKEPDF) as s:
@@ -122,11 +122,11 @@ async def _extract_pdf_parallel(
     # Store artefacts
     if artefacts:
         with span.span(Service.ARTEFACTS) as art_span:
-            for i, (png, webp) in enumerate(zip(rendered.pages, rendered.previews)):
+            for png, webp in zip(rendered.pages, rendered.previews):
                 page_name = artefacts.allocate("page")
-                await artefacts.put(page_name, png, "image/png", label=f"Page {i + 1}")
+                await artefacts.put(page_name, png, "image/png", label=page_name.replace("-", " ").title())
                 preview_name = artefacts.allocate("preview")
-                await artefacts.put(preview_name, webp, "image/webp", label=f"Page {i + 1}")
+                await artefacts.put(preview_name, webp, "image/webp", label=page_name.replace("-", " ").title())
             for img in images:
                 name = artefacts.allocate("image")
                 await artefacts.put(name, img.data, img.mime_type, label=img.label)
@@ -135,6 +135,10 @@ async def _extract_pdf_parallel(
                 await artefacts.put(
                     name, tbl.to_json().encode(), "application/json", label=f"Table from page {tbl.page + 1}"
                 )
+            # Page label lookup: one label per line, line N = page N
+            if rendered.page_labels:
+                labels_text = "\n".join(rendered.page_labels)
+                await artefacts.put("page-labels", labels_text.encode(), "text/plain", label="Page labels")
             art_span.set(
                 artefact_count=len(artefacts.manifest),
                 image_count=len(images),
@@ -174,7 +178,7 @@ async def canonize(
             png = to_vlm_png(image)
             img_span.set(input_mime=mime, output_bytes=len(png.data))
         if artefacts:
-            await artefacts.put("image-0", png.data, "image/png", label="Normalised image")
+            await artefacts.put("image-1", png.data, "image/png", label="Normalised image")
         return Markdown("")
 
     # Modern office formats (OOXML, HTML, epub, email)

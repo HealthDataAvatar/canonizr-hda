@@ -168,7 +168,7 @@ async def get_artefact(job_id: str, name: str, ctx: Context) -> list[TextContent
 
     Args:
         job_id: The job ID from convert_file.
-        name: The artefact name (e.g. "markdown", "page-0", "image-2").
+        name: The artefact name (e.g. "markdown", "page-1", "image-2").
     """
     return await handle_get_artefact(job_id, name, _deps(ctx))
 

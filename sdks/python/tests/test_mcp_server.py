@@ -25,7 +25,7 @@ POLL_OK = json_response(200, {
     "metadata": {"detected_type": "application/pdf", "input_bytes": 1000, "input_hash": "aabb"},
     "artefacts": [
         {"name": "markdown", "mime_type": "text/markdown", "size_bytes": 100, "label": "Extracted text"},
-        {"name": "page-0", "mime_type": "image/png", "size_bytes": 5000, "label": "Page 1"},
+        {"name": "page-1", "mime_type": "image/png", "size_bytes": 5000, "label": "Page 1"},
     ],
 })
 
@@ -64,7 +64,7 @@ class TestConvertFile:
         assert "Converted: doc.pdf" in result[0].text
         assert "job-1" in result[0].text
         assert "markdown" in result[0].text
-        assert "page-0" in result[0].text
+        assert "page-1" in result[0].text
         assert "not yet fetched" in result[0].text
 
         # Second block is inlined markdown
@@ -140,7 +140,7 @@ class TestGetArtefact:
         )
         deps = _make_deps(t, tmp_path)
 
-        result = await handle_get_artefact("job-1", "page-0", deps)
+        result = await handle_get_artefact("job-1", "page-1", deps)
 
         assert len(result) == 1
         assert "Saved to:" in result[0].text

@@ -39,7 +39,7 @@ class TestAvifSupport:
         _, result = submit_and_poll({"file": ("test.avif", avif_bytes, "image/avif")}, test_sub.api_key)
         assert result.status_code == 200
         artefacts = assert_canonize_ok(result.json())
-        img = find_artefact(artefacts, "image-0")
+        img = find_artefact(artefacts, "image-1")
         assert img is not None
         assert img["mime_type"] == "image/png"
 
@@ -48,6 +48,6 @@ class TestAvifSupport:
         _, result = submit_and_poll({"file": ("test.heic", heif_bytes, "image/heif")}, test_sub.api_key)
         assert result.status_code == 200
         artefacts = assert_canonize_ok(result.json())
-        img = find_artefact(artefacts, "image-0")
+        img = find_artefact(artefacts, "image-1")
         assert img is not None
         assert img["mime_type"] == "image/png"

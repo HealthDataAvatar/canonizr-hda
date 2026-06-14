@@ -39,13 +39,10 @@ export async function GET(
 
     const data = await res.arrayBuffer();
     const contentType = res.headers.get("content-type") ?? "application/octet-stream";
-    const contentDisposition = res.headers.get("content-disposition") ?? "";
 
+    // Don't forward Content-Disposition — let the browser's <a download="..."> attribute control the filename
     return new NextResponse(data, {
-      headers: {
-        "Content-Type": contentType,
-        ...(contentDisposition && { "Content-Disposition": contentDisposition }),
-      },
+      headers: { "Content-Type": contentType },
     });
   } catch (err) {
     if (err instanceof AuthError) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

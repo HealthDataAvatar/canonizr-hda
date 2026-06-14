@@ -15,7 +15,7 @@ def _sample_status() -> JobStatus:
         metadata={"detected_type": "application/pdf"},
         artefacts=(
             ArtefactMeta(name="markdown", mime_type="text/markdown", size_bytes=500, label="Extracted text"),
-            ArtefactMeta(name="page-0", mime_type="image/png", size_bytes=20000, label="Page 1"),
+            ArtefactMeta(name="page-1", mime_type="image/png", size_bytes=20000, label="Page 1"),
         ),
         expires_at="2026-06-13T00:00:00Z",
     )
@@ -57,10 +57,10 @@ class TestDiskCache:
         cache = DiskCache(cache_dir=tmp_path)
         h = "deadbeef01234567"
 
-        assert cache.artefact_path(h, "page-0") is None
+        assert cache.artefact_path(h, "page-1") is None
 
-        cache.put_artefact(h, "page-0", b"png bytes")
-        path = cache.artefact_path(h, "page-0")
+        cache.put_artefact(h, "page-1", b"png bytes")
+        path = cache.artefact_path(h, "page-1")
 
         assert path is not None
         assert path.read_bytes() == b"png bytes"

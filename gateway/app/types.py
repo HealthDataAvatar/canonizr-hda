@@ -115,7 +115,8 @@ class ExtractedTables:
 
 @dataclass
 class PageRenders:
-    """Rendered pages from a PDF — full-size PNGs and tiny WebP previews."""
+    """Rendered pages from a PDF — full-size PNGs, tiny WebP previews, and document page labels."""
 
     pages: list[bytes]  # full-size PNG bytes per page
     previews: list[bytes]  # small WebP bytes per page
+    page_labels: list[str]  # document-defined labels (e.g. "iv", "1", "A-1")

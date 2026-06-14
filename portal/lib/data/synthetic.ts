@@ -70,7 +70,7 @@ function pdfArtefacts(pageCount: number, imageCount: number, tableCount: number)
 }
 
 function imageArtefact(): ArtefactEntry[] {
-  return [{ name: "image-0", mime_type: "image/png", size_bytes: 95_000, label: "Normalised image" }];
+  return [{ name: "image-1", mime_type: "image/png", size_bytes: 95_000, label: "Normalised image" }];
 }
 
 function textArtefact(): ArtefactEntry[] {

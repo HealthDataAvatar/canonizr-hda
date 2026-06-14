@@ -315,4 +315,8 @@ class FakePageRenderer:
         self._page_count = page_count
 
     async def render(self, pdf: PdfContent, dpi: int = 150) -> PageRenders:
-        return PageRenders(pages=[b"PNG-fake"] * self._page_count, previews=[b"WEBP-fake"] * self._page_count)
+        return PageRenders(
+            pages=[b"PNG-fake"] * self._page_count,
+            previews=[b"WEBP-fake"] * self._page_count,
+            page_labels=[str(i + 1) for i in range(self._page_count)],
+        )
