@@ -1,129 +1,121 @@
 # Stripe Billing Integration
 
-## Current State
+## Model
 
-We have a working metering pipeline but no feedback loop from Stripe back to our system. Users can consume the service indefinitely without paying.
-
-### What works
-
-- **Customer creation** (`portal/lib/auth/on-create-user.ts`) — Stripe customer + subscription created at sign-up. Handles returning customers (email lookup). Non-fatal if Stripe is down.
-- **Usage metering** (`gateway/app/usage_report.py`) — Hourly cron queries App Insights for successful conversions, pushes meter events to Stripe. Idempotent (deterministic event identifiers), with watermark-based catch-up after outages.
-- **Billing page** (`portal/components/pages/billing-page-content.tsx`) — Shows usage stats (processed KB, free remaining, estimated cost), invoice history, and "Manage billing" button that opens the Stripe Billing Portal.
-- **Redis caching** (`portal/lib/services/billing-stripe.ts`) — Usage and invoice data cached 5 min to avoid hammering Stripe on every page load.
-- **Per-key quota** (`gateway/app/quota.py`) — Redis-backed byte quota per API key. User-configured, independent of billing.
-- **Stripe infrastructure** (`infra/stripe/setup.py`) — Idempotent meter/product/price creation. $0.003 per 100KB, 500 free units/month.
-
-### What's missing
-
-1. **No webhooks** — Stripe has no way to notify us of payment failures, subscription cancellations, or card expiry. A user whose invoice fails continues using the service.
-2. **No payment method collection** — We create subscriptions with no card on file. Free tier works, but there's no flow for users to start paying. The Billing Portal lets them add a card reactively, but we never prompt them.
-3. **No billing-level access control** — The gateway enforces per-key quotas (user-set) but has no concept of billing status. Free tier exhaustion, payment failure, and subscription cancellation don't affect API access.
-4. **No free tier exhaustion UX** — `freeRemainingKB` is calculated and displayed, but nothing happens when it hits zero. No portal warning, no API rejection.
-5. **Silent Stripe failures** — If customer creation fails at sign-up, `stripeCustomerId` is stored as `""` with no retry. These users can never be billed. The usage reporter silently skips unmapped subscriptions (revenue leakage).
-6. **No subscription status awareness** — `_fetchUsage()` filters for `status: "active"` and returns zeros if none found, but the UI doesn't distinguish "no usage" from "billing broken".
-
-## Best Practice Target
+Stripe owns the billing lifecycle entirely. Free tier, invoicing, payment collection, and dunning are all Stripe's concern. The gateway only enforces user-configured per-key quotas.
 
 ```
 Sign up
-  Create Stripe customer (already done)
-  Start on free tier (500 units / 50MB), no card required (already done)
-  Show usage meter on billing page (already done)
+  Create Stripe customer + subscription (mandatory, blocks signup on failure)
+  Store stripe_customer_id + billing_anchor_day in GwBilling
+  Start on free tier (500 units / 50MB per month), no card required
 
-Approaching free limit (80%)
-  Portal banner: "You've used 80% of your free tier"
-  CTA to add payment method via Stripe Checkout / Setup Intent
+Normal usage
+  Gateway enforces per-key quota only (period-scoped Redis counter)
+  Usage reporter (hourly) pushes meter events to Stripe
+  Billing page reads Stripe meter summaries, shows usage
 
-Free limit reached, no payment method
-  API returns 402 with clear message
-  Portal: "Free tier exhausted" state with payment setup CTA
-  Gateway blocks at request level
-
-Payment method added (webhook: checkout.session.completed)
-  Update user record, clear any block
-  Usage continues, billed per-unit
-
-Invoice payment fails (webhook: invoice.payment_failed)
-  Stripe sends dunning emails (automatic)
-  Portal banner: "Payment failed - update your card"
-  Grace period (configurable, e.g. 7 days), then soft-block API
-
-Subscription canceled (webhook: customer.subscription.deleted)
-  Revert to free-tier-only access
-  Block API if already over free limit
+Month end
+  Stripe generates invoice
+  Within free tier -> $0 invoice, nothing happens
+  Over free tier -> Stripe invoices overage at $0.003/100KB
+  User receives email, pays via Stripe-hosted page
+  If payment fails, Stripe handles dunning automatically
 ```
 
-## Implemented (WP1 + WP3 + WP4)
+The gateway has no concept of billing status, free tier exhaustion, or payment methods. If a user doesn't pay, that's between them and Stripe.
 
-### WP1: Webhook Endpoint - DONE
+## Current State
 
-Stripe webhook handler receives billing events and syncs state to UserPermissions.
+### What works
 
-- `portal/app/api/stripe/webhook/route.ts` - signature-verified handler
-- Events handled: `invoice.payment_failed` (-> past_due), `invoice.paid` (-> active), `customer.subscription.deleted` (-> canceled), `payment_method.attached` (-> hasPaymentMethod)
-- `portal/lib/data/tables/user-permissions-lookup.ts` - reverse lookup stripeCustomerId -> userId (Redis-cached, 1h TTL)
-- Invalidates gateway's Redis billing status cache on every update (instant propagation)
-- `STRIPE_WEBHOOK_SECRET` env var added to `infra/terraform/portal.tf`
+- **Customer creation** (`portal/lib/auth/on-create-user.ts`) -- Stripe customer + subscription created at sign-up. Handles returning customers (email lookup).
+- **Usage metering** (`gateway/app/usage_report.py`) -- Hourly cron queries GwJobs table for successful conversions, pushes meter events to Stripe. Idempotent (deterministic event identifiers), with watermark-based catch-up after outages.
+- **Billing page** (`portal/components/pages/billing-page-content.tsx`) -- Shows usage stats (processed KB, free remaining, estimated cost), invoice history, and "Manage billing" button for Stripe Billing Portal.
+- **Redis caching** (`portal/lib/services/billing-stripe.ts`) -- Usage and invoice data cached 5 min.
+- **Per-key quota** (`gateway/app/quota.py`) -- Redis-backed byte quota per API key. User-configured.
+- **Stripe infrastructure** (`infra/stripe/setup.py`) -- Idempotent meter/product/price creation. $0.003 per 100KB, 500 free units/month.
 
-### WP3: Billing-Level Access Control - DONE
+### What's broken
 
-Gateway blocks requests for users with bad billing status, returning 402.
+**Usage reporter cannot map subscriptions to Stripe customers.** The reporter calls `load_subscription_map()` which reads `stripe_customer_id` from `GwSubscriptions`. But `TableKeyStore.create()` never writes `stripe_customer_id` to that table -- it only writes `user_id` and `key_name`. The mapping is always empty. Every record is logged as "unmapped subscription" and skipped. Zero meter events reach Stripe. The billing page shows 0 usage.
 
-- `portal/lib/data/tables/user-permissions.ts` - added `billingStatus` and `hasPaymentMethod` fields
-- `gateway/app/user_resolver.py` - `_check_billing_status()` reads from Redis cache (5 min TTL) or Table Storage fallback
-- `gateway/app/handlers.py` - `_reject_resolved()` routes `BILLING:`-prefixed errors to 402, others to 403
-- `gateway/app/keys.py` - `billing_status()` Redis key
-- Error messages: "Payment failed", "Subscription canceled", "Free tier exhausted"
+**Per-key quotas are lifetime counters, not monthly.** The Redis key `sub:{sub_id}:bytes` has a 31-day TTL from first write, not aligned to billing periods. Users expect "10GB per month", not "10GB total".
 
-### WP4: Free Tier Exhaustion - DONE
+**Stripe customer creation is non-fatal.** If it fails, `stripeCustomerId` is stored as `""` and the user still gets an API key. These users can never be billed.
 
-Portal detects free tier exhaustion on billing page load and sets/clears status automatically.
+### Dead code to remove
 
-- `portal/lib/data/user-page-data.ts` - `getBillingData()` syncs `hasPaymentMethod` from Stripe, auto-sets `free_exhausted` when free tier is at 0 with no payment method, auto-clears when payment method added or usage drops
-- `portal/lib/pure/billing-calc.ts` - added `freeUsagePercent` (0-100, capped)
-- `portal/components/pages/billing-page-content.tsx` - billing banners:
-  - Amber warning at 80% free tier usage (no payment method)
-  - Red error for free_exhausted, past_due, canceled
-  - "Manage billing" button on actionable states
-- `portal/lib/services/billing-stripe.ts` - `hasPaymentMethod()` checks Stripe customer for default payment method (Redis-cached 5 min)
-- `portal/lib/services/billing-table.ts` - stub returns false for local dev
+The following were built around a billing-status-gating model we're no longer using:
 
-### Payment method detection
+- **Webhook endpoint** (`portal/app/api/stripe/webhook/route.ts`) -- Syncs billing status to UserPermissions. No longer needed since the gateway doesn't check billing status.
+- **Billing-level access control** (`gateway/app/user_resolver.py` `_check_billing_status()`) -- Gateway 402 blocks for `past_due`, `canceled`, `free_exhausted`. Remove.
+- **Free tier exhaustion detection** (`portal/lib/data/user-page-data.ts`) -- Auto-sets/clears `free_exhausted` status, syncs `hasPaymentMethod` from Stripe. Remove.
+- **`billingStatus` and `hasPaymentMethod` fields** in UserPermissions -- No longer used for access control.
+- **`billing_status()` Redis key** (`gateway/app/keys.py`) -- Gateway billing status cache. Remove.
+- **Retry failed Stripe setup** (`portal/lib/auth/ensure-user-setup.ts`) -- Replaced by mandatory Stripe at signup.
 
-Uses "both" approach: webhooks update eagerly (`payment_method.attached`), billing page load verifies against Stripe and corrects if they disagree.
+## Fix: GwBilling Lookup Table
 
-## Manual Steps Required
+Introduce a single user-level lookup table that holds the Stripe mapping and billing period anchor.
 
-1. **Deploy**: `make deploy` — Terraform seeds `stripe-webhook-secret` with a dummy value (`whsec-initial-rotate-me`)
-2. **Register webhook in Stripe dashboard**:
-   - URL: `https://<portal-domain>/api/stripe/webhook`
-   - Events: `invoice.payment_failed`, `invoice.paid`, `customer.subscription.deleted`, `payment_method.attached`
-3. **Update Key Vault secret**: Replace the dummy `stripe-webhook-secret` value with the real signing secret from step 2
-4. **Restart portal**: New secret value is picked up on container restart
-5. **Test locally**: `stripe listen --forward-to localhost:3000/api/stripe/webhook` with Stripe CLI
+### Schema
 
-## Remaining Work Packages
+- **Table**: `GwBilling`
+- **PartitionKey**: `"billing"`
+- **RowKey**: `user_id`
+- **Fields**: `stripe_customer_id`, `billing_anchor_day` (1-31)
+- **Written by**: portal at signup (when Stripe customer is created)
+- **Read by**: gateway (quota period calculation), usage reporter (customer mapping)
+- **Immutable** after creation. Aggressively cacheable.
 
-### WP2: Payment Method Collection (P1, deferred)
+### Changes required
 
-Currently users add payment methods via the existing "Manage billing" button (Stripe Billing Portal). Could add a more prominent dedicated CTA in future.
+**Portal -- mandatory Stripe at signup:**
+- `on-create-user.ts`: Make `createCustomer` failure fatal (no key issued without Stripe)
+- Write `stripe_customer_id` + `billing_anchor_day` to `GwBilling` at signup
 
-### Verify: Billing page usage matches per-key usage totals
+**Gateway -- period-scoped quotas:**
+- `user_resolver.py`: Read `billing_anchor_day` from `GwBilling` (cached alongside user resolution)
+- `quota.py`: Compute current period start from anchor day. Use period-scoped Redis key: `sub:{sub_id}:bytes:{period_start}` (e.g. `sub:key-123:bytes:2026-06-15`)
+- Old keys expire naturally via TTL set to remaining period duration. No reset logic needed.
 
-After the metering pipeline is fully deployed, verify that the billing page's "Processed this period" / "Free tier remaining" figures reflect actual usage. Currently the keys page shows per-key usage from Redis/Table Storage (correct), but the billing page reads from Stripe meter event summaries — which can show zero if meter events aren't flowing. Confirm that the sum of per-key usage roughly matches the Stripe-reported total, and that free tier exhaustion triggers correctly.
+**Usage reporter -- resolve via user_id:**
+- `usage_report.py`: Replace `load_subscription_map()`. Resolve `sub_id -> user_id` (from `GwSubscriptions`) then `user_id -> stripe_customer_id` (from `GwBilling`).
+- Remove `stripe_customer_id` field from `GwSubscriptions` (never populated, not needed).
 
-### WP5: Retry Failed Stripe Setup (P1, deferred)
+**Backfill:**
+- One-time script to populate `GwBilling` for existing users from `UserPermissions.stripeCustomerId` + Stripe subscription `billing_cycle_anchor`.
 
-Recover from transient Stripe failures at sign-up.
+### Billing period alignment
 
-- Extend `ensureUserSetup` to retry when `stripeCustomerId` is `""`
-- Add returning-customer check (email lookup) to avoid duplicates
-- Consider: admin action to manually trigger setup for a user
+All keys for a user share the same billing anchor (the day of month the Stripe subscription was created). This aligns per-key quota resets with Stripe's billing period, so the billing page and key quotas always agree.
 
-### WP6: Subscription Status Display (P2, deferred)
+Stripe's metered billing resets per billing period automatically. The 500 free units/month are handled entirely by Stripe's pricing tier -- the gateway doesn't track free tier usage.
 
-Show users their actual billing state, not just usage numbers. Partially addressed by WP4 banners, but could show more detail (active/past_due/canceled status text on billing page).
+## Stripe Metering: How It Works
 
-### WP7: Approaching-Limit Notifications (P2, deferred)
+- Usage reporter pushes meter events with timestamps throughout the month
+- Stripe aggregates them per subscription billing period
+- At period end: invoice = `(total_units - 500 free) * $0.003`
+- Next period starts at zero automatically
+- Meter events are permanent records; aggregation is per-period
+- Portal reads `listEventSummaries(meter_id, { start_time, end_time })` for current period usage
 
-Email at 80% free tier usage (requires tracking to avoid spamming). Portal banner is already implemented (WP4). Consider `X-Free-Remaining` API response header.
+## Remaining Work
+
+### P0: Fix metering pipeline (GwBilling table + period-scoped quotas)
+
+See "Fix: GwBilling Lookup Table" above. Without this, no usage reaches Stripe and billing is completely broken.
+
+### P1: Remove dead billing-status code
+
+See "Dead code to remove" above. Strip out webhook handler, billing status checks, free tier exhaustion logic, `hasPaymentMethod` syncing.
+
+### P1: Simplify billing page
+
+Remove billing status banners (past_due, canceled, free_exhausted warnings). The page just shows usage from Stripe and a "Manage billing" link. Stripe handles everything else.
+
+### P2: Approaching-limit notifications
+
+Portal could show usage percentage on the billing page. Consider `X-Free-Remaining` API response header. Email notifications would need tracking to avoid spam.
