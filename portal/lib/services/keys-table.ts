@@ -8,6 +8,7 @@ import { getTableClient } from "@/lib/data/table-client";
 import { TableName } from "@/lib/data/table-interface";
 import { getRedis } from "@/lib/redis";
 import { currentPeriodStart, quotaUsageKey } from "@/lib/pure/billing-period";
+import { toBillableKB } from "@/lib/pure/format";
 import type { ApiKey, KeyStore } from ".";
 
 function hashApiKey(key: string): string {
@@ -45,9 +46,9 @@ export class TableKeyStore implements KeyStore {
         let quotaKB: number | null = null;
         if (subEntity) {
           const raw = subEntity.quota_bytes;
-          if (raw != null && Number(raw) > 0) quotaKB = Math.round(Number(raw) / 1024);
+          if (raw != null && Number(raw) > 0) quotaKB = toBillableKB(Number(raw));
         }
-        const usageKB = usageBytes ? Math.ceil(Number(usageBytes) / 1024) : 0;
+        const usageKB = usageBytes ? toBillableKB(Number(usageBytes)) : 0;
         return toApiKey(e, quotaKB, usageKB);
       }),
     );
@@ -158,7 +159,7 @@ export class TableKeyStore implements KeyStore {
     const gwSubs = getTableClient(TableName.GW_SUBSCRIPTIONS);
     const entity = await gwSubs.getEntity("subscription", subscriptionId);
     // Table Storage ignores null on upsert, so use -1 sentinel for "no quota"
-    const quotaBytes = quotaKB !== null ? Math.round(quotaKB * 1024) : -1;
+    const quotaBytes = quotaKB !== null ? quotaKB * 1000 : -1;
     await gwSubs.upsertEntity({
       partitionKey: "subscription",
       rowKey: subscriptionId,

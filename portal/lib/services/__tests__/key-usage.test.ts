@@ -116,12 +116,12 @@ describe("KeyStore.list() usage from Redis", () => {
   it("returns usage from Redis when bytes are recorded", async () => {
     seedKey("user1", "key-1", "my-key");
     seedBillingAnchor("user1");
-    redisStore.set(quotaUsageKey("key-1", PS), "512000"); // 500 KB
+    redisStore.set(quotaUsageKey("key-1", PS), "512000"); // 600 KB (rounded up to 100KB unit)
 
     const keys = await keyStore.list("user1");
 
     expect(keys).toHaveLength(1);
-    expect(keys[0].usageKB).toBe(500);
+    expect(keys[0].usageKB).toBe(600);
   });
 
   it("returns 0 when no Redis usage exists", async () => {
@@ -139,24 +139,24 @@ describe("KeyStore.list() usage from Redis", () => {
     seedKey("user1", "key-a", "first");
     seedKey("user1", "key-b", "second");
     seedBillingAnchor("user1");
-    redisStore.set(quotaUsageKey("key-a", PS), "1048576"); // 1024 KB
-    redisStore.set(quotaUsageKey("key-b", PS), "2048");     // 2 KB
+    redisStore.set(quotaUsageKey("key-a", PS), "1048576"); // 1100 KB (rounded up to 100KB unit)
+    redisStore.set(quotaUsageKey("key-b", PS), "2048");     // 100 KB (minimum billable unit)
 
     const keys = await keyStore.list("user1");
 
     const byId = Object.fromEntries(keys.map((k) => [k.id, k]));
-    expect(byId["key-a"].usageKB).toBe(1024);
-    expect(byId["key-b"].usageKB).toBe(2);
+    expect(byId["key-a"].usageKB).toBe(1100);
+    expect(byId["key-b"].usageKB).toBe(100);
   });
 
-  it("rounds up partial KB", async () => {
+  it("rounds up to minimum billable unit", async () => {
     seedKey("user1", "key-1", "my-key");
     seedBillingAnchor("user1");
-    redisStore.set(quotaUsageKey("key-1", PS), "1"); // 1 byte = ceil to 1 KB
+    redisStore.set(quotaUsageKey("key-1", PS), "1"); // 1 byte = minimum 100 KB billable unit
 
     const keys = await keyStore.list("user1");
 
-    expect(keys[0].usageKB).toBe(1);
+    expect(keys[0].usageKB).toBe(100);
   });
 
   it("reads the correct period-scoped Redis key", async () => {
