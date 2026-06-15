@@ -15,6 +15,7 @@ class ArtefactMeta:
     mime_type: str
     size_bytes: int
     label: str = ""
+    source_page: int | None = None
 
 
 @dataclass(frozen=True)

@@ -187,7 +187,6 @@ def assert_canonize_ok(data: dict) -> list[dict]:
         assert "name" in a
         assert "mime_type" in a
         assert "size_bytes" in a
-        assert "label" in a
         assert a["size_bytes"] > 0
     return artefacts
 

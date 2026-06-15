@@ -24,8 +24,8 @@ POLL_OK = json_response(200, {
     "status": "ok",
     "metadata": {"detected_type": "application/pdf", "input_bytes": 1000, "input_hash": "aabb"},
     "artefacts": [
-        {"name": "markdown", "mime_type": "text/markdown", "size_bytes": 100, "label": "Extracted text"},
-        {"name": "page-1", "mime_type": "image/png", "size_bytes": 5000, "label": "Page 1"},
+        {"name": "markdown", "mime_type": "text/markdown", "size_bytes": 100},
+        {"name": "page-1", "mime_type": "image/png", "size_bytes": 5000},
     ],
 })
 

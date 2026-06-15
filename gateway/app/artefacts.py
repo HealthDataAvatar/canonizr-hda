@@ -21,7 +21,8 @@ class ArtefactMeta:
     name: str  # e.g. "pdf", "page-1", "image-1"
     mime_type: str
     size_bytes: int
-    label: str = ""  # human-readable: "Converted PDF", "Page 1", "Bar Chart"
+    label: str = ""  # content description only (e.g. "Bar Chart" from captioner)
+    source_page: int | None = None  # 1-indexed page this was extracted from
 
 
 class ArtefactStore:
@@ -48,20 +49,27 @@ class ArtefactStore:
         self._counters[prefix] = count
         return f"{prefix}-{count}"
 
-    async def put(self, name: str, data: bytes, mime_type: str, label: str = "") -> None:
+    async def put(
+        self, name: str, data: bytes, mime_type: str, label: str = "", source_page: int | None = None
+    ) -> None:
         """Encrypt and upload an artefact. Name must be URL-safe."""
         if not _VALID_NAME.match(name):
             raise ValueError(f"Invalid artefact name: {name!r}")
         encrypted = encrypt(data, self._key)
         await self._blobs.put(f"{self._prefix}/artefacts/{name}.bin", encrypted)
-        self._manifest.append(ArtefactMeta(name=name, mime_type=mime_type, size_bytes=len(data), label=label))
+        self._manifest.append(
+            ArtefactMeta(name=name, mime_type=mime_type, size_bytes=len(data), label=label, source_page=source_page)
+        )
 
     @property
     def manifest(self) -> list[ArtefactMeta]:
         return list(self._manifest)
 
     def manifest_json(self) -> str:
-        return json.dumps([asdict(a) for a in self._manifest], separators=(",", ":"))
+        return json.dumps(
+            [{k: v for k, v in asdict(a).items() if v is not None and v != ""} for a in self._manifest],
+            separators=(",", ":"),
+        )
 
 
 # Keep old name as alias during migration

@@ -124,21 +124,18 @@ async def _extract_pdf_parallel(
         with span.span(Service.ARTEFACTS) as art_span:
             for png, webp in zip(rendered.pages, rendered.previews):
                 page_name = artefacts.allocate("page")
-                await artefacts.put(page_name, png, "image/png", label=page_name.replace("-", " ").title())
                 preview_name = artefacts.allocate("preview")
-                await artefacts.put(preview_name, webp, "image/webp", label=page_name.replace("-", " ").title())
+                await artefacts.put(page_name, png, "image/png")
+                await artefacts.put(preview_name, webp, "image/webp")
             for img in images:
                 name = artefacts.allocate("image")
-                await artefacts.put(name, img.data, img.mime_type, label=img.label)
+                await artefacts.put(name, img.data, img.mime_type, label=img.label, source_page=img.page + 1)
             for tbl in tables.tables:
                 name = artefacts.allocate("table")
-                await artefacts.put(
-                    name, tbl.to_json().encode(), "application/json", label=f"Table from page {tbl.page + 1}"
-                )
-            # Page label lookup: one label per line, line N = page N
+                await artefacts.put(name, tbl.to_json().encode(), "application/json", source_page=tbl.page + 1)
             if rendered.page_labels:
                 labels_text = "\n".join(rendered.page_labels)
-                await artefacts.put("page-labels", labels_text.encode(), "text/plain", label="Page labels")
+                await artefacts.put("page-labels", labels_text.encode(), "text/plain")
             art_span.set(
                 artefact_count=len(artefacts.manifest),
                 image_count=len(images),
@@ -178,7 +175,7 @@ async def canonize(
             png = to_vlm_png(image)
             img_span.set(input_mime=mime, output_bytes=len(png.data))
         if artefacts:
-            await artefacts.put("image-1", png.data, "image/png", label="Normalised image")
+            await artefacts.put("image-1", png.data, "image/png")
         return Markdown("")
 
     # Modern office formats (OOXML, HTML, epub, email)
@@ -193,7 +190,7 @@ async def canonize(
         ole_doc = OleOfficeDocument(data=file.data, mime_type=mime, filename=file.filename)
         pdf = await to_pdf(ole_doc, deadline, parent, svc.ole_converter)
         if artefacts:
-            await artefacts.put("pdf", pdf.data, "application/pdf", label="Converted PDF")
+            await artefacts.put("pdf", pdf.data, "application/pdf")
 
     elif mime == "application/pdf":
         pdf = PdfContent(data=file.data, source_mime=mime)

@@ -13,7 +13,7 @@ import { Mono } from "@/components/ui/mono";
 import { CopyButton } from "@/components/ui/copy-button";
 import { DataTable } from "@/components/ui/data-table";
 import { TableExport } from "@/components/ui/table-export";
-import { parseArtefacts } from "@/lib/pure/artefacts";
+import { displayLabel } from "@/lib/pure/artefacts";
 import { CanonizeJobRow } from "@/lib/pure/job-types";
 import { calculateBilling } from "@/lib/pure/billing-calc";
 
@@ -70,11 +70,12 @@ function DeleteButton({ rowId, onDelete }: { rowId: string; onDelete: (id: strin
 import type { ArtefactEntry } from "@/lib/pure/artefacts";
 
 function ArtefactRow({ entry, url }: { entry: ArtefactEntry; url?: string }) {
+  const label = displayLabel(entry);
   return (
     <li className="flex items-center gap-2 text-sm">
-      <span>{entry.label}</span>
+      <span>{label}</span>
       <span className="text-muted-foreground">{filesize(entry.size_bytes)}</span>
-      {url && <IconLink icon={Download} title={`Download ${entry.label}`} href={url} />}
+      {url && <IconLink icon={Download} title={`Download ${label}`} href={url} />}
     </li>
   );
 }
@@ -96,6 +97,19 @@ function groupArtefacts(artefacts: ArtefactEntry[]) {
   return { previews, pages, images, tables, other };
 }
 
+function ManifestDownload({ artefacts, jobId }: { artefacts: ArtefactEntry[]; jobId: string }) {
+  const href = URL.createObjectURL(new Blob([JSON.stringify(artefacts, null, 2)], { type: "application/json" }));
+  return (
+    <a
+      href={href}
+      download={`manifest-${jobId}.json`}
+      className="text-xs text-muted-foreground hover:text-foreground"
+    >
+      Download manifest
+    </a>
+  );
+}
+
 function PreviewStrip({ previews, artefactUrl, jobId }: {
   previews: ArtefactEntry[];
   artefactUrl?: (jobId: string, name: string) => string;
@@ -106,17 +120,18 @@ function PreviewStrip({ previews, artefactUrl, jobId }: {
       {previews.map((p) => {
         const pageNum = p.name.replace("preview-", "");
         const pageName = `page-${pageNum}`;
+        const pageLabel = `Page ${pageNum}`;
         const pageUrl = artefactUrl?.(jobId, pageName);
         return (
           <div
             key={p.name}
             className="flex-none rounded border border-border bg-muted/30 overflow-hidden relative group"
-            title={p.label}
+            title={pageLabel}
           >
             {artefactUrl ? (
               <img
                 src={artefactUrl(jobId, p.name)}
-                alt={p.label}
+                alt={pageLabel}
                 className="h-24 w-[68px] object-contain"
                 loading="lazy"
               />
@@ -129,7 +144,7 @@ function PreviewStrip({ previews, artefactUrl, jobId }: {
               <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/30 transition-colors">
                 <IconLink
                   icon={Download}
-                  title={`Download ${p.label}`}
+                  title={`Download ${pageLabel}`}
                   href={pageUrl}
                   download={`${pageName}.png`}
                   className="opacity-0 group-hover:opacity-100 transition-opacity text-white"
@@ -187,6 +202,9 @@ function CanonizeUserJobPanel({ row, artefactUrl }: { row: CanonizeJobRow; artef
               <ArtefactRow key={a.name} entry={a} url={url(a.name)} />
             ))}
           </ul>
+
+          {/* Manifest download */}
+          <ManifestDownload artefacts={row.artefacts} jobId={row.id} />
         </div>
       );
     }

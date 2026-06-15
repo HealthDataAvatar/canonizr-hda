@@ -1,4 +1,4 @@
-"""Test Docling PDF extraction paths."""
+"""Test PDF text extraction paths."""
 
 import io
 

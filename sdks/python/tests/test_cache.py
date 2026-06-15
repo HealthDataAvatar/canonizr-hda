@@ -14,8 +14,8 @@ def _sample_status() -> JobStatus:
         status="ok",
         metadata={"detected_type": "application/pdf"},
         artefacts=(
-            ArtefactMeta(name="markdown", mime_type="text/markdown", size_bytes=500, label="Extracted text"),
-            ArtefactMeta(name="page-1", mime_type="image/png", size_bytes=20000, label="Page 1"),
+            ArtefactMeta(name="markdown", mime_type="text/markdown", size_bytes=500),
+            ArtefactMeta(name="page-1", mime_type="image/png", size_bytes=20000),
         ),
         expires_at="2026-06-13T00:00:00Z",
     )

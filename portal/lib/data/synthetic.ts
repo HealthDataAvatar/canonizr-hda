@@ -56,25 +56,25 @@ function pdfArtefacts(pageCount: number, imageCount: number, tableCount: number)
   const entries: ArtefactEntry[] = [
     { name: "markdown", mime_type: "text/markdown", size_bytes: 8_420, label: "Extracted text" },
   ];
-  for (let i = 0; i < pageCount; i++) {
-    entries.push({ name: `page-${i}`, mime_type: "image/png", size_bytes: 140_000 + i * 2_000, label: `Page ${i + 1}` });
-    entries.push({ name: `preview-${i}`, mime_type: "image/webp", size_bytes: 8_000 + i * 500, label: `Page ${i + 1}` });
+  for (let i = 1; i <= pageCount; i++) {
+    entries.push({ name: `page-${i}`, mime_type: "image/png", size_bytes: 140_000 + i * 2_000 });
+    entries.push({ name: `preview-${i}`, mime_type: "image/webp", size_bytes: 8_000 + i * 500 });
   }
-  for (let i = 0; i < imageCount; i++) {
-    entries.push({ name: `image-${i}`, mime_type: "image/png", size_bytes: 50_000 + i * 4_000, label: i === 0 ? "Figure" : "Chart" });
+  for (let i = 1; i <= imageCount; i++) {
+    entries.push({ name: `image-${i}`, mime_type: "image/png", size_bytes: 50_000 + i * 4_000, label: i === 1 ? "Figure" : "Chart", source_page: i + 1 });
   }
-  for (let i = 0; i < tableCount; i++) {
-    entries.push({ name: `table-${i}`, mime_type: "application/json", size_bytes: 2_000 + i * 800, label: `Table from page ${i + 2}` });
+  for (let i = 1; i <= tableCount; i++) {
+    entries.push({ name: `table-${i}`, mime_type: "application/json", size_bytes: 2_000 + i * 800, source_page: i + 1 });
   }
   return entries;
 }
 
 function imageArtefact(): ArtefactEntry[] {
-  return [{ name: "image-1", mime_type: "image/png", size_bytes: 95_000, label: "Normalised image" }];
+  return [{ name: "image-1", mime_type: "image/png", size_bytes: 95_000 }];
 }
 
 function textArtefact(): ArtefactEntry[] {
-  return [{ name: "markdown", mime_type: "text/markdown", size_bytes: 1_200, label: "Extracted text" }];
+  return [{ name: "markdown", mime_type: "text/markdown", size_bytes: 1_200 }];
 }
 
 function artefactsForFile(mime: string, rand: () => number): string {

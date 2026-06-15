@@ -39,8 +39,8 @@ POLL_OK = json_response(200, {
     "status": "ok",
     "metadata": {"detected_type": "application/pdf", "input_bytes": 1000, "input_hash": "deadbeef"},
     "artefacts": [
-        {"name": "markdown", "mime_type": "text/markdown", "size_bytes": 500, "label": "Extracted text"},
-        {"name": "page-1", "mime_type": "image/png", "size_bytes": 20000, "label": "Page 1"},
+        {"name": "markdown", "mime_type": "text/markdown", "size_bytes": 500},
+        {"name": "page-1", "mime_type": "image/png", "size_bytes": 20000},
     ],
     "expires_at": "2026-06-13T00:00:00Z",
 })
@@ -257,7 +257,7 @@ class TestGetArtefact:
         data = client.get_artefact("abc123", "page-1")
 
         assert data == b"png bytes here"
-        assert t.requests[0].path == "/v1/canonize/abc123/artefacts/page-0"
+        assert t.requests[0].path == "/v1/canonize/abc123/artefacts/page-1"
 
 
 class TestDelete:
