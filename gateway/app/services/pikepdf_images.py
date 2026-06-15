@@ -37,7 +37,6 @@ def _extract_images_sync(pdf_bytes: bytes) -> list[EmbeddedImage]:
                         data=buf.getvalue(),
                         mime_type=mime,
                         page=page_num,
-                        label=f"Image from page {page_num + 1}",
                     )
                 )
     finally:
