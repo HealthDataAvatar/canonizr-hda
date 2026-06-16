@@ -101,7 +101,7 @@ export function JobsPageContent({ initialRequests, initialCursor, uploadSlot }: 
           <button
             onClick={loadMore}
             disabled={loadingMore}
-            className="text-sm text-muted-foreground hover:text-foreground disabled:opacity-50"
+            className="text-sm text-muted-foreground hover:text-primary disabled:opacity-50"
           >
             {loadingMore ? "Loading…" : "Load more"}
           </button>

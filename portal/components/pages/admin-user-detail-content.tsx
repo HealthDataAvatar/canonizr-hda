@@ -34,7 +34,7 @@ export function AdminUserDetailContent({ user }: { user: AdminUserDetail }) {
     <div className="space-y-8">
       <Link
         href="/dashboard/admin/users"
-        className="text-sm text-muted-foreground hover:text-foreground"
+        className="text-sm text-muted-foreground hover:text-primary"
       >
         &larr; All users
       </Link>

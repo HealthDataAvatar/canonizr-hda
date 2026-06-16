@@ -20,7 +20,7 @@ export function TraceCostCard({ trace, pricePerUnit, className }: TraceCostCardP
 
   return (
     <div className={className}>
-      <div className="rounded border border-border bg-surface p-4 font-mono text-sm">
+      <div className="rounded border border-border bg-muted p-4 font-mono text-sm">
         <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2 mb-4">
           <div>
             <span className="text-muted-foreground">Infra cost </span>

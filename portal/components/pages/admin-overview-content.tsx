@@ -17,7 +17,7 @@ export function AdminOverviewContent({ overview }: { overview: AdminOverview }) 
         <h1>Admin</h1>
         <Link
           href="/dashboard/admin/users"
-          className="text-sm text-muted-foreground hover:text-foreground"
+          className="text-sm text-muted-foreground hover:text-primary"
         >
           All users &rarr;
         </Link>

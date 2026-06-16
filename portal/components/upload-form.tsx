@@ -38,7 +38,7 @@ export function KeySelector({ keys }: { keys: KeyOption[] }) {
           id="key-select"
           value={selectedKeyId}
           onChange={(e) => setSelectedKeyId(e.target.value)}
-          className="rounded-md border border-border bg-background px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-ring"
+          className="rounded-md border border-border bg-background px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-accent"
         >
           {keys.map((k) => (
             <option key={k.id} value={k.id}>{k.displayName}</option>

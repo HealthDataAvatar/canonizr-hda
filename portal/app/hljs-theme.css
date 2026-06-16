@@ -1,14 +1,14 @@
 /* Monochrome highlight.js theme — warm neutrals only, per design guide */
 
 .hljs {
-  color: var(--foreground);
+  color: var(--primary);
 }
 
 .hljs-keyword,
 .hljs-selector-tag,
 .hljs-built_in,
 .hljs-name {
-  color: var(--foreground);
+  color: var(--primary);
 }
 
 .hljs-string,
@@ -30,19 +30,19 @@
 .hljs-number,
 .hljs-literal,
 .hljs-type {
-  color: var(--foreground);
+  color: var(--primary);
 }
 
 .hljs-title,
 .hljs-section,
 .hljs-selector-id {
-  color: var(--foreground);
+  color: var(--primary);
   font-weight: 600;
 }
 
 .hljs-subst,
 .hljs-variable {
-  color: var(--foreground);
+  color: var(--primary);
 }
 
 .hljs-params {

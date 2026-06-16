@@ -83,7 +83,7 @@ export function JobTraceViewer({
               value={jobId}
               onChange={(e) => setJobId(e.target.value)}
               placeholder="e.g. a1b2c3d4e5f6"
-              className="w-full rounded border border-border bg-surface px-3 py-2 font-mono text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-accent"
+              className="w-full rounded border border-border bg-muted px-3 py-2 font-mono text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-accent"
               onKeyDown={(e) => e.key === "Enter" && handleFetchJob()}
             />
           </div>
@@ -106,7 +106,7 @@ export function JobTraceViewer({
               type="file"
               accept=".json,application/json"
               onChange={handleFile}
-              className="ml-2 text-sm text-muted-foreground file:mr-2 file:rounded file:border-0 file:bg-surface file:px-3 file:py-1.5 file:text-sm file:font-medium hover:file:bg-border"
+              className="ml-2 text-sm text-muted-foreground file:mr-2 file:rounded file:border-0 file:bg-muted file:px-3 file:py-1.5 file:text-sm file:font-medium hover:file:bg-muted"
             />
           </label>
           <span className="text-muted-foreground text-sm">or paste below</span>
@@ -116,7 +116,7 @@ export function JobTraceViewer({
           onChange={(e) => setRaw(e.target.value)}
           placeholder='{"name": "worker", "duration_ms": 1234, "children": [...]}'
           rows={6}
-          className="w-full rounded border border-border bg-surface p-3 font-mono text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-accent"
+          className="w-full rounded border border-border bg-muted p-3 font-mono text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-accent"
         />
         <button
           onClick={handleParse}

@@ -25,7 +25,7 @@ export function UsageBar({
         aria-label={`${formatKB(usageKB)} of ${formatKB(quotaKB)}`}
       >
         <div
-          className={`h-full rounded-full ${full ? "bg-destructive" : "bg-foreground"}`}
+          className={`h-full rounded-full ${full ? "bg-destructive" : "bg-primary"}`}
           style={{ width: `${pct}%` }}
         />
       </div>

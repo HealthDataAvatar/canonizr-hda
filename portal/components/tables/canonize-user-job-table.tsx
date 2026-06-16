@@ -103,7 +103,7 @@ function ManifestDownload({ artefacts, jobId }: { artefacts: ArtefactEntry[]; jo
     <a
       href={href}
       download={`manifest-${jobId}.json`}
-      className="text-xs text-muted-foreground hover:text-foreground"
+      className="text-xs text-muted-foreground hover:text-primary"
     >
       Download manifest
     </a>

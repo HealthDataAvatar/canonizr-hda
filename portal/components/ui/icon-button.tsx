@@ -4,13 +4,13 @@ import type { LucideIcon } from "lucide-react";
 
 export const iconActionTones = {
   accent: "text-accent/80 hover:text-accent",
-  muted: "text-muted-foreground hover:text-foreground",
+  muted: "text-muted-foreground hover:text-primary",
   destructive: "text-muted-foreground hover:text-destructive/80",
 };
 
 export const iconActionBase = [
   "inline-flex items-center justify-center rounded-md p-1.5 transition-colors cursor-pointer",
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
   "disabled:pointer-events-none disabled:opacity-50 border-border border-1",
 ];
 

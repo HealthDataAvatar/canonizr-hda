@@ -26,7 +26,7 @@ export function MobileNav({ email, isAdmin = false }: { email: string; isAdmin?:
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="flex size-11 items-center justify-center text-foreground"
+        className="flex size-11 items-center justify-center text-primary"
         title={open ? "Close menu" : "Open menu"}
         aria-label={open ? "Close menu" : "Open menu"}
         aria-expanded={open}

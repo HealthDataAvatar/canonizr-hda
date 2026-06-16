@@ -69,7 +69,7 @@ export function KeysDataSlots({ keys }: { keys: KeyRow[] }) {
             </div>
             <Link
               href="/dashboard/history"
-              className="shrink-0 rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:bg-accent/90 transition-colors"
+              className="shrink-0 rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent/90 transition-colors"
             >
               Go to Jobs
             </Link>

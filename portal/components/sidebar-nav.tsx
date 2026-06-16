@@ -25,7 +25,7 @@ export function SidebarNav({ isAdmin = false }: { isAdmin?: boolean }) {
             className={`py-1 transition-colors ${
               active
                 ? "text-accent font-semibold"
-                : "text-muted-foreground hover:text-foreground"
+                : "text-muted-foreground hover:text-primary"
             }`}
           >
             {label}
@@ -52,7 +52,7 @@ export function SidebarNav({ isAdmin = false }: { isAdmin?: boolean }) {
                 className={`py-1 transition-colors ${
                   active
                     ? "text-accent font-semibold"
-                    : "text-muted-foreground hover:text-foreground"
+                    : "text-muted-foreground hover:text-primary"
                 }`}
               >
                 {label}

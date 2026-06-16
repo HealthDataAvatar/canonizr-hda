@@ -67,13 +67,13 @@ export function TraceFlame({ trace, className }: TraceFlameProps) {
           <>
             <button
               onClick={handleZoomOut}
-              className="text-muted-foreground hover:text-foreground underline"
+              className="text-muted-foreground hover:text-primary underline"
             >
               Zoom out
             </button>
             <button
               onClick={handleReset}
-              className="text-muted-foreground hover:text-foreground underline"
+              className="text-muted-foreground hover:text-primary underline"
             >
               Reset
             </button>
@@ -96,7 +96,7 @@ export function TraceFlame({ trace, className }: TraceFlameProps) {
       {/* Flame graph */}
       <div
         ref={containerRef}
-        className="overflow-auto max-h-[400px] rounded border border-border bg-surface"
+        className="overflow-auto max-h-[400px] rounded border border-border bg-muted"
       >
         <svg
           width="100%"
@@ -133,7 +133,7 @@ export function TraceFlame({ trace, className }: TraceFlameProps) {
                   rx={3}
                   fill={colorForService(span.name)}
                   opacity={isHovered ? 1 : 0.85}
-                  stroke={isHovered ? "var(--foreground)" : "none"}
+                  stroke={isHovered ? "var(--primary)" : "none"}
                   strokeWidth={isHovered ? 1 : 0}
                 />
                 {w > 40 && (
@@ -184,7 +184,7 @@ function SpanTooltip({ span, rootDuration }: { span: FlatSpan; rootDuration: num
   );
 
   return (
-    <div className="mt-2 rounded border border-border bg-surface p-3 text-sm font-mono">
+    <div className="mt-2 rounded border border-border bg-muted p-3 text-sm font-mono">
       <div className="flex items-center gap-2 mb-1">
         <span
           className="inline-block h-2.5 w-2.5 rounded-sm"

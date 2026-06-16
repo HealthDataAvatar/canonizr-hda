@@ -9,7 +9,7 @@ const iconHintVariants = cva("inline-flex items-center justify-center", {
     },
     tone: {
       muted: "text-muted-foreground",
-      foreground: "text-foreground",
+      foreground: "text-primary",
       accent: "text-accent",
       destructive: "text-destructive",
     },

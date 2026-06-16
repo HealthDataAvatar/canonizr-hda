@@ -122,7 +122,7 @@ export const AllStates: Story = {
             columns={columns}
             data={fewRows}
             getRowId={(r) => r.id}
-            actions={<button className="text-sm text-muted-foreground hover:text-foreground">Export CSV</button>}
+            actions={<button className="text-sm text-muted-foreground hover:text-primary">Export CSV</button>}
           />
         ),
       },

@@ -18,7 +18,7 @@ export function ErrorBanner({ error }: { error: RecentError }) {
         <Link
           href={`/dashboard/usage#${error.id}`}
           title="View details"
-          className="mt-0.5 text-muted-foreground hover:text-foreground transition-colors"
+          className="mt-0.5 text-muted-foreground hover:text-primary transition-colors"
         >
           <ArrowRight className="size-4" />
         </Link>

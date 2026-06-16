@@ -28,12 +28,12 @@ const codeBlockVariants = cva("rounded-lg overflow-hidden border border-border",
 });
 
 const tabVariants = cva(
-  "px-3 py-2 text-[0.8125rem] cursor-pointer transition-colors rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring",
+  "px-3 py-2 text-[0.8125rem] cursor-pointer transition-colors rounded-md outline-none focus-visible:ring-2 focus-visible:ring-accent",
   {
     variants: {
       active: {
-        true: "text-foreground font-semibold",
-        false: "text-muted-foreground hover:text-foreground",
+        true: "text-primary font-semibold",
+        false: "text-muted-foreground hover:text-primary",
       },
     },
     defaultVariants: {
@@ -86,7 +86,7 @@ function CodeBlock({
 
   return (
     <div className={cn(codeBlockVariants({ variant }), className)}>
-      <div className="flex items-center justify-between border-b border-border bg-surface px-2">
+      <div className="flex items-center justify-between border-b border-border bg-muted px-2">
         <div className="flex">
           {samples.map((sample, i) => (
             <button
@@ -102,7 +102,7 @@ function CodeBlock({
         </div>
         <CopyButton value={active.code} />
       </div>
-      <pre className="overflow-auto h-64 bg-surface p-5 font-mono text-[0.875rem] leading-[1.6]">
+      <pre className="overflow-auto h-64 bg-muted p-5 font-mono text-[0.875rem] leading-[1.6]">
         <code dangerouslySetInnerHTML={{ __html: highlighted }} />
       </pre>
     </div>

@@ -75,7 +75,7 @@ export function QuotaEditor({ keyId, usageKB, quotaKB, actions: actionsOverride 
         <select
           value={unit}
           onChange={(e) => setUnit(e.target.value as Unit)}
-          className="h-8 rounded-lg border border-input bg-transparent px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+          className="h-8 rounded-lg border border-border bg-transparent px-2 text-sm outline-none focus-visible:border-accent focus-visible:ring-3 focus-visible:ring-accent/50"
           disabled={saving}
         >
           <option value="MB">MB</option>

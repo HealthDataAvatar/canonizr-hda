@@ -35,7 +35,7 @@ const preview: Preview = {
       const isDark = bg === "#1f1d1a";
       return (
         <div className={isDark ? "dark" : ""}>
-          <div className="bg-white text-foreground p-1">
+          <div className="bg-white text-primary p-1">
             <Story />
           </div>
         </div>
