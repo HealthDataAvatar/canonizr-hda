@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef, type ReactNode } from "react";
 import { CanonizeUserJobTable } from "@/components/tables/canonize-user-job-table";
 import type { CanonizeJobRow } from "@/lib/pure/job-types";
-import { getSessionJobIds, UploadFormJobContext } from "@/components/upload-form";
+import { UploadFormJobContext } from "@/components/upload-form";
 
 const REFRESH_INTERVAL = 5_000;
 
@@ -17,14 +17,8 @@ export function JobsPageContent({ initialRequests, initialCursor, uploadSlot }: 
   const [requests, setRequests] = useState(initialRequests);
   const [cursor, setCursor] = useState<string | null>(initialCursor);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [sessionJobIds, setSessionJobIds] = useState<Set<string>>(new Set());
   const cursorRef = useRef(cursor);
   cursorRef.current = cursor;
-
-  // Load session job IDs on mount
-  useEffect(() => {
-    setSessionJobIds(new Set(getSessionJobIds()));
-  }, []);
 
   const hasProcessing = requests.some((r) => r.status === "processing");
 
@@ -47,8 +41,7 @@ export function JobsPageContent({ initialRequests, initialCursor, uploadSlot }: 
     return () => clearInterval(id);
   }, [hasProcessing, refresh]);
 
-  const handleJobSubmitted = useCallback((jobId: string) => {
-    setSessionJobIds((prev) => new Set([jobId, ...prev]));
+  const handleJobSubmitted = useCallback((_jobId: string) => {
     refresh();
   }, [refresh]);
 
@@ -91,7 +84,6 @@ export function JobsPageContent({ initialRequests, initialCursor, uploadSlot }: 
 
       <CanonizeUserJobTable
         jobs={requests}
-        highlightIds={sessionJobIds}
         artefactUrl={(jobId, name) => `/api/jobs/${jobId}/artefacts/${name}`}
         onDelete={handleDelete}
       />

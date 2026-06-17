@@ -45,19 +45,24 @@ function formatMonth(date: string): string {
 
 const col = createColumnHelper<InvoiceRow>();
 
+// Shared columns (used in both desktop and mobile layouts)
+const dateCol = col.accessor("date", {
+  header: "Period",
+  cell: ({ getValue }) => <span className="text-sm">{formatMonth(getValue())}</span>,
+});
+
+const amountCol = col.accessor("amount", {
+  header: "Amount",
+  cell: ({ getValue }) => <Mono>{formatCurrency(getValue())}</Mono>,
+});
+
 const columns = [
-  col.accessor("date", {
-    header: "Period",
-    cell: ({ getValue }) => <span className="text-sm">{formatMonth(getValue())}</span>,
-  }),
+  dateCol,
   col.accessor("processedKB", {
     header: "Processed",
     cell: ({ getValue }) => <Mono>{formatKB(getValue())}</Mono>,
   }),
-  col.accessor("amount", {
-    header: "Amount",
-    cell: ({ getValue }) => <Mono>{formatCurrency(getValue())}</Mono>,
-  }),
+  amountCol,
   col.accessor("status", {
     header: "Status",
     cell: ({ getValue }) => <StatusIndicator status={getValue()} />,
@@ -70,14 +75,8 @@ const columns = [
 ];
 
 const mobileInvoiceColumns = [
-  col.accessor("date", {
-    header: "Period",
-    cell: ({ getValue }) => <span className="text-sm">{formatMonth(getValue())}</span>,
-  }),
-  col.accessor("amount", {
-    header: "Amount",
-    cell: ({ getValue }) => <Mono>{formatCurrency(getValue())}</Mono>,
-  }),
+  dateCol,
+  amountCol,
   col.accessor("status", {
     header: "",
     size: 40,
