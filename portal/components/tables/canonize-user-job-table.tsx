@@ -1,7 +1,7 @@
 "use client";
 
 import { createColumnHelper } from "@tanstack/react-table";
-import { Download, Trash2, Loader, Check, TriangleAlert, ShieldOff } from "lucide-react";
+import { Download, Delete, Processing, Success, Warning, Expired } from "@/components/ui/icons";
 import { filesize } from "filesize";
 import { formatKB, toBillableKB } from "@/lib/pure/format";
 import { IconButton } from "@/components/ui/icon-button";
@@ -30,24 +30,24 @@ export type BlobState =
 function StatusIcon({ row }: { row: CanonizeJobRow }) {
 
   if (row.status === "processing") {
-    return <IconHint icon={Loader} title={`Submitted ${new Date(row.submittedAt).toLocaleString()}`} isSpinning />;
+    return <IconHint icon={Processing} title={`Submitted ${new Date(row.submittedAt).toLocaleString()}`} isSpinning />;
   }
   if (row.status === "error") {
-    return <IconHint icon={TriangleAlert} title={`Error ${new Date(row.completedAt).toLocaleString()}`} tone="destructive" />;
+    return <IconHint icon={Warning} title={`Error ${new Date(row.completedAt).toLocaleString()}`} tone="destructive" />;
   }
   if (row.status === "ok") {
-    return <IconHint icon={Check} title={row.submittedAt ? `Completed ${new Date(row.completedAt).toLocaleString()}` : "Success"} />;
+    return <IconHint icon={Success} title={row.submittedAt ? `Completed ${new Date(row.completedAt).toLocaleString()}` : "Success"} />;
 
   }
   if (row.status === "expired") {
-    return <IconHint icon={ShieldOff} title={`Expired ${new Date(row.expiredAt).toLocaleString()}`} tone="muted" />;
+    return <IconHint icon={Expired} title={`Expired ${new Date(row.expiredAt).toLocaleString()}`} tone="muted" />;
   }
 }
 
 function DeleteButton({ rowId, onDelete }: { rowId: string; onDelete: (id: string) => void }) {
   return (
     <IconButton
-      icon={Trash2}
+      icon={Delete}
       title="Delete stored data"
       tone="destructive"
       onClick={() => {
@@ -127,9 +127,10 @@ function groupArtefacts(artefacts: ArtefactEntry[]) {
 }
 
 function ManifestDownload({ artefacts, jobId }: { artefacts: ArtefactEntry[]; jobId: string }) {
-  const href = URL.createObjectURL(new Blob([JSON.stringify(artefacts, null, 2)], { type: "application/json" }));
+  // ponytail: data URI instead of createObjectURL — no blob lifecycle to revoke.
+  const href = "data:application/json," + encodeURIComponent(JSON.stringify(artefacts, null, 2));
   return <DownloadFileListEntry
-      actionNode={<IconLink icon={Download} title={`Download job manifest`} href={href} />}
+      actionNode={<IconLink icon={Download} title={`Download job manifest`} href={href} download={`manifest-${jobId}.json`} />}
       label={"Job Manifest"}
     />
 }

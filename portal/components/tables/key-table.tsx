@@ -7,7 +7,6 @@ import { DataTable } from "@/components/ui/data-table";
 import { TableExport } from "@/components/ui/table-export";
 import { formatKB } from "@/lib/pure/format";
 import { Mono } from "@/components/ui/mono";
-import { APIKeySpan } from "@/components/ui/api-key-span";
 
 export interface KeyRow {
   id: string;
@@ -23,7 +22,7 @@ const columns = [
   col.accessor("displayName", {
     header: "Name",
     size: 200,
-    cell: ({ getValue }) => <APIKeySpan text={getValue()} />,
+    cell: ({ getValue }) => <Mono className="truncate">{getValue()}</Mono>,
   }),
   col.accessor("value", {
     header: "Key",
@@ -52,7 +51,7 @@ const columns = [
 const mobileKeyColumns = [
   col.accessor("displayName", {
     header: "Name",
-    cell: ({ getValue }) => <APIKeySpan text={getValue()} />,
+    cell: ({ getValue }) => <Mono className="truncate">{getValue()}</Mono>,
   }),
 ];
 

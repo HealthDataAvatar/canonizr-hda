@@ -9,6 +9,7 @@ import {
   type SpanNode,
   type FlatSpan,
 } from "@/lib/pure/trace";
+import { formatMs } from "@/lib/pure/format";
 
 const ROW_HEIGHT = 28;
 const ROW_GAP = 2;
@@ -207,11 +208,6 @@ function SpanTooltip({ span, rootDuration }: { span: FlatSpan; rootDuration: num
       )}
     </div>
   );
-}
-
-function formatMs(ms: number): string {
-  if (ms >= 1000) return `${(ms / 1000).toFixed(2)}s`;
-  return `${Math.round(ms)}ms`;
 }
 
 function truncateLabel(label: string, widthUnits: number): string {

@@ -1,12 +1,13 @@
 import { forwardRef } from "react";
 import { cn } from "@/lib/style/utils";
-import { iconActionBase, iconActionTones } from "./icon-button";
+import { iconActionBase } from "./icon-button";
+import { iconTones, type IconTone } from "./icon-tones";
 import type { LucideIcon } from "lucide-react";
 
 export interface IconLinkProps extends React.AnchorHTMLAttributes<HTMLAnchorElement> {
   icon: LucideIcon;
   title: string;
-  tone?: keyof typeof iconActionTones;
+  tone?: IconTone;
 }
 
 const IconLink = forwardRef<HTMLAnchorElement, IconLinkProps>(
@@ -16,7 +17,7 @@ const IconLink = forwardRef<HTMLAnchorElement, IconLinkProps>(
         ref={ref}
         title={title}
         aria-label={title}
-        className={cn(...iconActionBase, iconActionTones[tone], className)}
+        className={cn(...iconActionBase, iconTones[tone].interactive, className)}
         {...props}
       >
         <Icon className="size-4" />

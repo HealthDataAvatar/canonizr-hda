@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { Download, Check, ClipboardCopy } from "lucide-react";
+import { ClipboardCopy } from "lucide-react";
+import { Download, Success } from "@/components/ui/icons";
 import { IconButton } from "@/components/ui/icon-button";
 import { toCSV, toMarkdown, downloadBlob } from "@/lib/pure/table-export";
 import { ActionGroup } from "./action-group";
@@ -29,7 +30,7 @@ export function TableExport({ headers, rows, filenameBase }: TableExportProps) {
     <ActionGroup>
       <IconButton icon={Download} title="Download CSV" onClick={handleCSV} />
       <IconButton
-        icon={copied ? Check : ClipboardCopy}
+        icon={copied ? Success : ClipboardCopy}
         title={copied ? "Copied" : "Copy as Markdown"}
         tone={copied ? "accent" : "muted"}
         onClick={handleMarkdown}

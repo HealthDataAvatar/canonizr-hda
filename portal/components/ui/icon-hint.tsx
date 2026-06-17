@@ -1,5 +1,6 @@
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/style/utils";
+import { iconTones } from "./icon-tones";
 import type { LucideIcon } from "lucide-react";
 
 const iconHintVariants = cva("inline-flex items-center justify-center", {
@@ -8,10 +9,10 @@ const iconHintVariants = cva("inline-flex items-center justify-center", {
       default: "[&_svg]:size-4",
     },
     tone: {
-      muted: "text-muted-foreground",
-      foreground: "text-primary",
-      accent: "text-accent",
-      destructive: "text-destructive",
+      muted: iconTones.muted.static,
+      foreground: iconTones.foreground.static,
+      accent: iconTones.accent.static,
+      destructive: iconTones.destructive.static,
     },
   },
   defaultVariants: {

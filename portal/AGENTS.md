@@ -8,6 +8,14 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 - **No fetch in components** — components are pure UI. All API calls (`fetch`, mutations) go in hooks (`lib/hooks/`). Components call hooks, never `fetch` directly.
 
+# Mass refactors
+
+For structural find/replace across many files (symbol renames, JSX rewrites, dead-export sweeps — e.g. audit rings), use `ast-grep` (devDependency, invoke with `npx ast-grep`). It matches the AST, so it won't touch a symbol inside a ternary or string the way `sed` would.
+
+- Search: `npx ast-grep run -p '<IconHint icon={$X} $$$REST />' --lang tsx components/`
+- Rewrite (preview): `npx ast-grep run -p 'icon={Check}' -r 'icon={Success}' --lang tsx components/`
+- Apply: add `--update-all` to the rewrite. Always run `npx tsc --noEmit` + `npx eslint` after — ast-grep edits text, it does not fix imports.
+
 # Storybook Stories
 
 When writing or modifying stories, follow the style guide in `docs/issues/portal-ui-stories.md` (section "Style Guide"). Key rules:

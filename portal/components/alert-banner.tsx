@@ -1,4 +1,4 @@
-import { TriangleAlert } from "lucide-react";
+import { Warning } from "@/components/ui/icons";
 import type { ReactNode } from "react";
 
 const styles = {
@@ -8,9 +8,9 @@ const styles = {
     text: "text-destructive",
   },
   warning: {
-    container: "border-amber-500/30 bg-amber-500/5",
-    icon: "text-amber-500",
-    text: "text-amber-600",
+    container: "border-warning/30 bg-warning/5",
+    icon: "text-warning",
+    text: "text-warning",
   },
 } as const;
 
@@ -28,7 +28,7 @@ export function AlertBanner({
   const s = styles[variant];
   return (
     <div className={`flex items-start gap-3 rounded-lg border p-4 ${s.container}`}>
-      <TriangleAlert className={`mt-0.5 size-4 shrink-0 ${s.icon}`} />
+      <Warning className={`mt-0.5 size-4 shrink-0 ${s.icon}`} />
       {children ? (
         <div className="flex-1">{children}</div>
       ) : (

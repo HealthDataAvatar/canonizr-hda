@@ -4,6 +4,7 @@
  */
 
 import type { SpanNode } from "./trace";
+import { formatMs } from "./format";
 
 // ---------------------------------------------------------------------------
 // Cost constants (Azure pricing, approximate)
@@ -58,15 +59,6 @@ export interface InfraCostEstimate {
 }
 
 // ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function fmtDuration(ms: number): string {
-  if (ms >= 1000) return `${(ms / 1000).toFixed(1)}s`;
-  return `${Math.round(ms)}ms`;
-}
-
-// ---------------------------------------------------------------------------
 // Estimation
 // ---------------------------------------------------------------------------
 
@@ -83,7 +75,7 @@ export function estimateInfraCost(root: SpanNode): InfraCostEstimate {
   items.push({
     service: "worker",
     item: `compute (${WORKER_VCPUS} vCPU)`,
-    quantity: fmtDuration(workerDurationMs),
+    quantity: formatMs(workerDurationMs),
     cost: workerCost,
   });
 
@@ -98,7 +90,7 @@ export function estimateInfraCost(root: SpanNode): InfraCostEstimate {
       items.push({
         service: node.name,
         item: `compute (${externalVcpus} vCPU)`,
-        quantity: fmtDuration(durationMs),
+        quantity: formatMs(durationMs),
         cost: computeCost,
       });
       items.push({

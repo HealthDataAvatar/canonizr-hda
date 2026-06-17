@@ -1,6 +1,6 @@
 /** Pure billing calculations — no I/O. */
 
-const KB_PER_UNIT = 100;
+export const KB_PER_UNIT = 100;
 
 export interface BillingInput {
   totalUnits: number;

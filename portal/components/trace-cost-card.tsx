@@ -1,8 +1,7 @@
 import { estimateInfraCost } from "@/lib/pure/infra-cost";
 import { colorForService, type SpanNode } from "@/lib/pure/trace";
-import { toBillableKB } from "@/lib/pure/format";
-
-const KB_PER_UNIT = 100;
+import { toBillableKB, formatMs } from "@/lib/pure/format";
+import { KB_PER_UNIT } from "@/lib/pure/billing-calc";
 
 interface TraceCostCardProps {
   trace: SpanNode;
@@ -42,7 +41,7 @@ export function TraceCostCard({ trace, pricePerUnit, className }: TraceCostCardP
             </span>
           </div>
           <span className="text-muted-foreground ml-auto">
-            {formatDuration(est.totalDurationMs)} total
+            {formatMs(est.totalDurationMs)} total
           </span>
         </div>
 
@@ -85,7 +84,7 @@ export function TraceCostCard({ trace, pricePerUnit, className }: TraceCostCardP
             )}
             {est.totalRetries > 0 && (
               <span>
-                {est.totalRetries} retries ({formatDuration(est.totalRetryDelayMs)}{" "}
+                {est.totalRetries} retries ({formatMs(est.totalRetryDelayMs)}{" "}
                 delay)
               </span>
             )}
@@ -94,9 +93,4 @@ export function TraceCostCard({ trace, pricePerUnit, className }: TraceCostCardP
       </div>
     </div>
   );
-}
-
-function formatDuration(ms: number): string {
-  if (ms >= 1000) return `${(ms / 1000).toFixed(2)}s`;
-  return `${Math.round(ms)}ms`;
 }

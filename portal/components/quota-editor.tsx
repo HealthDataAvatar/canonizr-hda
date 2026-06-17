@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Pencil, Check, X } from "lucide-react";
+import { Pencil } from "lucide-react";
+import { Success, Close } from "@/components/ui/icons";
 import { useKeyActions, type KeyActions } from "@/lib/hooks/use-key-actions";
 import { Input } from "@/components/ui/input";
 import { IconButton } from "@/components/ui/icon-button";
@@ -81,8 +82,8 @@ export function QuotaEditor({ keyId, usageKB, quotaKB, actions: actionsOverride 
           <option value="MB">MB</option>
           <option value="GB">GB</option>
         </select>
-        <IconButton icon={Check} title="Save" onClick={handleSave} disabled={saving} />
-        <IconButton icon={X} title="Cancel" onClick={handleCancel} disabled={saving} />
+        <IconButton icon={Success} title="Save" onClick={handleSave} disabled={saving} />
+        <IconButton icon={Close} title="Cancel" onClick={handleCancel} disabled={saving} />
       </div>
     );
   }

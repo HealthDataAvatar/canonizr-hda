@@ -1,7 +1,7 @@
 import { CopyButton } from "@/components/ui/copy-button";
-import { X } from "lucide-react";
+import { Close } from "@/components/ui/icons";
 import { IconButton } from "@/components/ui/icon-button";
-import { APIKeySpan } from "@/components/ui/api-key-span";
+import { Mono } from "@/components/ui/mono";
 import { ActionGroup } from "@/components/ui/action-group";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -20,12 +20,12 @@ export function CreatedKeyCard({
     <Card size="sm">
       <CardContent className="flex items-center justify-between gap-2">
         <span className="truncate">{keyName}</span>
-        <APIKeySpan text={keyValue} />
+        <Mono className="truncate">{keyValue}</Mono>
         <ActionGroup>
           <CopyButton value={keyValue} />
           <IconButton
             title="Close"
-            icon={X}
+            icon={Close}
             onClick={onDismiss}
           />
         </ActionGroup>

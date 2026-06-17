@@ -13,6 +13,7 @@
   --color-accent-hover: var(--accent-hover);
   --color-accent-subtle: var(--accent-subtle);
   --color-destructive: var(--destructive);
+  --color-warning: var(--warning);
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
   --font-heading: var(--font-sans);
@@ -38,6 +39,8 @@
   --accent-hover: oklch(0.58 0.19 45);
   --accent-subtle: oklch(0.65 0.19 45 / 8%);
   --destructive: oklch(0.577 0.245 27.325);
+  /* Warm amber, hue 70 — near the orange accent but distinct. Tune here. */
+  --warning: oklch(0.68 0.15 70);
   --radius: 0.5rem;
 }
 

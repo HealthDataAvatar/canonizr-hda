@@ -4,7 +4,8 @@ import { useState, useRef, useCallback, createContext, useContext, useEffect, ty
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { UsageBar } from "@/components/usage-bar";
-import { Upload, Loader, FileText } from "lucide-react";
+import { Upload, FileText } from "lucide-react";
+import { Processing } from "@/components/ui/icons";
 import { formatKB } from "@/lib/pure/format";
 
 const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL ?? "https://api.canonizr.com";
@@ -181,7 +182,7 @@ export function UploadForm({ keySelectorSlot }: UploadFormProps) {
           disabled={!file || !apiKey || busy}
           className="w-full"
         >
-          {busy && <Loader className="size-4 mr-2 animate-spin" />}
+          {busy && <Processing className="size-4 mr-2 animate-spin" />}
           {busy ? "Submitting…" : "Convert"}
         </Button>
 

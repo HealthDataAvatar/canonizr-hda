@@ -3,6 +3,8 @@
 import { useState, useCallback, type ChangeEvent } from "react";
 import { TraceFlame } from "@/components/trace-flame";
 import { TraceCostCard } from "@/components/trace-cost-card";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import type { SpanNode } from "@/lib/pure/trace";
 
 export function JobTraceViewer({
@@ -79,21 +81,17 @@ export function JobTraceViewer({
         <div className="flex items-end gap-3">
           <div className="flex-1">
             <label className="text-sm font-medium block mb-1.5">Job ID</label>
-            <input
+            <Input
               value={jobId}
               onChange={(e) => setJobId(e.target.value)}
               placeholder="e.g. a1b2c3d4e5f6"
-              className="w-full rounded border border-border bg-muted px-3 py-2 font-mono text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-accent"
+              className="font-mono"
               onKeyDown={(e) => e.key === "Enter" && handleFetchJob()}
             />
           </div>
-          <button
-            onClick={handleFetchJob}
-            disabled={loading || !jobId.trim()}
-            className="rounded bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50"
-          >
+          <Button onClick={handleFetchJob} disabled={loading || !jobId.trim()}>
             {loading ? "Loading..." : "Load trace"}
-          </button>
+          </Button>
         </div>
       )}
 
@@ -118,14 +116,9 @@ export function JobTraceViewer({
           rows={6}
           className="w-full rounded border border-border bg-muted p-3 font-mono text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-accent"
         />
-        <button
-          onClick={handleParse}
-          className="rounded bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover"
-        >
-          Parse trace
-        </button>
+        <Button onClick={handleParse}>Parse trace</Button>
         {error && (
-          <p className="text-sm text-red-500">{error}</p>
+          <p className="text-sm text-destructive">{error}</p>
         )}
       </div>
 

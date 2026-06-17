@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { Check, Copy } from "lucide-react";
+import { Copy } from "lucide-react";
+import { Success } from "@/components/ui/icons";
 import { IconButton } from "./icon-button";
 
 
@@ -22,7 +23,7 @@ function CopyButton({
       tone={copied ? "accent" : "muted"}
       title={copied ? "Copied" : "Copy"}
       aria-label={copied ? "Copied" : "Copy"}
-      icon={copied ? Check : Copy}
+      icon={copied ? Success : Copy}
     />
   );
 }

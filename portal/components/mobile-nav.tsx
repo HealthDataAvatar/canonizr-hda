@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, X } from "lucide-react";
+import { Menu } from "lucide-react";
+import { Close } from "@/components/ui/icons";
 import { SignOutButton } from "@/components/sign-out-button";
 
 const links = [
@@ -31,7 +32,7 @@ export function MobileNav({ email, isAdmin = false }: { email: string; isAdmin?:
         aria-label={open ? "Close menu" : "Open menu"}
         aria-expanded={open}
       >
-        {open ? <X className="size-5" /> : <Menu className="size-5" />}
+        {open ? <Close className="size-5" /> : <Menu className="size-5" />}
       </button>
 
       {open && (

@@ -1,4 +1,4 @@
-import { Download } from "lucide-react";
+import { Download } from "@/components/ui/icons";
 import { IconLink } from "@/components/ui/icon-link";
 import type { ArtefactEntry } from "@/lib/pure/artefacts";
 

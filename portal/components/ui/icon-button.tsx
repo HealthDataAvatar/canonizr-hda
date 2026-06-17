@@ -1,12 +1,7 @@
 import { forwardRef } from "react";
 import { cn } from "@/lib/style/utils";
+import { iconTones, type IconTone } from "./icon-tones";
 import type { LucideIcon } from "lucide-react";
-
-export const iconActionTones = {
-  accent: "text-accent/80 hover:text-accent",
-  muted: "text-muted-foreground hover:text-primary",
-  destructive: "text-muted-foreground hover:text-destructive/80",
-};
 
 export const iconActionBase = [
   "inline-flex items-center justify-center rounded-md p-1.5 transition-colors cursor-pointer",
@@ -17,7 +12,7 @@ export const iconActionBase = [
 export interface IconButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   icon: LucideIcon;
   title: string;
-  tone?: keyof typeof iconActionTones;
+  tone?: IconTone;
 }
 
 const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(
@@ -28,7 +23,7 @@ const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(
         type="button"
         title={title}
         aria-label={title}
-        className={cn(...iconActionBase, iconActionTones[tone], className)}
+        className={cn(...iconActionBase, iconTones[tone].interactive, className)}
         {...props}
       >
         <Icon className="size-4" />

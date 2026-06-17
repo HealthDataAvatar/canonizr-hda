@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { Check, RefreshCw, Trash2 } from "lucide-react";
+import { RefreshCw } from "lucide-react";
+import { Success, Delete } from "@/components/ui/icons";
 import { useKeyActions, type KeyActions } from "@/lib/hooks/use-key-actions";
 import { ActionGroup } from "./ui/action-group";
 import { IconButton } from "./ui/icon-button";
@@ -34,7 +35,7 @@ function RotateButton({
       onClick={handleRotate}
       disabled={state === "busy"}
       title={state === "done" ? "Regenerated" : "Regenerate key"}
-      icon={state === "done" ? Check : RefreshCw}
+      icon={state === "done" ? Success : RefreshCw}
     />
   );
 }
@@ -64,7 +65,7 @@ export function KeyActionsBar({
       <IconButton
         onClick={handleDelete}
         title="Delete key"
-        icon={Trash2}
+        icon={Delete}
         tone="destructive"
       />
     </ActionGroup>

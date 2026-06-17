@@ -1,7 +1,8 @@
 "use client";
 
 import { createColumnHelper } from "@tanstack/react-table";
-import { ExternalLink, Check, Circle } from "lucide-react";
+import { ExternalLink, Circle } from "lucide-react";
+import { Success } from "@/components/ui/icons";
 import { formatKB, formatCurrency } from "@/lib/pure/format";
 import { IconHint } from "@/components/ui/icon-hint";
 import { IconLink } from "@/components/ui/icon-link";
@@ -19,7 +20,7 @@ export interface InvoiceRow {
 }
 
 function StatusIndicator({ status }: { status: string }) {
-  if (status === "paid") return <IconHint icon={Check} title="Paid" />;
+  if (status === "paid") return <IconHint icon={Success} title="Paid" />;
   return <IconHint icon={Circle} title="Not yet paid" />;
 }
 
