@@ -84,11 +84,18 @@ TestSub = namedtuple("TestSub", ["sub_id", "api_key"])
 
 @pytest.fixture
 def test_sub():
-    """Create an isolated test subscription for this test.
+    """An isolated test subscription (unique sub_id + user_id + API key)."""
+    return _seed_test_sub()
 
-    Each test gets a unique sub_id + user_id + API key, seeded into Azurite.
-    No test can interfere with another.
-    """
+
+@pytest.fixture
+def second_sub():
+    """A second, distinct subscription — for cross-user authorization tests."""
+    return _seed_test_sub()
+
+
+def _seed_test_sub() -> TestSub:
+    """Seed a unique sub_id + user_id + API key into Azurite. No cross-test interference."""
     suffix = uuid.uuid4().hex[:8]
     sub_id = f"test_sub_{suffix}"
     user_id = f"test_user_{suffix}"
@@ -161,7 +168,7 @@ def submit_and_poll(
 
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        result = requests.get(f"{GATEWAY_URL}{poll_url}", timeout=timeout)
+        result = requests.get(f"{GATEWAY_URL}{poll_url}", headers=merged_headers, timeout=timeout)
         if result.status_code != 202:
             return submit, result
         time.sleep(POLL_INTERVAL)

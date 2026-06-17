@@ -194,15 +194,27 @@ class TestPollResult:
     async def test_processing_returns_202(self):
         svc, _, _ = _make_svc()
         result = await accept_job(b"hello", "test.txt", "text/plain", "sub_1", svc)
-        poll = await poll_result(result.job_id, svc)
+        poll = await poll_result(result.job_id, "sub_1", svc)
         assert poll.status == "processing"
         assert poll.status_code == 202
 
     @pytest.mark.asyncio
     async def test_unknown_job_returns_202(self):
         svc, _, _ = _make_svc()
-        poll = await poll_result("nonexistent", svc)
+        poll = await poll_result("nonexistent", "sub_1", svc)
         assert poll.status_code == 202
+
+    @pytest.mark.asyncio
+    async def test_other_users_job_not_confirmable(self):
+        # A non-owner polling a real job_id gets the same "processing" as an
+        # unknown id — no metadata leaks and existence is not confirmable.
+        svc, user, _ = _make_svc()
+        result = await accept_job(b"hello", "test.txt", "text/plain", "sub_1", svc)
+        await svc.queue.store_result(result.job_id, JobResult(job_id=result.job_id, status="ok", status_code=200))
+        poll = await poll_result(result.job_id, "sub_other", svc)
+        assert poll.status == "processing"
+        assert poll.status_code == 202
+        assert poll.body == {"job_id": result.job_id, "status": "processing"}
 
     @pytest.mark.asyncio
     async def test_completed_job_returns_200(self):
@@ -228,7 +240,7 @@ class TestPollResult:
 
         await svc.queue.store_result(result.job_id, JobResult(job_id=result.job_id, status="ok", status_code=200))
 
-        poll = await poll_result(result.job_id, svc)
+        poll = await poll_result(result.job_id, "sub_1", svc)
         assert poll.status == "ok"
         assert poll.status_code == 200
         assert poll.body is not None
@@ -247,7 +259,7 @@ class TestPollResult:
 
         await svc.queue.store_result(result.job_id, JobResult(job_id=result.job_id, status="ok", status_code=200))
 
-        poll = await poll_result(result.job_id, svc)
+        poll = await poll_result(result.job_id, "sub_1", svc)
         assert poll.status_code == 410
 
     @pytest.mark.asyncio
@@ -258,7 +270,7 @@ class TestPollResult:
             result.job_id, JobResult(job_id=result.job_id, status="error", detail="boom", status_code=500)
         )
 
-        poll = await poll_result(result.job_id, svc)
+        poll = await poll_result(result.job_id, "sub_1", svc)
         assert poll.status_code == 500
         assert poll.body is not None
         assert "boom" in poll.body["detail"]

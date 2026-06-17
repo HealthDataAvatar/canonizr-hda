@@ -169,10 +169,16 @@ accept_job = accept_canonize
 # ---------------------------------------------------------------------------
 
 
-async def poll_result(job_id: str, svc: Services) -> PollResult:
-    """Poll for a job result."""
+async def poll_result(job_id: str, sub_id: str, svc: Services) -> PollResult:
+    """Poll for a job result. Only the owning subscription sees its metadata."""
     result = await svc.queue.get_result(job_id)
     meta = svc.jobs.get(job_id)
+
+    # Ownership: a non-owner (or guessed job_id) gets the same "processing"
+    # response as an unknown job — existence is never confirmable.
+    if meta is not None and meta.sub_id != sub_id:
+        meta = None
+        result = None
 
     if meta is None:
         if result is None:

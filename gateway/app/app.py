@@ -189,9 +189,10 @@ async def create_job(
 
 
 @app.get("/v1/canonize/{job_id}")
-async def get_canonize_job(job_id: str):
+async def get_canonize_job(request: Request, job_id: str):
     assert _svc is not None
-    result = await poll_result(job_id, _svc)
+    sub_id = await _get_sub_id(request)
+    result = await poll_result(job_id, sub_id, _svc)
     if result.status_code == 200 and result.body:
         import json
 
@@ -228,10 +229,11 @@ async def get_canonize_artefact(request: Request, job_id: str, name: str):
 
 
 @app.get("/v1/jobs/{job_id}")
-async def get_job(job_id: str):
+async def get_job(request: Request, job_id: str):
     assert _svc is not None
 
-    result = await poll_result(job_id, _svc)
+    sub_id = await _get_sub_id(request)
+    result = await poll_result(job_id, sub_id, _svc)
 
     if result.status_code == 200 and result.body:
         import json
