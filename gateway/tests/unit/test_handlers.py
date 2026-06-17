@@ -310,8 +310,10 @@ class TestDeleteResult:
 
         result = await accept_job(b"hello", "test.txt", "text/plain", "sub_1", svc)
 
-        with pytest.raises(Rejected, match="does not belong"):
+        # Cross-user access is indistinguishable from a missing job (404, not 403).
+        with pytest.raises(Rejected, match="not found") as exc_info:
             await delete_result(result.job_id, "sub_other", svc)
+        assert exc_info.value.status_code == 404
 
     @pytest.mark.asyncio
     async def test_unknown_subscription_rejected(self):

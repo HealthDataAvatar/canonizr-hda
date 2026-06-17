@@ -9,6 +9,8 @@ import hashlib
 import logging
 from typing import Any, Protocol
 
+from azure.core.exceptions import ResourceNotFoundError
+
 from .keys import api_key_cache
 from .protocols import RedisKVCache
 from .tables import Table
@@ -51,6 +53,7 @@ async def resolve_api_key(
         sub_id = str(entity["sub_id"])
         await redis.set(cache_key, sub_id, ex=CACHE_TTL)
         return sub_id
-    except Exception:
+    except ResourceNotFoundError:
         logger.debug("API key not found in GwApiKeys (hash=%s...)", key_hash[:8])
         return None
+    # Any other error (Table outage, throttling) propagates → 5xx, not a false "invalid key" 401.

@@ -7,10 +7,9 @@ No business logic here.
 import logging
 import os
 from contextlib import asynccontextmanager
-from io import BytesIO
 
 import magic
-from fastapi import FastAPI, File, Header, HTTPException, Query, Request, UploadFile
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 
@@ -117,18 +116,12 @@ async def sanitise_errors(request: Request, exc: HTTPException):
 
 
 async def _read_file(file: UploadFile) -> bytes:
-    content = BytesIO()
-    size = 0
-    while True:
-        chunk = await file.read(1024 * 1024)
-        if not chunk:
-            break
-        size += len(chunk)
-        if size > MAX_FILE_SIZE:
+    buf = bytearray()
+    while chunk := await file.read(1024 * 1024):
+        buf += chunk
+        if len(buf) > MAX_FILE_SIZE:
             raise HTTPException(status_code=413, detail=f"File too large (max {MAX_FILE_SIZE // (1024 * 1024)}MB)")
-        content.write(chunk)
-    content.seek(0)
-    return content.read()
+    return bytes(buf)
 
 
 async def _accept_and_respond(request: Request, file: UploadFile, base_path: str):
@@ -182,8 +175,6 @@ async def create_canonize_job(
 async def create_job(
     request: Request,
     file: UploadFile = File(...),
-    verbose: bool = Query(False),
-    accept: str = Header("application/json"),
 ):
     return await _accept_and_respond(request, file, "/v1/jobs")
 
@@ -193,11 +184,7 @@ async def get_canonize_job(request: Request, job_id: str):
     assert _svc is not None
     sub_id = await _get_sub_id(request)
     result = await poll_result(job_id, sub_id, _svc)
-    if result.status_code == 200 and result.body:
-        import json
-
-        return Response(content=json.dumps(result.body), media_type="application/json", headers=result.headers or {})
-    return JSONResponse(status_code=result.status_code, content=result.body or {})
+    return JSONResponse(status_code=result.status_code, content=result.body or {}, headers=result.headers or {})
 
 
 @app.delete("/v1/canonize/{job_id}")
@@ -234,17 +221,7 @@ async def get_job(request: Request, job_id: str):
 
     sub_id = await _get_sub_id(request)
     result = await poll_result(job_id, sub_id, _svc)
-
-    if result.status_code == 200 and result.body:
-        import json
-
-        return Response(
-            content=json.dumps(result.body),
-            media_type="application/json",
-            headers=result.headers or {},
-        )
-
-    return JSONResponse(status_code=result.status_code, content=result.body or {})
+    return JSONResponse(status_code=result.status_code, content=result.body or {}, headers=result.headers or {})
 
 
 @app.delete("/v1/jobs/{job_id}")

@@ -266,7 +266,7 @@ async def delete_result(job_id: str, sub_id: str, svc: Services) -> bool:
         return False
 
     if meta.user_id != user.user_id:
-        raise Rejected(403, "Job does not belong to this user")
+        raise Rejected(404, "Job not found")  # 404 not 403: don't confirm a job exists to a non-owner
 
     if meta.status == JobStatus.DELETED:
         return False
@@ -307,7 +307,7 @@ async def download_artifact(
         raise Rejected(404, "Job not found")
 
     if meta.user_id != user.user_id:
-        raise Rejected(403, "Job does not belong to this user")
+        raise Rejected(404, "Job not found")  # 404 not 403: don't confirm a job exists to a non-owner
 
     if meta.status == JobStatus.DELETED:
         raise Rejected(410, "Job deleted")
@@ -363,7 +363,7 @@ async def download_artefact(
         raise Rejected(404, "Job not found")
 
     if meta.user_id != user.user_id:
-        raise Rejected(403, "Job does not belong to this user")
+        raise Rejected(404, "Job not found")  # 404 not 403: don't confirm a job exists to a non-owner
 
     if meta.status == JobStatus.DELETED:
         raise Rejected(410, "Job deleted")
