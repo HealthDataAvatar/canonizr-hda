@@ -13,7 +13,6 @@ import type { KeyRow } from "@/components/tables/key-table";
 import { aggregateJobs, sumInvoiceAmounts, type JobSummaryInput } from "@/lib/pure/admin-calc";
 import { getCurrentPermissions } from "./tables/user-permissions";
 import { getCurrentConfig } from "./tables/user-config";
-import { getUser } from "./tables/users";
 
 // -------------------------------------------------------------------------
 // User list
@@ -111,13 +110,6 @@ export interface AdminUserDetail {
 export async function getUserDetail(userId: string): Promise<AdminUserDetail | null> {
   await requireAdmin({ autoRedirect: true });
 
-  let user;
-  try {
-    user = await getUser(userId);
-  } catch {
-    return null;
-  }
-
   const usersTable = getTableClient(TableName.USERS);
   let entity;
   try {
@@ -158,7 +150,7 @@ export async function getUserDetail(userId: string): Promise<AdminUserDetail | n
 
   return {
     id: userId,
-    email: user.email,
+    email: entity.email as string,
     joined: (entity.emailVerified as string) ?? "",
     blocked: perms.blocked,
     isAdmin: perms.isAdmin,

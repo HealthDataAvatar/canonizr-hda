@@ -1,14 +1,13 @@
 /** Orchestrates rate limiting, template construction, and transport. */
 
 import type { EmailProviderSendVerificationRequestParams } from "@auth/core/providers/email";
-import { MemoryRateLimitStore, RateLimiter, RateLimitError } from "./rate-limit";
+import { RateLimiter, RateLimitError } from "./rate-limit";
 import { buildVerificationEmail } from "./email-template";
 import { sendEmail } from "./email-transport";
 
 const FIFTEEN_MINUTES = 15 * 60 * 1000;
-const store = new MemoryRateLimitStore();
-const emailLimiter = new RateLimiter(store, { max: 3, windowMs: FIFTEEN_MINUTES });
-const ipLimiter = new RateLimiter(store, { max: 10, windowMs: FIFTEEN_MINUTES });
+const emailLimiter = new RateLimiter({ max: 3, windowMs: FIFTEEN_MINUTES });
+const ipLimiter = new RateLimiter({ max: 10, windowMs: FIFTEEN_MINUTES });
 
 export async function sendVerificationRequest({
   identifier: email,

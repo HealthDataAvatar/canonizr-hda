@@ -5,6 +5,8 @@
  * Billing: StripeBillingStore (production) / TableBillingStore (local/test)
  */
 
+import type { TableKeyStore } from "./keys-table";
+
 // ---------------------------------------------------------------------------
 // Key Store
 // ---------------------------------------------------------------------------
@@ -17,15 +19,6 @@ export interface ApiKey {
   lastUsed: string;
   usageKB: number;
   quotaKB: number | null;
-}
-
-export interface KeyStore {
-  list(userId: string): Promise<ApiKey[]>;
-  create(userId: string, name: string): Promise<{ id: string; primaryKey: string }>;
-  get(subscriptionId: string): Promise<string>;
-  rotate(subscriptionId: string): Promise<string>;
-  delete(subscriptionId: string): Promise<void>;
-  setQuota(subscriptionId: string, quotaKB: number | null): Promise<void>;
 }
 
 // ---------------------------------------------------------------------------
@@ -59,7 +52,7 @@ export interface BillingStore {
 // ---------------------------------------------------------------------------
 
 export interface Services {
-  keys: KeyStore;
+  keys: TableKeyStore;
   billing: BillingStore;
 }
 

@@ -12,13 +12,12 @@ describe("timeAgo", () => {
   const DAY = 24 * HOUR;
   const MONTH = 30 * DAY;
 
-  it("returns 'less than a minute ago' for recent timestamps", () => {
-    expect(timeAgo(ago(10 * SECOND))).toBe("less than a minute ago");
+  it("returns 'just now' for timestamps under 30 seconds", () => {
+    expect(timeAgo(ago(10 * SECOND))).toBe("just now");
   });
 
   it("returns minutes", () => {
-    const result = timeAgo(ago(5 * MINUTE));
-    expect(result).toBe("5 minutes ago");
+    expect(timeAgo(ago(5 * MINUTE))).toBe("5 minutes ago");
   });
 
   it("returns '1 minute ago'", () => {
@@ -26,47 +25,34 @@ describe("timeAgo", () => {
   });
 
   it("returns hours", () => {
-    const result = timeAgo(ago(3 * HOUR));
-    expect(result).toBe("about 3 hours ago");
+    expect(timeAgo(ago(3 * HOUR))).toBe("3 hours ago");
   });
 
   it("returns days", () => {
-    const result = timeAgo(ago(2 * DAY));
-    expect(result).toBe("2 days ago");
+    expect(timeAgo(ago(2 * DAY))).toBe("2 days ago");
   });
 
   it("returns weeks", () => {
-    const result = timeAgo(ago(10 * DAY));
-    expect(result).toBe("10 days ago");
-  });
-
-  it("returns 'about 1 month ago'", () => {
-    const result = timeAgo(ago(MONTH + DAY));
-    expect(result).toBe("about 1 month ago");
+    expect(timeAgo(ago(10 * DAY))).toBe("1 week ago");
   });
 
   it("returns months", () => {
-    const result = timeAgo(ago(3 * MONTH));
-    expect(result).toBe("3 months ago");
+    expect(timeAgo(ago(3 * MONTH))).toBe("3 months ago");
   });
 
   it("accepts Date objects", () => {
-    const result = timeAgo(new Date(Date.now() - 5 * MINUTE));
-    expect(result).toBe("5 minutes ago");
+    expect(timeAgo(new Date(Date.now() - 5 * MINUTE))).toBe("5 minutes ago");
   });
 
-  it("returns 'about 1 year ago' for old timestamps", () => {
-    const result = timeAgo(ago(365 * DAY));
-    expect(result).toBe("about 1 year ago");
+  it("returns '1 year ago' once over a year", () => {
+    expect(timeAgo(ago(400 * DAY))).toBe("1 year ago");
   });
 
-  it("returns 'over X years ago' for very old timestamps", () => {
-    const result = timeAgo(ago(2 * 365 * DAY));
-    expect(result).toMatch(/years ago/);
+  it("returns 'N years ago' for very old timestamps", () => {
+    expect(timeAgo(ago(2 * 365 * DAY))).toMatch(/years ago/);
   });
 
   it("handles ISO string format", () => {
-    const result = timeAgo("2020-01-01T00:00:00Z");
-    expect(result).toMatch(/years ago/);
+    expect(timeAgo("2020-01-01T00:00:00Z")).toMatch(/years ago/);
   });
 });

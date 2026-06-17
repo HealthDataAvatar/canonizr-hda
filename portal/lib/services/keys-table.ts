@@ -1,5 +1,5 @@
 /**
- * KeyStore backed by Azure Table Storage.
+ * Key store backed by Azure Table Storage.
  * Used for local dev and integration tests (against Azurite).
  */
 
@@ -9,13 +9,13 @@ import { TableName } from "@/lib/data/table-interface";
 import { getRedis } from "@/lib/redis";
 import { currentPeriodStart, quotaUsageKey } from "@/lib/pure/billing-period";
 import { toBillableKB } from "@/lib/pure/format";
-import type { ApiKey, KeyStore } from ".";
+import type { ApiKey } from ".";
 
 function hashApiKey(key: string): string {
   return createHash("sha256").update(key).digest("hex");
 }
 
-export class TableKeyStore implements KeyStore {
+export class TableKeyStore {
   async list(userId: string): Promise<ApiKey[]> {
     const client = getTableClient(TableName.API_KEYS);
     const gwSubs = getTableClient(TableName.GW_SUBSCRIPTIONS);

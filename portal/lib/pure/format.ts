@@ -1,6 +1,5 @@
 /** Format a KB value as KB or MB (decimal, not binary). */
 export function formatKB(kb: number): string {
-  if (kb == Number.MAX_VALUE) return "inf";
   if (kb >= 1000) return `${(kb / 1000).toFixed(kb >= 10000 ? 0 : 1)} MB`;
   return `${kb} KB`;
 }

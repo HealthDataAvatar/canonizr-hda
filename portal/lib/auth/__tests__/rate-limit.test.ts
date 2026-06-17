@@ -1,31 +1,30 @@
 import { describe, it, expect } from "vitest";
-import { RateLimiter, MemoryRateLimitStore } from "@/lib/auth/rate-limit";
+import { RateLimiter } from "@/lib/auth/rate-limit";
 
 describe("RateLimiter", () => {
   it("allows requests within the limit", async () => {
-    const limiter = new RateLimiter(new MemoryRateLimitStore(), { max: 3, windowMs: 60_000 });
+    const limiter = new RateLimiter({ max: 3, windowMs: 60_000 });
     expect(await limiter.check("a")).toBe(true);
     expect(await limiter.check("a")).toBe(true);
     expect(await limiter.check("a")).toBe(true);
   });
 
   it("blocks requests exceeding the limit", async () => {
-    const limiter = new RateLimiter(new MemoryRateLimitStore(), { max: 2, windowMs: 60_000 });
+    const limiter = new RateLimiter({ max: 2, windowMs: 60_000 });
     expect(await limiter.check("a")).toBe(true);
     expect(await limiter.check("a")).toBe(true);
     expect(await limiter.check("a")).toBe(false);
   });
 
   it("tracks keys independently", async () => {
-    const limiter = new RateLimiter(new MemoryRateLimitStore(), { max: 1, windowMs: 60_000 });
+    const limiter = new RateLimiter({ max: 1, windowMs: 60_000 });
     expect(await limiter.check("a")).toBe(true);
     expect(await limiter.check("b")).toBe(true);
     expect(await limiter.check("a")).toBe(false);
   });
 
   it("resets after the window expires", async () => {
-    const store = new MemoryRateLimitStore();
-    const limiter = new RateLimiter(store, { max: 1, windowMs: 10 });
+    const limiter = new RateLimiter({ max: 1, windowMs: 10 });
     expect(await limiter.check("a")).toBe(true);
     expect(await limiter.check("a")).toBe(false);
     await new Promise((r) => setTimeout(r, 15));
