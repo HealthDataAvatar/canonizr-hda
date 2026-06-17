@@ -42,3 +42,9 @@ export async function appendPermissions(
     changedBy: perms.changedBy,
   });
 }
+
+/** Append a permission record toggling the user's blocked flag. */
+export async function setUserBlocked(userId: string, blocked: boolean, changedBy: string): Promise<void> {
+  const current = await getCurrentPermissions(userId);
+  await appendPermissions(userId, { ...current, blocked, changedBy });
+}

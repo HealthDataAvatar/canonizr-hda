@@ -1,29 +1,20 @@
-import { logger } from "@/lib/logger";
 import { NextResponse } from "next/server";
-import { requireAdmin, AuthError } from "@/lib/auth/session";
+import { requireAdmin } from "@/lib/auth/session";
 import { getCurrentConfig, appendConfig, type UserConfigRecord } from "@/lib/data/tables";
+import { route } from "@/lib/api/route";
 
-export async function POST(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const admin = await requireAdmin({ autoRedirect: false });
-    const { id } = await params;
-    const body = await request.json();
+export const POST = route(async (request, { params }: { params: Promise<{ id: string }> }) => {
+  const admin = await requireAdmin({ autoRedirect: false });
+  const { id } = await params;
+  const body = await request.json();
 
-    const current = await getCurrentConfig(id);
-    const allowed: (keyof UserConfigRecord)[] = ["freeUnits", "maxKeys", "pricePerUnit", "spendCapKB"];
-    const updated = { ...current, changedBy: admin.userId };
-    for (const key of allowed) {
-      if (key in body) (updated as Record<string, unknown>)[key] = body[key];
-    }
-
-    await appendConfig(id, updated);
-    return NextResponse.json({ ok: true });
-  } catch (err) {
-    if (err instanceof AuthError) return NextResponse.json(null, { status: 404 });
-    logger.error({ err }, "POST /api/admin/users/[id]/update error");
-    return NextResponse.json({ error: "Internal error" }, { status: 500 });
+  const current = await getCurrentConfig(id);
+  const allowed: (keyof UserConfigRecord)[] = ["freeUnits", "maxKeys", "pricePerUnit", "spendCapKB"];
+  const updated = { ...current, changedBy: admin.userId };
+  for (const key of allowed) {
+    if (key in body) (updated as Record<string, unknown>)[key] = body[key];
   }
-}
+
+  await appendConfig(id, updated);
+  return NextResponse.json({ ok: true });
+}, { authStatus: 404, label: "POST /api/admin/users/[id]/update" });

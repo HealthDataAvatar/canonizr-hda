@@ -35,7 +35,7 @@ export default function DashboardError({
               Digest: {error.digest}
             </p>
           )}
-          {error.stack && (
+          {process.env.NODE_ENV === "development" && error.stack && (
             <pre className="font-mono text-sm text-muted-foreground whitespace-pre-wrap break-words">
               {error.stack}
             </pre>
