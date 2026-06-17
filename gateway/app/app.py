@@ -19,6 +19,7 @@ from .blob_azure import AzureBlobStore
 from .context import Services
 from .handlers import Rejected, accept_canonize, delete_result, download_artefact, download_artifact, poll_result
 from .jobs_table import TableJobStore
+from .mimetypes import reconcile_mime
 from .queue import RedisQueue
 from .quota import QuotaService
 from .redis_client import get_redis
@@ -131,12 +132,9 @@ async def _accept_and_respond(request: Request, file: UploadFile, base_path: str
     file_bytes = await _read_file(file)
     sub_id = await _get_sub_id(request)
 
-    # Trust client MIME type if provided and specific; fall back to magic detection
-    client_mime = file.content_type or ""
-    if client_mime and client_mime != "application/octet-stream":
-        mime_type = client_mime
-    else:
-        mime_type = magic.from_buffer(file_bytes, mime=True)
+    # magic reads the bytes and wins; the client Content-Type only disambiguates
+    # formats magic can't see inside (zip-container office docs, unidentifiable blobs).
+    mime_type = reconcile_mime(magic.from_buffer(file_bytes, mime=True), file.content_type or "")
 
     try:
         result = await accept_canonize(file_bytes, file.filename or "document", mime_type, sub_id, _svc)

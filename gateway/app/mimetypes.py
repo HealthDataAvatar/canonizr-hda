@@ -59,6 +59,19 @@ ARCHIVE_TYPES = {
 KNOWN_MIME_TYPES = PASSTHROUGH_TYPES | MARKITDOWN_TYPES | LIBREOFFICE_TYPES | {"application/pdf"}
 IMAGE_PREFIX = "image/"
 
+# Formats that are themselves ZIP containers. libmagic reports these as a bare
+# "application/zip" — indistinguishable from a real archive. These are the only
+# types a client Content-Type is allowed to assert over a generic zip detection.
+ZIP_CONTAINER_TYPES = {
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",  # .docx
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",  # .pptx
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",  # .xlsx
+    "application/epub+zip",  # .epub
+    "application/vnd.oasis.opendocument.text",  # .odt
+    "application/vnd.oasis.opendocument.presentation",  # .odp
+    "application/vnd.oasis.opendocument.spreadsheet",  # .ods
+}
+
 
 def is_known_mime_type(mime_type: str) -> bool:
     """Check if a MIME type is in our known set."""
@@ -70,3 +83,24 @@ def is_known_mime_type(mime_type: str) -> bool:
 def is_archive_type(mime_type: str) -> bool:
     """Check if a MIME type is an archive format."""
     return mime_type in ARCHIVE_TYPES
+
+
+def reconcile_mime(detected: str, client_mime: str) -> str:
+    """Decide the authoritative MIME type from server-side detection + client hint.
+
+    `detected` is what libmagic read from the bytes; it wins by default — a client
+    cannot relabel a file magic positively identified (this is what stops an archive
+    from masquerading as a PDF to skip the archive check). The client Content-Type is
+    honoured only where magic is genuinely blind:
+
+    - "application/zip": ambiguous between a real archive and a zip-container office
+      doc, so trust the client only if it names a known ZIP_CONTAINER_TYPES format.
+    - "application/octet-stream": magic couldn't identify it at all. A real archive
+      would have been detected specifically, so trust any *known* client type here
+      (keeps office docs and exotic images that magic misses working).
+    """
+    if detected == "application/zip":
+        return client_mime if client_mime in ZIP_CONTAINER_TYPES else detected
+    if detected == "application/octet-stream":
+        return client_mime if is_known_mime_type(client_mime) else detected
+    return detected
