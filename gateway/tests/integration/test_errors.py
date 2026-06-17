@@ -10,7 +10,7 @@ from tests.integration.conftest import GATEWAY_URL, TIMEOUT, submit_and_poll
 def test_unsupported_format(test_sub):
     garbage = b"\x00\x01\x02\x03\x04\x05\x06\x07"
     r = requests.post(
-        f"{GATEWAY_URL}/v1/jobs",
+        f"{GATEWAY_URL}/v1/canonize",
         files={"file": ("test.xyz", io.BytesIO(garbage), "application/octet-stream")},
         headers={"Authorization": f"Bearer {test_sub.api_key}"},
         timeout=TIMEOUT,
@@ -21,7 +21,7 @@ def test_unsupported_format(test_sub):
 def test_file_too_large(test_sub):
     large_data = b"\x00" * (51 * 1024 * 1024)
     r = requests.post(
-        f"{GATEWAY_URL}/v1/jobs",
+        f"{GATEWAY_URL}/v1/canonize",
         files={"file": ("large.pdf", io.BytesIO(large_data), "application/pdf")},
         headers={"Authorization": f"Bearer {test_sub.api_key}"},
         timeout=TIMEOUT,
@@ -40,7 +40,7 @@ def test_empty_file(test_sub):
 
 def test_missing_subscription_returns_401():
     r = requests.post(
-        f"{GATEWAY_URL}/v1/jobs",
+        f"{GATEWAY_URL}/v1/canonize",
         files={"file": ("test.txt", b"hello", "text/plain")},
         timeout=TIMEOUT,
     )
@@ -60,7 +60,7 @@ class TestArchiveRejection:
 
     def _submit(self, filename, mime, test_sub):
         return requests.post(
-            f"{GATEWAY_URL}/v1/jobs",
+            f"{GATEWAY_URL}/v1/canonize",
             files={"file": (filename, b"fake-archive-bytes", mime)},
             headers={"Authorization": f"Bearer {test_sub.api_key}"},
             timeout=TIMEOUT,

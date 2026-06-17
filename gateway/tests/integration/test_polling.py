@@ -8,14 +8,14 @@ from tests.integration.conftest import GATEWAY_URL, TIMEOUT, assert_canonize_ok,
 class TestPolling:
     def test_poll_nonexistent_job_returns_202(self, test_sub):
         resp = requests.get(
-            f"{GATEWAY_URL}/v1/jobs/nonexistent_job_id",
+            f"{GATEWAY_URL}/v1/canonize/nonexistent_job_id",
             headers={"Authorization": f"Bearer {test_sub.api_key}"},
             timeout=TIMEOUT,
         )
         assert resp.status_code == 202
 
     def test_poll_without_auth_returns_401(self):
-        resp = requests.get(f"{GATEWAY_URL}/v1/jobs/some_job_id", timeout=TIMEOUT)
+        resp = requests.get(f"{GATEWAY_URL}/v1/canonize/some_job_id", timeout=TIMEOUT)
         assert resp.status_code == 401
 
     def test_poll_other_users_job_not_confirmable(self, test_sub, second_sub):
@@ -27,7 +27,7 @@ class TestPolling:
         job_id = submit.json()["job_id"]
         # A different subscription must not see the job — same 202 as unknown id.
         resp = requests.get(
-            f"{GATEWAY_URL}/v1/jobs/{job_id}",
+            f"{GATEWAY_URL}/v1/canonize/{job_id}",
             headers={"Authorization": f"Bearer {second_sub.api_key}"},
             timeout=TIMEOUT,
         )
@@ -71,7 +71,7 @@ class TestDelete:
 
         job_id = submit.json()["job_id"]
         resp = requests.delete(
-            f"{GATEWAY_URL}/v1/jobs/{job_id}",
+            f"{GATEWAY_URL}/v1/canonize/{job_id}",
             headers={"Authorization": f"Bearer {test_sub.api_key}"},
             timeout=TIMEOUT,
         )
@@ -86,13 +86,13 @@ class TestDelete:
 
         job_id = submit.json()["job_id"]
         requests.delete(
-            f"{GATEWAY_URL}/v1/jobs/{job_id}",
+            f"{GATEWAY_URL}/v1/canonize/{job_id}",
             headers={"Authorization": f"Bearer {test_sub.api_key}"},
             timeout=TIMEOUT,
         )
 
         poll = requests.get(
-            f"{GATEWAY_URL}/v1/jobs/{job_id}",
+            f"{GATEWAY_URL}/v1/canonize/{job_id}",
             headers={"Authorization": f"Bearer {test_sub.api_key}"},
             timeout=TIMEOUT,
         )
@@ -100,7 +100,7 @@ class TestDelete:
 
     def test_delete_nonexistent_returns_404(self, test_sub):
         resp = requests.delete(
-            f"{GATEWAY_URL}/v1/jobs/nonexistent_job_id",
+            f"{GATEWAY_URL}/v1/canonize/nonexistent_job_id",
             headers={"Authorization": f"Bearer {test_sub.api_key}"},
             timeout=TIMEOUT,
         )
@@ -108,7 +108,7 @@ class TestDelete:
 
     def test_delete_without_subscription_returns_401(self):
         resp = requests.delete(
-            f"{GATEWAY_URL}/v1/jobs/some_job_id",
+            f"{GATEWAY_URL}/v1/canonize/some_job_id",
             timeout=TIMEOUT,
         )
         assert resp.status_code == 401

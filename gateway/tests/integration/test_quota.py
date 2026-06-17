@@ -63,7 +63,7 @@ def _convert(file_bytes, api_key):
     import requests as req
 
     return req.post(
-        f"{GATEWAY_URL}/v1/jobs",
+        f"{GATEWAY_URL}/v1/canonize",
         files={"file": ("test.txt", file_bytes, "text/plain")},
         headers={"Authorization": f"Bearer {api_key}"},
         timeout=TIMEOUT,

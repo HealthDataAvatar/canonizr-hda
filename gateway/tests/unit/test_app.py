@@ -36,7 +36,7 @@ class TestFileSizeLimit:
             _patch_auth(),
         ):
             resp = client.post(
-                "/v1/jobs",
+                "/v1/canonize",
                 files={"file": ("test.txt", b"x" * 20, "text/plain")},
                 headers=AUTH_HEADERS,
             )
@@ -47,7 +47,7 @@ class TestMissingApiKey:
     def test_returns_401_without_auth_header(self, client):
         with patch("app.app._svc", AsyncMock()):
             resp = client.post(
-                "/v1/jobs",
+                "/v1/canonize",
                 files={"file": ("test.txt", b"hello", "text/plain")},
             )
         assert resp.status_code == 401
@@ -60,7 +60,7 @@ class TestMissingApiKey:
             patch("app.app.resolve_api_key", new_callable=AsyncMock, return_value=None),
         ):
             resp = client.post(
-                "/v1/jobs",
+                "/v1/canonize",
                 files={"file": ("test.txt", b"hello", "text/plain")},
                 headers={"Authorization": "Bearer bad_key"},
             )
@@ -82,7 +82,7 @@ class TestErrorSanitisation:
             patch("app.app.DEBUG_MODE", False),
         ):
             resp = client.post(
-                "/v1/jobs",
+                "/v1/canonize",
                 files={"file": ("test.pdf", b"hello", "application/pdf")},
                 headers=AUTH_HEADERS,
             )
@@ -103,7 +103,7 @@ class TestErrorSanitisation:
             patch("app.app.DEBUG_MODE", True),
         ):
             resp = client.post(
-                "/v1/jobs",
+                "/v1/canonize",
                 files={"file": ("test.pdf", b"hello", "application/pdf")},
                 headers=AUTH_HEADERS,
             )

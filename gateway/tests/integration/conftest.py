@@ -159,9 +159,9 @@ def submit_and_poll(
     Raises AssertionError if the result never arrives.
     """
     merged_headers = {"Authorization": f"Bearer {api_key}", **(headers or {})}
-    submit = requests.post(f"{GATEWAY_URL}/v1/jobs", files=files, headers=merged_headers, timeout=timeout)
+    submit = requests.post(f"{GATEWAY_URL}/v1/canonize", files=files, headers=merged_headers, timeout=timeout)
     if submit.status_code != 202:
-        pytest.fail(f"Expected 202 from POST /v1/jobs, got {submit.status_code}: {submit.text}")
+        pytest.fail(f"Expected 202 from POST /v1/canonize, got {submit.status_code}: {submit.text}")
 
     poll_url = submit.json().get("poll_url", "")
     assert poll_url, "202 response missing poll_url"

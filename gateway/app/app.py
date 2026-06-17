@@ -17,7 +17,7 @@ from .auth import resolve_api_key
 from .azure_clients import get_blob_service, get_table_service
 from .blob_azure import AzureBlobStore
 from .context import Services
-from .handlers import Rejected, accept_canonize, delete_result, download_artefact, download_artifact, poll_result
+from .handlers import Rejected, accept_canonize, delete_result, download_artefact, poll_result
 from .jobs_table import TableJobStore
 from .mimetypes import reconcile_mime
 from .queue import RedisQueue
@@ -125,8 +125,8 @@ async def _read_file(file: UploadFile) -> bytes:
     return bytes(buf)
 
 
-async def _accept_and_respond(request: Request, file: UploadFile, base_path: str):
-    """Shared logic for POST /v1/canonize and POST /v1/jobs."""
+@app.post("/v1/canonize")
+async def create_canonize_job(request: Request, file: UploadFile = File(...)):
     assert _svc is not None
 
     file_bytes = await _read_file(file)
@@ -141,40 +141,25 @@ async def _accept_and_respond(request: Request, file: UploadFile, base_path: str
     except Rejected as e:
         raise HTTPException(status_code=e.status_code, detail=e.detail)
 
+    poll_url = f"/v1/canonize/{result.job_id}"
     return JSONResponse(
         status_code=202,
         content={
             "job_id": result.job_id,
             "status": "processing",
-            "poll_url": f"{base_path}/{result.job_id}",
+            "poll_url": poll_url,
             "estimated_seconds": result.estimated_seconds,
             "input_bytes": result.input_bytes,
             "billable_units": result.billable_units,
             "retention_seconds": result.retention_seconds,
         },
         headers={
-            "Location": f"{base_path}/{result.job_id}",
+            "Location": poll_url,
             "Retry-After": str(result.estimated_seconds),
             "X-Input-Size-Bytes": str(result.input_bytes),
             "X-Billable-Units": str(result.billable_units),
         },
     )
-
-
-@app.post("/v1/canonize")
-async def create_canonize_job(
-    request: Request,
-    file: UploadFile = File(...),
-):
-    return await _accept_and_respond(request, file, "/v1/canonize")
-
-
-@app.post("/v1/jobs")
-async def create_job(
-    request: Request,
-    file: UploadFile = File(...),
-):
-    return await _accept_and_respond(request, file, "/v1/jobs")
 
 
 @app.get("/v1/canonize/{job_id}")
@@ -206,68 +191,6 @@ async def get_canonize_artefact(request: Request, job_id: str, name: str):
         result = await download_artefact(job_id, sub_id, name, _svc)
     except Rejected as e:
         raise HTTPException(status_code=e.status_code, detail=e.detail)
-    return Response(
-        content=result.data,
-        media_type=result.content_type,
-        headers={"Content-Disposition": content_disposition(result.filename)},
-    )
-
-
-@app.get("/v1/jobs/{job_id}")
-async def get_job(request: Request, job_id: str):
-    assert _svc is not None
-
-    sub_id = await _get_sub_id(request)
-    result = await poll_result(job_id, sub_id, _svc)
-    return JSONResponse(status_code=result.status_code, content=result.body or {}, headers=result.headers or {})
-
-
-@app.delete("/v1/jobs/{job_id}")
-async def delete_job(request: Request, job_id: str):
-    assert _svc is not None
-
-    sub_id = await _get_sub_id(request)
-
-    try:
-        found = await delete_result(job_id, sub_id, _svc)
-    except Rejected as e:
-        raise HTTPException(status_code=e.status_code, detail=e.detail)
-
-    if not found:
-        raise HTTPException(status_code=404, detail="Job not found")
-
-    return Response(status_code=204)
-
-
-@app.get("/v1/jobs/{job_id}/{artifact}")
-async def get_artifact(request: Request, job_id: str, artifact: str):
-    assert _svc is not None
-
-    sub_id = await _get_sub_id(request)
-
-    try:
-        result = await download_artifact(job_id, sub_id, artifact, _svc)
-    except Rejected as e:
-        raise HTTPException(status_code=e.status_code, detail=e.detail)
-
-    return Response(
-        content=result.data,
-        media_type=result.content_type,
-        headers={"Content-Disposition": content_disposition(result.filename)},
-    )
-
-
-@app.get("/v1/jobs/{job_id}/artefacts/{name}")
-async def get_artefact(request: Request, job_id: str, name: str):
-    assert _svc is not None
-
-    sub_id = await _get_sub_id(request)
-
-    try:
-        result = await download_artefact(job_id, sub_id, name, _svc)
-    except Rejected as e:
-        raise HTTPException(status_code=e.status_code, detail=e.detail)
-
     return Response(
         content=result.data,
         media_type=result.content_type,

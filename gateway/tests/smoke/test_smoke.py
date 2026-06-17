@@ -62,7 +62,7 @@ def test_billing_headers(headers):
 
 def test_oversized_file_rejected(headers):
     resp = requests.post(
-        f"{GATEWAY_URL}/v1/jobs",
+        f"{GATEWAY_URL}/v1/canonize",
         files={"file": ("big.txt", b"x" * (60 * 1024 * 1024), "text/plain")},
         headers=headers,
         timeout=TIMEOUT,

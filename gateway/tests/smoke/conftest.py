@@ -27,7 +27,7 @@ def headers():
 
 def submit_and_poll(files, headers, timeout=TIMEOUT):
     """Submit a file and poll until result is ready. Returns (submit_resp, result_resp)."""
-    submit = requests.post(f"{GATEWAY_URL}/v1/jobs", files=files, headers=headers, timeout=timeout)
+    submit = requests.post(f"{GATEWAY_URL}/v1/canonize", files=files, headers=headers, timeout=timeout)
     if submit.status_code != 202:
         return submit, None
 
