@@ -16,7 +16,7 @@ from .jobs_table import TableJobStore
 from .process import ProcessResult, dispatch_job
 from .protocols import Job, JobStatus, UserContext
 from .queue import RedisQueue
-from .quota import QuotaService
+from .quota import QuotaService, current_period_start
 from .redis_client import get_redis
 from .services.camelot_tables import CamelotTableExtractor
 from .services.captioning import OpenAIImageCaptioner
@@ -80,10 +80,16 @@ async def _handle_job(job: Job, svc: Services, sem: asyncio.Semaphore) -> None:
         await svc.queue.store_result(job.job_id, proc.job_result)
         await svc.queue.acknowledge(job)
 
-        # On failure: refund quota and call error hook
-        if proc.job_result.status == "error" and job.sub_id and proc.file_size > 0:
-            await svc.quota.refund(job.sub_id, proc.file_size, user.billing_anchor_day)
-            logger.info("Job %s failed — refunded %d bytes", job.job_id, proc.file_size)
+        # On failure: refund the exact quota that was charged at accept. Key off
+        # the recorded JobMeta (input_bytes + period_start), not proc.file_size —
+        # early failures (bad decrypt, missing input) report file_size=0 yet were
+        # still charged, and the period must match the one charged.
+        if proc.job_result.status == "error" and job.sub_id:
+            meta = svc.jobs.get(job.job_id)
+            if meta and meta.input_bytes > 0:
+                ps = meta.period_start or current_period_start(user.billing_anchor_day)
+                await svc.quota.refund(job.sub_id, meta.input_bytes, ps, user.billing_anchor_day)
+                logger.info("Job %s failed — refunded %d bytes", job.job_id, meta.input_bytes)
             on_job_error(job, proc)
 
         logger.info("Job %s completed with status %s (acked)", job.job_id, proc.job_result.status)

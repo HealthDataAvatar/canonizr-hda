@@ -111,27 +111,27 @@ class TestCheck:
 class TestRecord:
     @pytest.mark.asyncio
     async def test_increments_usage(self, svc, fake_redis):
-        await svc.record("sub1", 50_000, ANCHOR)
+        await svc.record("sub1", 50_000, PS)
         key = quota_usage(sub_id="sub1", period_start=PS)
         assert fake_redis._data[key] == "50000"
 
     @pytest.mark.asyncio
     async def test_accumulates_usage(self, svc, fake_redis):
-        await svc.record("sub1", 50_000, ANCHOR)
-        await svc.record("sub1", 30_000, ANCHOR)
+        await svc.record("sub1", 50_000, PS)
+        await svc.record("sub1", 30_000, PS)
         key = quota_usage(sub_id="sub1", period_start=PS)
         assert fake_redis._data[key] == "80000"
 
     @pytest.mark.asyncio
     async def test_sets_ttl(self, svc, fake_redis):
-        await svc.record("sub1", 1000, ANCHOR)
+        await svc.record("sub1", 1000, PS)
         key = quota_usage(sub_id="sub1", period_start=PS)
         assert fake_redis._ttls[key] > 0
 
     @pytest.mark.asyncio
     async def test_separate_subscriptions(self, svc, fake_redis):
-        await svc.record("sub1", 100, ANCHOR)
-        await svc.record("sub2", 200, ANCHOR)
+        await svc.record("sub1", 100, PS)
+        await svc.record("sub2", 200, PS)
         assert fake_redis._data[quota_usage(sub_id="sub1", period_start=PS)] == "100"
         assert fake_redis._data[quota_usage(sub_id="sub2", period_start=PS)] == "200"
 
@@ -139,15 +139,15 @@ class TestRecord:
 class TestRefund:
     @pytest.mark.asyncio
     async def test_decrements_usage(self, svc, fake_redis):
-        await svc.record("sub1", 50_000, ANCHOR)
-        await svc.refund("sub1", 50_000, ANCHOR)
+        await svc.record("sub1", 50_000, PS)
+        await svc.refund("sub1", 50_000, PS)
         key = quota_usage(sub_id="sub1", period_start=PS)
         assert fake_redis._data[key] == "0"
 
     @pytest.mark.asyncio
     async def test_partial_refund(self, svc, fake_redis):
-        await svc.record("sub1", 50_000, ANCHOR)
-        await svc.refund("sub1", 20_000, ANCHOR)
+        await svc.record("sub1", 50_000, PS)
+        await svc.refund("sub1", 20_000, PS)
         key = quota_usage(sub_id="sub1", period_start=PS)
         assert fake_redis._data[key] == "30000"
 

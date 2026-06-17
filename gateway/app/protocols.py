@@ -64,6 +64,7 @@ class JobMeta:
     input_hash: str = ""
     status: JobStatus = JobStatus.PROCESSING
     detail: str = ""
+    period_start: str = ""  # billing period the quota charge landed in — refund must target the same one
     created_at: str = ""
     completed_at: str = ""
     retention_expires: str = ""

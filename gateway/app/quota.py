@@ -134,21 +134,23 @@ class QuotaService:
 
         return None
 
-    async def record(self, sub_id: str, input_bytes: int, anchor_day: int = 1) -> None:
-        """Increment the usage counter after accepting a job."""
+    async def record(self, sub_id: str, input_bytes: int, period_start: str, anchor_day: int = 1) -> None:
+        """Increment the usage counter for a billing period after accepting a job."""
         from .keys import quota_usage
 
-        ps = current_period_start(anchor_day)
-        key = quota_usage(sub_id=sub_id, period_start=ps)
+        key = quota_usage(sub_id=sub_id, period_start=period_start)
         await self._r.incrby(key, input_bytes)
         await self._r.expire(key, period_ttl(anchor_day))
 
-    async def refund(self, sub_id: str, input_bytes: int, anchor_day: int = 1) -> None:
-        """Decrement the usage counter on job failure."""
+    async def refund(self, sub_id: str, input_bytes: int, period_start: str, anchor_day: int = 1) -> None:
+        """Decrement the usage counter on job failure.
+
+        Must target the same period_start the charge landed in — recomputing
+        it from the wall clock would refund the wrong period across a rollover.
+        """
         from .keys import quota_usage
 
-        ps = current_period_start(anchor_day)
-        key = quota_usage(sub_id=sub_id, period_start=ps)
+        key = quota_usage(sub_id=sub_id, period_start=period_start)
         await self._r.decrby(key, input_bytes)
         await self._r.expire(key, period_ttl(anchor_day))
 

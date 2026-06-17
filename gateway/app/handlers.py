@@ -17,6 +17,7 @@ from .estimates import estimate_seconds
 from .hash import document_hash
 from .mimetypes import is_archive_type, is_known_mime_type
 from .protocols import Job, JobMeta, JobStatus, JobType, ResolveMisconfigured, ResolveRejected, UserContext
+from .quota import current_period_start
 from .sanitize import content_disposition, sanitize_filename
 from .telemetry import JobAccepted
 
@@ -99,11 +100,13 @@ async def accept_canonize(
     if not is_known_mime_type(mime_type):
         raise Rejected(400, f"Unsupported file type: {mime_type}")
 
-    # Quota check + immediate reservation (period-scoped to billing anchor)
+    # Quota check + immediate reservation (period-scoped to billing anchor).
+    # Pin the period now so the worker's refund-on-failure targets the same one.
+    period_start = current_period_start(user.billing_anchor_day)
     rejection = await svc.quota.check(sub_id, len(file_bytes), user.billing_anchor_day)
     if rejection:
         raise Rejected(429, rejection)
-    await svc.quota.record(sub_id, len(file_bytes), user.billing_anchor_day)
+    await svc.quota.record(sub_id, len(file_bytes), period_start, user.billing_anchor_day)
 
     doc_hash = document_hash(file_bytes)
     job = Job.create(
@@ -134,6 +137,7 @@ async def accept_canonize(
         input_bytes=len(file_bytes),
         input_hash=doc_hash,
         status=JobStatus.PROCESSING,
+        period_start=period_start,
         created_at=now,
         price_per_unit=user.price_per_unit,
     )
