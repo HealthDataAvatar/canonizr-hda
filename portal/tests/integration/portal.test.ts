@@ -149,7 +149,7 @@ describe("API: keys (authenticated)", () => {
     // Verify Table Storage
     const gwSubs = getTableClient(TableName.GW_SUBSCRIPTIONS);
     const entity = await gwSubs.getEntity("subscription", keyId);
-    expect(entity.quota_bytes).toBe(5000 * 1024);
+    expect(entity.quota_bytes).toBe(5000 * 1000);
   });
 
   it("POST /api/keys/[id]/quota with null removes quota", async () => {
