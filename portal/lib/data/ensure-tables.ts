@@ -11,8 +11,6 @@ import { TableName } from "./table-interface";
 const ALL_TABLES = [
   // Auth adapter
   TableName.USERS,
-  TableName.ACCOUNTS,
-  TableName.SESSIONS,
   TableName.VERIFICATION_TOKENS,
 
   // User data (append-only)

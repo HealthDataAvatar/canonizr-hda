@@ -1,14 +1,19 @@
 /**
  * Auth.js adapter for Azure Table Storage.
  *
- * Tables: Users, Accounts, Sessions, VerificationTokens
+ * Tables: Users, VerificationTokens
  * Partition keys use entity type for simplicity on a single-user-scale app.
+ *
+ * Session + Account methods are intentionally absent: the portal uses the JWT
+ * session strategy (`session.strategy: "jwt"`) with a single email provider, so
+ * Auth.js never invokes createSession/getSessionAndUser/updateSession/
+ * deleteSession or linkAccount/unlinkAccount/getUserByAccount.
  *
  * Uses getTableClient() for all table access — credential handling is
  * centralised in table-client.ts.
  */
 
-import type { Adapter, AdapterUser, AdapterAccount, AdapterSession } from "next-auth/adapters";
+import type { Adapter, AdapterUser } from "next-auth/adapters";
 import { randomUUID, randomBytes } from "crypto";
 import { getTableClient } from "@/lib/data/table-client";
 import { TableName } from "@/lib/data/table-interface";
@@ -16,8 +21,6 @@ import { TableName } from "@/lib/data/table-interface";
 function makeClients() {
   return {
     users: getTableClient(TableName.USERS),
-    accounts: getTableClient(TableName.ACCOUNTS),
-    sessions: getTableClient(TableName.SESSIONS),
     verificationTokens: getTableClient(TableName.VERIFICATION_TOKENS),
     gwEncryptionKeys: getTableClient(TableName.GW_ENCRYPTION_KEYS),
   };
@@ -34,7 +37,7 @@ function toUser(entity: Record<string, unknown>): AdapterUser {
 }
 
 export function AzureTableStorageAdapter(): Adapter {
-  const { users, accounts, sessions, verificationTokens, gwEncryptionKeys } = makeClients();
+  const { users, verificationTokens, gwEncryptionKeys } = makeClients();
 
   return {
     async createUser(user) {
@@ -81,17 +84,6 @@ export function AzureTableStorageAdapter(): Adapter {
       }
     },
 
-    async getUserByAccount({ providerAccountId, provider }) {
-      try {
-        const account = await accounts.getEntity(provider, providerAccountId);
-        const userId = account.userId as string;
-        const entity = await users.getEntity("user", userId);
-        return toUser(entity);
-      } catch {
-        return null;
-      }
-    },
-
     async updateUser(user) {
       const existing = await users.getEntity("user", user.id!);
       const merged = {
@@ -116,76 +108,6 @@ export function AzureTableStorageAdapter(): Adapter {
       } catch {
         // User may already be deleted
       }
-    },
-
-    async linkAccount(account) {
-      await accounts.upsertEntity({
-        partitionKey: account.provider,
-        rowKey: account.providerAccountId,
-        userId: account.userId,
-        type: account.type,
-        accessToken: account.access_token ?? "",
-        refreshToken: account.refresh_token ?? "",
-        expiresAt: account.expires_at ?? 0,
-        tokenType: account.token_type ?? "",
-        scope: account.scope ?? "",
-        idToken: account.id_token ?? "",
-      });
-      return account as AdapterAccount;
-    },
-
-    async unlinkAccount({ providerAccountId, provider }) {
-      await accounts.deleteEntity(provider, providerAccountId).catch(() => {});
-    },
-
-    async createSession(session) {
-      await sessions.upsertEntity({
-        partitionKey: "session",
-        rowKey: session.sessionToken,
-        userId: session.userId,
-        expires: session.expires.toISOString(),
-      });
-      return session;
-    },
-
-    async getSessionAndUser(sessionToken) {
-      try {
-        const session = await sessions.getEntity("session", sessionToken);
-        const user = await users.getEntity("user", session.userId as string);
-        return {
-          session: {
-            sessionToken,
-            userId: session.userId as string,
-            expires: new Date(session.expires as string),
-          },
-          user: toUser(user),
-        };
-      } catch {
-        return null;
-      }
-    },
-
-    async updateSession(session) {
-      try {
-        const existing = await sessions.getEntity("session", session.sessionToken!);
-        const merged = {
-          ...existing,
-          ...(session.expires && { expires: session.expires.toISOString() }),
-          ...(session.userId && { userId: session.userId }),
-        };
-        await sessions.updateEntity(merged as Record<string, unknown> & { partitionKey: string; rowKey: string }, "Merge");
-        return {
-          sessionToken: session.sessionToken!,
-          userId: (merged.userId as string) ?? "",
-          expires: new Date((merged.expires as string) ?? ""),
-        } satisfies AdapterSession;
-      } catch {
-        return null;
-      }
-    },
-
-    async deleteSession(sessionToken) {
-      await sessions.deleteEntity("session", sessionToken).catch(() => {});
     },
 
     async createVerificationToken(token) {

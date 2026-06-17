@@ -6,10 +6,8 @@
  */
 
 export const TableName = {
-  // Auth adapter (portal only)
+  // Auth adapter (portal only) — JWT strategy + email provider, so no Accounts/Sessions tables
   USERS: "Users",
-  ACCOUNTS: "Accounts",
-  SESSIONS: "Sessions",
   VERIFICATION_TOKENS: "VerificationTokens",
 
   // User data (append-only)
