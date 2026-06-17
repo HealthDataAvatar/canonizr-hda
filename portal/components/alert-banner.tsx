@@ -10,7 +10,7 @@ const styles = {
   warning: {
     container: "border-amber-500/30 bg-amber-500/5",
     icon: "text-amber-500",
-    text: "text-amber-600 dark:text-amber-400",
+    text: "text-amber-600",
   },
 } as const;
 

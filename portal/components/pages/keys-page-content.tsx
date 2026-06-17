@@ -6,6 +6,15 @@ import type { KeyRow } from "@/components/tables/key-table";
 import { CodeBlock } from "@/components/ui/code-block";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 function CreateFormSkeleton() {
   return (
@@ -21,26 +30,24 @@ function CreateFormSkeleton() {
 
 function KeyTableSkeleton() {
   return (
-    <div className="rounded-md border border-border">
-      <table className="w-full table-fixed">
-        <thead>
-          <tr className="border-b border-border">
-            <th className="p-4 text-left"><Skeleton className="h-4 w-12" /></th>
-            <th className="p-4 text-left"><Skeleton className="h-4 w-8" /></th>
-            <th className="p-4 text-left"><Skeleton className="h-4 w-24" /></th>
-          </tr>
-        </thead>
-        <tbody>
-          {[1, 2, 3].map((i) => (
-            <tr key={i} className="border-b border-border">
-              <td className="p-4"><Skeleton className="h-4 w-28" /></td>
-              <td className="p-4"><Skeleton className="h-4 w-36" /></td>
-              <td className="p-4"><Skeleton className="h-4 w-40" /></td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <Table className="table-fixed">
+      <TableHeader>
+        <TableRow>
+          <TableHead><Skeleton className="h-4 w-12" /></TableHead>
+          <TableHead><Skeleton className="h-4 w-8" /></TableHead>
+          <TableHead><Skeleton className="h-4 w-24" /></TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {[1, 2, 3].map((i) => (
+          <TableRow key={i}>
+            <TableCell><Skeleton className="h-4 w-28" /></TableCell>
+            <TableCell><Skeleton className="h-4 w-36" /></TableCell>
+            <TableCell><Skeleton className="h-4 w-40" /></TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
   );
 }
 
@@ -67,12 +74,9 @@ export function KeysDataSlots({ keys }: { keys: KeyRow[] }) {
                 Upload a document and see the conversion in real time.
               </p>
             </div>
-            <Link
-              href="/dashboard/history"
-              className="shrink-0 rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent/90 transition-colors"
-            >
+            <Button render={<Link href="/dashboard/history" />} className="shrink-0">
               Go to Jobs
-            </Link>
+            </Button>
           </CardContent>
         </Card>
       )}
