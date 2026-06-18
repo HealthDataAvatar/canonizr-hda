@@ -27,7 +27,7 @@ from pathlib import Path
 from mcp.server.fastmcp import Context, FastMCP
 from mcp.types import TextContent
 
-from .cache import DiskCache
+from .cache import DiskCache, _safe_segment
 from .client import AsyncCanonizr
 
 _TEXT_MIMES = frozenset({
@@ -102,10 +102,11 @@ async def handle_get_artefact(job_id: str, name: str, deps: Deps) -> list[TextCo
     if _is_text(mime):
         return [TextContent(type="text", text=data.decode(errors="replace"))]
 
-    # Binary — save to cache and return path
-    save_dir = deps.cache._dir / job_id
+    # Binary — save to cache and return path. job_id and name are
+    # server-supplied; reject any path-traversal before touching disk.
+    save_dir = deps.cache._dir / _safe_segment(job_id)
     save_dir.mkdir(parents=True, exist_ok=True)
-    file_path = save_dir / name
+    file_path = save_dir / _safe_segment(name)
     file_path.write_bytes(data)
 
     return [TextContent(type="text", text=f"Saved to: {file_path}")]

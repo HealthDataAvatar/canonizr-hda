@@ -6,8 +6,7 @@ Protocols and implementations both import from here.
 
 from __future__ import annotations
 
-import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import NewType
 
 Markdown = NewType("Markdown", str)
@@ -77,40 +76,6 @@ class EmbeddedImage:
     mime_type: str  # image/jpeg, image/png, etc.
     page: int  # 0-based page index
     label: str = ""  # e.g. "Image from page 3"
-
-
-@dataclass
-class ExtractedTable:
-    """A single table extracted from a PDF page."""
-
-    page: int  # 0-based page index
-    headers: list[str]  # column headers (may be empty)
-    rows: list[list[str]]  # data rows (excludes header row)
-    accuracy: float  # parser confidence 0-1
-
-    def to_markdown(self) -> str:
-        """Render as a pipe-delimited markdown table."""
-        if not self.headers and not self.rows:
-            return ""
-        cols = self.headers or [f"Col {i + 1}" for i in range(len(self.rows[0]))]
-        lines = [
-            "| " + " | ".join(cols) + " |",
-            "| " + " | ".join("---" for _ in cols) + " |",
-        ]
-        for row in self.rows:
-            lines.append("| " + " | ".join(row) + " |")
-        return "\n".join(lines)
-
-    def to_json(self) -> str:
-        """Structured JSON with headers + rows for programmatic use."""
-        return json.dumps({"page": self.page, "headers": self.headers, "rows": self.rows, "accuracy": self.accuracy})
-
-
-@dataclass
-class ExtractedTables:
-    """All tables extracted from a PDF."""
-
-    tables: list[ExtractedTable] = field(default_factory=list)
 
 
 @dataclass

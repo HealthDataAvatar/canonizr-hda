@@ -16,7 +16,6 @@ class Service(StrEnum):
 
     LITEPARSE = "liteparse"
     PIKEPDF = "pikepdf"
-    CAMELOT = "camelot"
     GOTENBERG = "gotenberg"
     MARKITDOWN = "markitdown"
     PASSTHROUGH = "passthrough"

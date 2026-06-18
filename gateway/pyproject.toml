@@ -21,7 +21,6 @@ dependencies = [
     "liteparse",
     "pypdfium2",
     "pikepdf",
-    "camelot-py[cv]",
     "extract-msg",
     "xxhash",
     "redis[hiredis]>=5.0",

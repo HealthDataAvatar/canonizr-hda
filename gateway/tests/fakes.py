@@ -12,7 +12,6 @@ from typing import Any
 from app.protocols import Job, JobMeta, JobPage, JobResult, JobStatus, UserContext
 from app.types import (
     EmbeddedImage,
-    ExtractedTables,
     Markdown,
     OleOfficeDocument,
     OoxmlDocument,
@@ -225,23 +224,6 @@ class FakeImageExtractor:
         self.calls.append(len(pdf.data))
         if not self._responses:
             return []
-        r = self._responses.pop(0)
-        if isinstance(r, Exception):
-            raise r
-        return r
-
-
-class FakeTableExtractor:
-    """Injectable TableExtractor. Responses are ExtractedTables or Exceptions."""
-
-    def __init__(self, responses: list | None = None):
-        self._responses = list(responses or [])
-        self.calls: list[int] = []
-
-    async def extract(self, pdf: PdfContent, span) -> ExtractedTables:
-        self.calls.append(len(pdf.data))
-        if not self._responses:
-            return ExtractedTables()
         r = self._responses.pop(0)
         if isinstance(r, Exception):
             raise r

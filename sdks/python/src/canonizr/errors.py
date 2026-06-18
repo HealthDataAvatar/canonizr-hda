@@ -71,10 +71,10 @@ _STATUS_ERRORS: dict[int, type[CanonizrError]] = {
 }
 
 
-def raise_for_status(status_code: int, detail: str) -> None:
+def raise_for_status(status_code: int, detail: str, retry_after: float | None = None) -> None:
     """Raise the appropriate CanonizrError for an HTTP status code."""
     if status_code == 429:
-        raise RateLimitError(detail)
+        raise RateLimitError(detail, retry_after=retry_after)
     cls = _STATUS_ERRORS.get(status_code)
     if cls:
         raise cls(detail)

@@ -11,7 +11,6 @@ from .protocols import (
     PageRenderer,
     PdfTextExtractor,
     Queue,
-    TableExtractor,
     UserResolver,
 )
 from .quota import QuotaService
@@ -30,7 +29,6 @@ class Services:
     telemetry: TelemetryEmitter
     pdf_text_extractor: PdfTextExtractor
     pdf_image_extractor: ImageExtractor
-    pdf_table_extractor: TableExtractor
     ole_converter: OleConverter
     ooxml_extractor: OoxmlExtractor
     page_renderer: PageRenderer

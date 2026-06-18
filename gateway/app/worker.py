@@ -19,7 +19,6 @@ from .protocols import Job, JobResult, JobStatus, UserContext
 from .queue import RedisQueue
 from .quota import QuotaService, current_period_start
 from .redis_client import get_redis
-from .services.camelot_tables import CamelotTableExtractor
 from .services.libreoffice import GotenbergOleConverter
 from .services.liteparse import LiteParsePdfTextExtractor
 from .services.markitdown import MarkItDownExtractor
@@ -148,7 +147,6 @@ async def run():
         telemetry=PostHogEmitter(),
         pdf_text_extractor=LiteParsePdfTextExtractor(),
         pdf_image_extractor=PikepdfImageExtractor(),
-        pdf_table_extractor=CamelotTableExtractor(),
         ole_converter=GotenbergOleConverter(),
         ooxml_extractor=MarkItDownExtractor(),
         page_renderer=PdfiumPageRenderer(),

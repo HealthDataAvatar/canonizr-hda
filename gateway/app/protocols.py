@@ -16,7 +16,6 @@ from typing import Protocol
 from .tracing import Span
 from .types import (
     EmbeddedImage,
-    ExtractedTables,
     Markdown,
     OleOfficeDocument,
     OoxmlDocument,
@@ -273,12 +272,6 @@ class ImageExtractor(Protocol):
     """PDF → losslessly extracted embedded images (pikepdf)."""
 
     async def extract(self, pdf: PdfContent, span: Span) -> list[EmbeddedImage]: ...
-
-
-class TableExtractor(Protocol):
-    """PDF → structured tables (Camelot)."""
-
-    async def extract(self, pdf: PdfContent, span: Span) -> ExtractedTables: ...
 
 
 class OoxmlExtractor(Protocol):

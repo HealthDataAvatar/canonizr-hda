@@ -24,8 +24,19 @@ from .cache import DiskCache
 from .errors import JobExpiredError, JobFailedError, TimeoutError, raise_for_status
 from .models import AsyncCanonizeResult, CanonizeResult, JobStatus, SubmitResult
 
-
 DEFAULT_BASE_URL = "https://api.canonizr.com"
+
+
+def _require_https(base_url: str) -> None:
+    """Refuse to send the API key over plaintext HTTP.
+
+    Localhost is allowed for development against a local gateway.
+    """
+    if base_url.startswith("https://"):
+        return
+    if base_url.startswith(("http://localhost", "http://127.0.0.1")):
+        return
+    raise ValueError(f"base_url must use https:// (got {base_url!r}); the API key is sent in the Authorization header")
 
 
 def _guess_mime(filename: str) -> str:
@@ -46,19 +57,31 @@ def _read_file(file: str | Path | BinaryIO) -> tuple[str, bytes]:
     return name, file.read()
 
 
+def _raise_error(resp: Response) -> None:
+    """Map an error response to a CanonizrError.
+
+    Tolerates non-JSON bodies (e.g. an HTML 502 from a proxy) and carries
+    the parsed Retry-After through to RateLimitError.
+    """
+    try:
+        detail = resp.json().get("detail", resp.body.decode(errors="replace"))
+    except (ValueError, UnicodeDecodeError):
+        detail = resp.body.decode(errors="replace") or f"HTTP {resp.status_code}"
+    retry_after = parse_retry_after(resp.headers.get("retry-after"))
+    raise_for_status(resp.status_code, detail, retry_after)
+
+
 def _check_submit(resp: Response) -> SubmitResult:
     if resp.status_code == 202:
         return SubmitResult.from_response(resp.json())
-    detail = resp.json().get("detail", resp.body.decode(errors="replace"))
-    raise_for_status(resp.status_code, detail)
+    _raise_error(resp)
     raise AssertionError("unreachable")
 
 
 def _check_poll(resp: Response) -> JobStatus:
     if resp.status_code in (200, 202):
         return JobStatus.from_response(resp.json())
-    detail = resp.json().get("detail", resp.body.decode(errors="replace"))
-    raise_for_status(resp.status_code, detail)
+    _raise_error(resp)
     raise AssertionError("unreachable")
 
 
@@ -165,6 +188,8 @@ class Canonizr:
         cache: DiskCache | bool = True,
         transport: Transport | None = None,
     ):
+        if transport is None:
+            _require_https(base_url)
         self._transport = transport or HttpxTransport(base_url, api_key)
         self._timeout = timeout
         if cache is True:
@@ -230,8 +255,7 @@ class Canonizr:
         resp = self._transport.get(f"/v1/canonize/{job_id}/artefacts/{name}")
         if resp.status_code == 200:
             return resp.body
-        detail = resp.json().get("detail", resp.body.decode(errors="replace"))
-        raise_for_status(resp.status_code, detail)
+        _raise_error(resp)
         raise AssertionError("unreachable")
 
     def delete(self, job_id: str) -> None:
@@ -239,8 +263,7 @@ class Canonizr:
         resp = self._transport.delete(f"/v1/canonize/{job_id}")
         if resp.status_code == 204:
             return
-        detail = resp.json().get("detail", resp.body.decode(errors="replace"))
-        raise_for_status(resp.status_code, detail)
+        _raise_error(resp)
 
     def __enter__(self) -> Canonizr:
         return self
@@ -278,6 +301,8 @@ class AsyncCanonizr:
         cache: DiskCache | bool = True,
         transport: AsyncTransport | None = None,
     ):
+        if transport is None:
+            _require_https(base_url)
         self._transport = transport or AsyncHttpxTransport(base_url, api_key)
         self._timeout = timeout
         if cache is True:
@@ -353,8 +378,7 @@ class AsyncCanonizr:
         resp = await self._transport.get(f"/v1/canonize/{job_id}/artefacts/{name}")
         if resp.status_code == 200:
             return resp.body
-        detail = resp.json().get("detail", resp.body.decode(errors="replace"))
-        raise_for_status(resp.status_code, detail)
+        _raise_error(resp)
         raise AssertionError("unreachable")
 
     async def delete(self, job_id: str) -> None:
@@ -362,8 +386,7 @@ class AsyncCanonizr:
         resp = await self._transport.delete(f"/v1/canonize/{job_id}")
         if resp.status_code == 204:
             return
-        detail = resp.json().get("detail", resp.body.decode(errors="replace"))
-        raise_for_status(resp.status_code, detail)
+        _raise_error(resp)
 
     async def __aenter__(self) -> AsyncCanonizr:
         return self

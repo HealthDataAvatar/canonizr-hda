@@ -15,6 +15,7 @@ Structure:
 from __future__ import annotations
 
 import json
+import re
 import time
 from pathlib import Path
 from typing import Protocol
@@ -25,6 +26,24 @@ from .models import ArtefactMeta, JobStatus
 
 DEFAULT_CACHE_DIR = Path.home() / ".cache" / "canonizr"
 DEFAULT_MAX_ENTRIES = 500
+
+# Whitelist for server-supplied path segments used as filenames/dirs.
+# Covers both gateway artefact names (^[a-z0-9-]+$) and url-safe job IDs
+# (token_urlsafe → A-Za-z0-9_-). Deny-by-default: no dots, slashes, or
+# anything else that could traverse out of the cache directory.
+_SAFE_SEGMENT = re.compile(r"^[A-Za-z0-9_-]+$")
+
+
+def _safe_segment(name: str) -> str:
+    """Validate a server-supplied path segment against a whitelist.
+
+    Artefact names and job IDs come from the server (a trust boundary);
+    a hostile or buggy server could send "../../.ssh/authorized_keys".
+    Fail closed — only the known-good charset is allowed onto disk.
+    """
+    if not _SAFE_SEGMENT.match(name):
+        raise ValueError(f"unsafe path segment: {name!r}")
+    return name
 
 
 class Clock(Protocol):
@@ -82,7 +101,7 @@ class DiskCache:
 
     def get_artefact(self, file_hash: str, name: str) -> bytes | None:
         """Look up a cached artefact. Returns None on miss."""
-        path = self._dir / file_hash / name
+        path = self._dir / file_hash / _safe_segment(name)
         if not path.exists():
             return None
         self._touch(file_hash)
@@ -92,12 +111,12 @@ class DiskCache:
         """Cache an artefact's content."""
         entry_dir = self._dir / file_hash
         entry_dir.mkdir(parents=True, exist_ok=True)
-        (entry_dir / name).write_bytes(data)
+        (entry_dir / _safe_segment(name)).write_bytes(data)
         self._touch(file_hash)
 
     def artefact_path(self, file_hash: str, name: str) -> Path | None:
         """Return the filesystem path to a cached artefact, or None if not cached."""
-        path = self._dir / file_hash / name
+        path = self._dir / file_hash / _safe_segment(name)
         return path if path.exists() else None
 
     def evict(self, file_hash: str) -> None:

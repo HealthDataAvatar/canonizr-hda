@@ -19,7 +19,6 @@ from tests.fakes import (
     FakePdfTextExtractor,
     FakeQueue,
     FakeRedis,
-    FakeTableExtractor,
     FakeUserResolver,
 )
 
@@ -35,7 +34,6 @@ def _make_svc(resolver_result):
         telemetry=FakeEmitter(),
         pdf_text_extractor=FakePdfTextExtractor(),
         pdf_image_extractor=FakeImageExtractor(),
-        pdf_table_extractor=FakeTableExtractor(),
         ole_converter=FakeOleConverter(),
         ooxml_extractor=FakeOoxmlExtractor(),
         page_renderer=FakePageRenderer(),

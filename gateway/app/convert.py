@@ -17,7 +17,6 @@ from .mimetypes import LIBREOFFICE_TYPES, MARKITDOWN_TYPES, PASSTHROUGH_TYPES
 from .protocols import OleConverter, OoxmlExtractor
 from .tracing import Service, Span, Trace
 from .types import (
-    ExtractedTables,
     ImageFile,
     Markdown,
     OleOfficeDocument,
@@ -57,23 +56,6 @@ def extract_text(file: SubmittedFile) -> Markdown:
 
 
 # ---------------------------------------------------------------------------
-# Table inlining — pure function
-# ---------------------------------------------------------------------------
-
-
-def _inline_tables(text: Markdown, tables: ExtractedTables) -> Markdown:
-    """Append extracted tables as markdown, grouped by source page."""
-    if not tables.tables:
-        return text
-    parts: list[str] = [text]
-    for tbl in sorted(tables.tables, key=lambda t: t.page):
-        md = tbl.to_markdown()
-        if md:
-            parts.append(f"\n\n<!-- Table from page {tbl.page + 1} -->\n{md}")
-    return Markdown("\n".join(parts))
-
-
-# ---------------------------------------------------------------------------
 # Router — composes steps, stores artefacts at the seams
 # ---------------------------------------------------------------------------
 
@@ -105,19 +87,11 @@ async def _extract_pdf(
         with span.span(Service.PIKEPDF) as s:
             return await svc.pdf_image_extractor.extract(pdf, s)
 
-    async def _tables():
-        with span.span(Service.CAMELOT) as s:
-            return await svc.pdf_table_extractor.extract(pdf, s)
-
     # Sequential: native C/Rust libraries (pypdfium2, pikepdf, liteparse) are
     # not guaranteed thread-safe when operating on the same PDF bytes concurrently.
     text = await _text()
     rendered = await _pages()
     images = await _images()
-    tables = await _tables()
-
-    # Inline tables into the markdown
-    text = _inline_tables(text, tables)
 
     # Store artefacts
     if artefacts:
@@ -130,16 +104,12 @@ async def _extract_pdf(
             for img in images:
                 name = artefacts.allocate("image")
                 await artefacts.put(name, img.data, img.mime_type, label=img.label, source_page=img.page + 1)
-            for tbl in tables.tables:
-                name = artefacts.allocate("table")
-                await artefacts.put(name, tbl.to_json().encode(), "application/json", source_page=tbl.page + 1)
             if rendered.page_labels:
                 labels_text = "\n".join(rendered.page_labels)
                 await artefacts.put("page-labels", labels_text.encode(), "text/plain")
             art_span.set(
                 artefact_count=len(artefacts.manifest),
                 image_count=len(images),
-                table_count=len(tables.tables),
                 total_bytes=sum(a.size_bytes for a in artefacts.manifest),
             )
 
@@ -155,7 +125,7 @@ async def canonize(
 ) -> Markdown:
     """Reduce a file to its canonical machine-readable forms.
 
-    Artefacts (thumbnails, converted PDF, extracted images, tables)
+    Artefacts (thumbnails, converted PDF, extracted images)
     are stored via the ArtefactStore. The return value is the extracted
     markdown text (empty string for image-only inputs).
     """
