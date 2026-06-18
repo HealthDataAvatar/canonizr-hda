@@ -12,7 +12,7 @@ import logging
 from .artefacts import ArtefactStore
 from .context import Services
 from .errors import ServiceNotConfigured, UnsupportedFormat
-from .imageconv import to_vlm_png
+from .imageconv import to_vlm_pngs
 from .mimetypes import LIBREOFFICE_TYPES, MARKITDOWN_TYPES, PASSTHROUGH_TYPES
 from .protocols import OleConverter, OoxmlExtractor
 from .tracing import Service, Span, Trace
@@ -168,14 +168,15 @@ async def canonize(
             pass
         return extract_text(file)
 
-    # Standalone images → normalise to PNG
+    # Standalone images → normalise every frame to PNG (multi-page TIFF keeps all pages)
     if mime.startswith("image/"):
         image = ImageFile(data=file.data, mime_type=mime)
         with parent.span(Service.NORMALISE_IMAGE) as img_span:
-            png = to_vlm_png(image)
-            img_span.set(input_mime=mime, output_bytes=len(png.data))
+            pages = to_vlm_pngs(image)
+            img_span.set(input_mime=mime, page_count=len(pages), output_bytes=sum(len(p.data) for p in pages))
         if artefacts:
-            await artefacts.put("image-1", png.data, "image/png")
+            for page in pages:
+                await artefacts.put(artefacts.allocate("image"), page.data, "image/png")
         return Markdown("")
 
     # Modern office formats (OOXML, HTML, epub, email)

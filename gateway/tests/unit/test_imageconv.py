@@ -1,114 +1,63 @@
-"""Unit tests for image conversion and multi-page extraction."""
+"""Unit tests for image conversion + multi-page extraction (to_vlm_pngs)."""
 
 from io import BytesIO
 
 from PIL import Image
 
-from app.imageconv import extract_pages, is_multipage, prepare_image_for_vlm
+from app.imageconv import to_vlm_pngs
+from app.types import ImageFile
 
 
-def _make_image(color, fmt="PNG", mime="image/png", size=(100, 100)):
-    """Create a single solid-color image."""
-    img = Image.new("RGB", size, color)
+def _img(color, fmt="PNG", mime="image/png", size=(100, 100)) -> ImageFile:
     buf = BytesIO()
-    img.save(buf, format=fmt)
-    return buf.getvalue(), mime
+    Image.new("RGB", size, color).save(buf, format=fmt)
+    return ImageFile(data=buf.getvalue(), mime_type=mime)
 
 
-def _make_multipage_tiff(colors):
-    """Create a multi-page TIFF from a list of colors."""
+def _multipage_tiff(colors) -> ImageFile:
     frames = [Image.new("RGB", (100, 100), c) for c in colors]
     buf = BytesIO()
     frames[0].save(buf, format="TIFF", save_all=True, append_images=frames[1:])
-    return buf.getvalue()
+    return ImageFile(data=buf.getvalue(), mime_type="image/tiff")
 
 
-class TestToNative:
-    def test_png_passthrough(self):
-        data, _ = _make_image("red", "PNG", "image/png")
-        out, out_mime = prepare_image_for_vlm(data, "image/png")
-        assert out is data
-        assert out_mime == "image/png"
-
-    def test_jpeg_passthrough(self):
-        data, _ = _make_image("blue", "JPEG", "image/jpeg")
-        out, out_mime = prepare_image_for_vlm(data, "image/jpeg")
-        assert out is data
-        assert out_mime == "image/jpeg"
+class TestToVlmPngs:
+    def test_single_frame_yields_one_png(self):
+        pages = to_vlm_pngs(_img("red", "PNG", "image/png"))
+        assert len(pages) == 1
+        assert Image.open(BytesIO(pages[0].data)).format == "PNG"
 
     def test_tiff_converted_to_png(self):
-        data, _ = _make_image("green", "TIFF", "image/tiff")
-        out, out_mime = prepare_image_for_vlm(data, "image/tiff")
-        assert out_mime == "image/png"
-        assert out != data
-        img = Image.open(BytesIO(out))
-        assert img.format == "PNG"
+        pages = to_vlm_pngs(_img("green", "TIFF", "image/tiff"))
+        assert Image.open(BytesIO(pages[0].data)).format == "PNG"
 
     def test_bmp_converted_to_png(self):
-        data, _ = _make_image("yellow", "BMP", "image/bmp")
-        _, out_mime = prepare_image_for_vlm(data, "image/bmp")
-        assert out_mime == "image/png"
+        pages = to_vlm_pngs(_img("yellow", "BMP", "image/bmp"))
+        assert Image.open(BytesIO(pages[0].data)).format == "PNG"
 
-    def test_large_png_downscaled(self):
-        data, _ = _make_image("red", "PNG", "image/png", size=(8000, 6000))
-        out, out_mime = prepare_image_for_vlm(data, "image/png")
-        assert out_mime == "image/png"
-        assert out is not data
-        img = Image.open(BytesIO(out))
-        assert max(img.size) == 2048
+    def test_large_image_downscaled(self):
+        pages = to_vlm_pngs(_img("red", "PNG", "image/png", size=(8000, 6000)))
+        assert max(Image.open(BytesIO(pages[0].data)).size) == 2048
 
-    def test_small_png_not_downscaled(self):
-        data, _ = _make_image("red", "PNG", "image/png", size=(2000, 1000))
-        out, out_mime = prepare_image_for_vlm(data, "image/png")
-        assert out is data
-
-    def test_large_tiff_downscaled(self):
-        data, _ = _make_image("blue", "TIFF", "image/tiff", size=(6000, 8000))
-        out, out_mime = prepare_image_for_vlm(data, "image/tiff")
-        assert out_mime == "image/png"
-        img = Image.open(BytesIO(out))
-        assert max(img.size) == 2048
-        assert img.size[1] == 2048  # height was the long side
+    def test_small_image_not_upscaled(self):
+        pages = to_vlm_pngs(_img("red", "PNG", "image/png", size=(800, 600)))
+        assert Image.open(BytesIO(pages[0].data)).size == (800, 600)
 
     def test_custom_max_dimension(self):
-        data, _ = _make_image("red", "PNG", "image/png", size=(3000, 2000))
-        out, out_mime = prepare_image_for_vlm(data, "image/png", max_dimension=1024)
-        img = Image.open(BytesIO(out))
-        assert max(img.size) == 1024
-
-    def test_custom_max_dimension_passthrough(self):
-        data, _ = _make_image("red", "PNG", "image/png", size=(800, 600))
-        out, out_mime = prepare_image_for_vlm(data, "image/png", max_dimension=1024)
-        assert out is data
+        pages = to_vlm_pngs(_img("red", "PNG", "image/png", size=(3000, 2000)), max_dimension=1024)
+        assert max(Image.open(BytesIO(pages[0].data)).size) == 1024
 
 
-class TestIsMultipage:
-    def test_tiff_is_multipage(self):
-        assert is_multipage("image/tiff") is True
-
-    def test_png_is_not_multipage(self):
-        assert is_multipage("image/png") is False
-
-    def test_jpeg_is_not_multipage(self):
-        assert is_multipage("image/jpeg") is False
-
-
-class TestExtractPages:
+class TestMultipage:
     def test_extracts_all_pages(self):
-        tiff_bytes = _make_multipage_tiff(["red", "green", "blue"])
-        pages = extract_pages(tiff_bytes)
+        pages = to_vlm_pngs(_multipage_tiff(["red", "green", "blue"]))
         assert len(pages) == 3
-        for page_bytes, mime in pages:
-            assert mime == "image/png"
-            img = Image.open(BytesIO(page_bytes))
-            assert img.format == "PNG"
+        for p in pages:
+            assert Image.open(BytesIO(p.data)).format == "PNG"
 
-    def test_single_page_tiff(self):
-        tiff_bytes = _make_multipage_tiff(["red"])
-        pages = extract_pages(tiff_bytes)
-        assert len(pages) == 1
+    def test_single_page_tiff_yields_one(self):
+        assert len(to_vlm_pngs(_multipage_tiff(["red"]))) == 1
 
     def test_pages_have_distinct_content(self):
-        tiff_bytes = _make_multipage_tiff(["red", "blue"])
-        pages = extract_pages(tiff_bytes)
-        assert pages[0][0] != pages[1][0]
+        pages = to_vlm_pngs(_multipage_tiff(["red", "blue"]))
+        assert pages[0].data != pages[1].data
