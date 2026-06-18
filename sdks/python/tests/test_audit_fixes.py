@@ -1,6 +1,9 @@
-"""Tests for the four audit fixes: path traversal, retry_after, JSON guard, HTTPS."""
+"""Tests for the SDK audit fixes: path traversal, cache hardening
+(symlinks + private perms), retry_after, and the non-JSON error guard."""
 
 from __future__ import annotations
+
+import os
 
 import pytest
 
@@ -45,6 +48,39 @@ class TestPathTraversal:
         for bad in ["../etc/passwd", "a/b", "..", ".", "", "\x00", "a\x00b", "x\\y", "a.b", "a b", "name;rm"]:
             with pytest.raises(ValueError):
                 _safe_segment(bad)
+
+
+# -- Symlink following + cache file permissions (security P2) --
+
+
+class TestCacheHardening:
+    def test_read_ignores_symlink_artefact(self, tmp_path):
+        # A symlink planted in the cache must not be followed on read.
+        cache = DiskCache(cache_dir=tmp_path)
+        cache.put_artefact("h", "markdown", b"real")
+        secret = tmp_path / "secret"
+        secret.write_bytes(b"id_rsa contents")
+        link = tmp_path / "h" / "evil"
+        link.symlink_to(secret)
+        assert cache.get_artefact("h", "evil") is None
+        assert cache.artefact_path("h", "evil") is None
+
+    def test_write_refuses_symlink(self, tmp_path):
+        cache = DiskCache(cache_dir=tmp_path)
+        cache.put_artefact("h", "markdown", b"real")  # creates entry dir
+        target = tmp_path / "target"
+        target.write_bytes(b"original")
+        (tmp_path / "h" / "markdown").unlink()
+        (tmp_path / "h" / "markdown").symlink_to(target)
+        with pytest.raises(ValueError):
+            cache.put_artefact("h", "markdown", b"pwned")
+        assert target.read_bytes() == b"original"  # not written through
+
+    def test_cache_dir_is_private(self, tmp_path):
+        cache = DiskCache(cache_dir=tmp_path / "fresh")
+        cache.put_artefact("h", "markdown", b"data")
+        mode = os.stat(tmp_path / "fresh").st_mode & 0o777
+        assert mode == 0o700
 
 
 # -- retry_after carried on 429 outside the polling loop (correctness/api-dx P1) --

@@ -46,6 +46,22 @@ def _safe_segment(name: str) -> str:
     return name
 
 
+def _is_regular_file(path: Path) -> bool:
+    """True only for a real file — not a symlink, dir, or special file.
+
+    A symlink planted in the cache dir could redirect a read to (or a write
+    through) a sensitive file like ~/.ssh/id_rsa. Refuse to follow it.
+    """
+    return path.is_file() and not path.is_symlink()
+
+
+def _no_symlink(path: Path) -> Path:
+    """Refuse to write through an existing symlink (would corrupt its target)."""
+    if path.is_symlink():
+        raise ValueError(f"refusing to write through symlink: {path}")
+    return path
+
+
 class Clock(Protocol):
     """Abstraction over time for testing."""
 
@@ -81,7 +97,7 @@ class DiskCache:
     def get_status(self, file_hash: str) -> JobStatus | None:
         """Look up a cached manifest by file hash. Returns None on miss."""
         manifest_path = self._dir / file_hash / "manifest.json"
-        if not manifest_path.exists():
+        if not _is_regular_file(manifest_path):
             return None
         try:
             data = json.loads(manifest_path.read_text())
@@ -92,9 +108,8 @@ class DiskCache:
 
     def put_status(self, file_hash: str, status: JobStatus) -> None:
         """Cache a job manifest."""
-        entry_dir = self._dir / file_hash
-        entry_dir.mkdir(parents=True, exist_ok=True)
-        manifest_path = entry_dir / "manifest.json"
+        entry_dir = self._entry_dir(file_hash)
+        manifest_path = _no_symlink(entry_dir / "manifest.json")
         manifest_path.write_text(json.dumps(_serialize_status(status), indent=2))
         self._touch(file_hash)
         self._evict_if_needed()
@@ -102,22 +117,21 @@ class DiskCache:
     def get_artefact(self, file_hash: str, name: str) -> bytes | None:
         """Look up a cached artefact. Returns None on miss."""
         path = self._dir / file_hash / _safe_segment(name)
-        if not path.exists():
+        if not _is_regular_file(path):
             return None
         self._touch(file_hash)
         return path.read_bytes()
 
     def put_artefact(self, file_hash: str, name: str, data: bytes) -> None:
         """Cache an artefact's content."""
-        entry_dir = self._dir / file_hash
-        entry_dir.mkdir(parents=True, exist_ok=True)
-        (entry_dir / _safe_segment(name)).write_bytes(data)
+        entry_dir = self._entry_dir(file_hash)
+        _no_symlink(entry_dir / _safe_segment(name)).write_bytes(data)
         self._touch(file_hash)
 
     def artefact_path(self, file_hash: str, name: str) -> Path | None:
         """Return the filesystem path to a cached artefact, or None if not cached."""
         path = self._dir / file_hash / _safe_segment(name)
-        return path if path.exists() else None
+        return path if _is_regular_file(path) else None
 
     def evict(self, file_hash: str) -> None:
         """Remove a cache entry entirely."""
@@ -132,6 +146,14 @@ class DiskCache:
 
     # -- internals --
 
+    def _entry_dir(self, file_hash: str) -> Path:
+        """Cache entry dir, created private (0o700). Cache holds the user's
+        own documents — keep them out of reach of other accounts."""
+        self._dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+        entry = self._dir / file_hash
+        entry.mkdir(exist_ok=True, mode=0o700)
+        return entry
+
     def _index_path(self) -> Path:
         return self._dir / "_index.json"
 
@@ -145,8 +167,8 @@ class DiskCache:
             return {}
 
     def _save_index(self, index: dict[str, float]) -> None:
-        self._dir.mkdir(parents=True, exist_ok=True)
-        self._index_path().write_text(json.dumps(index))
+        self._dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+        _no_symlink(self._index_path()).write_text(json.dumps(index))
 
     def _touch(self, file_hash: str) -> None:
         index = self._load_index()
