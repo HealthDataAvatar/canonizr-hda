@@ -59,17 +59,19 @@ ARCHIVE_TYPES = {
 KNOWN_MIME_TYPES = PASSTHROUGH_TYPES | MARKITDOWN_TYPES | LIBREOFFICE_TYPES | {"application/pdf"}
 IMAGE_PREFIX = "image/"
 
-# Formats that are themselves ZIP containers. libmagic reports these as a bare
-# "application/zip" — indistinguishable from a real archive. These are the only
-# types a client Content-Type is allowed to assert over a generic zip detection.
-ZIP_CONTAINER_TYPES = {
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",  # .docx
-    "application/vnd.openxmlformats-officedocument.presentationml.presentation",  # .pptx
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",  # .xlsx
-    "application/epub+zip",  # .epub
-    "application/vnd.oasis.opendocument.text",  # .odt
-    "application/vnd.oasis.opendocument.presentation",  # .odp
-    "application/vnd.oasis.opendocument.spreadsheet",  # .ods
+# What libmagic returns when it can't pin down a *specific* format: generic text, an
+# unidentified blob, a bare zip (it can't tell a real archive from an office doc on
+# older DBs), or an empty file. In these cases we defer to the client's declared type
+# (which carries the file extension), since that's the only signal that distinguishes
+# text subtypes, archives, and empty files. Anything else means magic positively
+# identified the format and wins.
+_GENERIC_DETECTIONS = {
+    "",
+    "text/plain",
+    "application/octet-stream",
+    "application/zip",
+    "application/x-empty",
+    "inode/x-empty",
 }
 
 
@@ -86,21 +88,16 @@ def is_archive_type(mime_type: str) -> bool:
 
 
 def reconcile_mime(detected: str, client_mime: str) -> str:
-    """Decide the authoritative MIME type from server-side detection + client hint.
+    """Decide the authoritative MIME type from magic's detection + the client's hint.
 
-    `detected` is what libmagic read from the bytes; it wins by default — a client
-    cannot relabel a file magic positively identified (this is what stops an archive
-    from masquerading as a PDF to skip the archive check). The client Content-Type is
-    honoured only where magic is genuinely blind:
-
-    - "application/zip": ambiguous between a real archive and a zip-container office
-      doc, so trust the client only if it names a known ZIP_CONTAINER_TYPES format.
-    - "application/octet-stream": magic couldn't identify it at all. A real archive
-      would have been detected specifically, so trust any *known* client type here
-      (keeps office docs and exotic images that magic misses working).
+    magic wins when it positively identifies a format (pdf, docx, image/*, ...) — this
+    is what stops a misnamed file (e.g. a real PDF sent as text/plain) from being routed
+    to the wrong converter and silently garbled. When magic is inconclusive (generic
+    text/binary/zip/empty), the client's declared Content-Type wins — that's where the
+    file extension is the better signal: text subtypes, archives (rejected downstream by
+    declared type), and empty files. Falls back to the detected value if the client
+    sent no type.
     """
-    if detected == "application/zip":
-        return client_mime if client_mime in ZIP_CONTAINER_TYPES else detected
-    if detected == "application/octet-stream":
-        return client_mime if is_known_mime_type(client_mime) else detected
+    if detected in _GENERIC_DETECTIONS:
+        return client_mime or detected
     return detected
