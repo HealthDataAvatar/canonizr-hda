@@ -114,19 +114,6 @@ class ExtractedTables:
 
 
 @dataclass
-class PdfText:
-    """Extracted PDF text: a markdown blob for reading, plus per-page
-    positioned items (bounding boxes + font) for locating text on a page.
-
-    Each page dict: {page_num, width, height, items: [{text, x, y, width,
-    height, font_name, font_size, confidence}, ...]}.
-    """
-
-    markdown: Markdown
-    pages: list[dict]
-
-
-@dataclass
 class PageRenders:
     """Rendered pages from a PDF — full-size PNGs, tiny WebP previews, and document page labels."""
 

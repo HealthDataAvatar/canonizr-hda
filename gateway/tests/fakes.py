@@ -18,7 +18,6 @@ from app.types import (
     OoxmlDocument,
     PageRenders,
     PdfContent,
-    PdfText,
 )
 
 
@@ -199,20 +198,20 @@ class FakeEmitter:
 
 
 class FakePdfTextExtractor:
-    """Injectable PdfTextExtractor. Responses are Markdown/PdfText or Exceptions."""
+    """Injectable PdfTextExtractor. Responses are Markdown or Exceptions."""
 
     def __init__(self, responses: list | None = None):
         self._responses = list(responses or [])
         self.calls: list[int] = []
 
-    async def extract(self, pdf: PdfContent, span) -> PdfText:
+    async def extract(self, pdf: PdfContent, span) -> Markdown:
         self.calls.append(len(pdf.data))
-        r = self._responses.pop(0) if self._responses else Markdown("# Extracted")
+        if not self._responses:
+            return Markdown("# Extracted")
+        r = self._responses.pop(0)
         if isinstance(r, Exception):
             raise r
-        if isinstance(r, PdfText):
-            return r
-        return PdfText(markdown=r, pages=[])
+        return r
 
 
 class FakeImageExtractor:

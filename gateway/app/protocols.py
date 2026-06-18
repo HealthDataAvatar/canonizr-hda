@@ -22,7 +22,6 @@ from .types import (
     OoxmlDocument,
     PageRenders,
     PdfContent,
-    PdfText,
 )
 
 # Job lifecycle defaults (one home, imported by handlers/worker/sweep).
@@ -265,9 +264,9 @@ class OleConverter(Protocol):
 
 
 class PdfTextExtractor(Protocol):
-    """PDF → markdown text + per-page positional JSON (LiteParse)."""
+    """PDF → markdown text with spatial layout (LiteParse)."""
 
-    async def extract(self, pdf: PdfContent, span: Span) -> PdfText: ...
+    async def extract(self, pdf: PdfContent, span: Span) -> Markdown: ...
 
 
 class ImageExtractor(Protocol):
