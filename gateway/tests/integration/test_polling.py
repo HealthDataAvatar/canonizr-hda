@@ -6,13 +6,13 @@ from tests.integration.conftest import GATEWAY_URL, TIMEOUT, assert_canonize_ok,
 
 
 class TestPolling:
-    def test_poll_nonexistent_job_returns_202(self, test_sub):
+    def test_poll_nonexistent_job_returns_404(self, test_sub):
         resp = requests.get(
             f"{GATEWAY_URL}/v1/canonize/nonexistent_job_id",
             headers={"Authorization": f"Bearer {test_sub.api_key}"},
             timeout=TIMEOUT,
         )
-        assert resp.status_code == 202
+        assert resp.status_code == 404
 
     def test_poll_without_auth_returns_401(self):
         resp = requests.get(f"{GATEWAY_URL}/v1/canonize/some_job_id", timeout=TIMEOUT)
@@ -25,13 +25,13 @@ class TestPolling:
         )
         assert result.status_code == 200
         job_id = submit.json()["job_id"]
-        # A different subscription must not see the job — same 202 as unknown id.
+        # A different subscription must not see the job — same 404 as an unknown id.
         resp = requests.get(
             f"{GATEWAY_URL}/v1/canonize/{job_id}",
             headers={"Authorization": f"Bearer {second_sub.api_key}"},
             timeout=TIMEOUT,
         )
-        assert resp.status_code == 202
+        assert resp.status_code == 404
         assert "artefacts" not in resp.json()
 
     def test_successful_conversion_is_pollable(self, test_sub):

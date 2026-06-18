@@ -175,36 +175,35 @@ async def accept_canonize(
 
 
 async def poll_result(job_id: str, sub_id: str, svc: Services) -> PollResult:
-    """Poll for a job result. Only the owning subscription sees its metadata."""
-    result = await svc.queue.get_result(job_id)
+    """Poll for a job result.
+
+    An unknown job and a job the caller doesn't own both return 404 — identical either
+    way, so a non-owner can't confirm a job exists or enumerate ids. (404 not 403: 403
+    would confirm the resource exists.)
+    """
     meta = svc.jobs.get(job_id)
+    if meta is None or meta.sub_id != sub_id:
+        return PollResult(
+            status="not_found",
+            status_code=404,
+            body={"job_id": job_id, "status": "not_found", "detail": "Job not found"},
+        )
 
-    # Ownership: a non-owner (or guessed job_id) gets the same "processing"
-    # response as an unknown job — existence is never confirmable.
-    if meta is not None and meta.sub_id != sub_id:
-        meta = None
-        result = None
+    if meta.status == JobStatus.DELETED:
+        return PollResult(
+            status="expired",
+            status_code=410,
+            body={"job_id": job_id, "status": "expired", "detail": "Result deleted"},
+        )
 
-    if meta is None:
-        if result is None:
-            return PollResult(status="processing", status_code=202, body={"job_id": job_id, "status": "processing"})
-    else:
-        if meta.status == JobStatus.DELETED:
-            return PollResult(
-                status="expired",
-                status_code=410,
-                body={"job_id": job_id, "status": "expired", "detail": "Result deleted"},
-            )
+    if meta.retention_expires and datetime.now(UTC) > datetime.fromisoformat(meta.retention_expires):
+        return PollResult(
+            status="expired",
+            status_code=410,
+            body={"job_id": job_id, "status": "expired", "detail": "Result retention expired"},
+        )
 
-        if meta.retention_expires:
-            expires = datetime.fromisoformat(meta.retention_expires)
-            if datetime.now(UTC) > expires:
-                return PollResult(
-                    status="expired",
-                    status_code=410,
-                    body={"job_id": job_id, "status": "expired", "detail": "Result retention expired"},
-                )
-
+    result = await svc.queue.get_result(job_id)
     if result is None:
         return PollResult(status="processing", status_code=202, body={"job_id": job_id, "status": "processing"})
 
@@ -215,14 +214,7 @@ async def poll_result(job_id: str, sub_id: str, svc: Services) -> PollResult:
             body={"job_id": job_id, "status": "error", "detail": result.detail},
         )
 
-    # Success — return artefact manifest from metadata
-    if not meta:
-        return PollResult(
-            status="error",
-            status_code=500,
-            body={"job_id": job_id, "status": "error", "detail": "Missing job metadata"},
-        )
-
+    # Success — return the artefact manifest from metadata.
     body: dict = {
         "job_id": job_id,
         "status": "ok",

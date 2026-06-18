@@ -197,22 +197,21 @@ class TestPollResult:
         assert poll.status_code == 202
 
     @pytest.mark.asyncio
-    async def test_unknown_job_returns_202(self):
+    async def test_unknown_job_returns_404(self):
         svc, _, _ = _make_svc()
         poll = await poll_result("nonexistent", "sub_1", svc)
-        assert poll.status_code == 202
+        assert poll.status_code == 404
 
     @pytest.mark.asyncio
     async def test_other_users_job_not_confirmable(self):
-        # A non-owner polling a real job_id gets the same "processing" as an
-        # unknown id — no metadata leaks and existence is not confirmable.
+        # A non-owner polling a real job_id gets the same 404 as an unknown id —
+        # no metadata leaks and existence is not confirmable (404, not 403).
         svc, user, _ = _make_svc()
         result = await accept_canonize(b"hello", "test.txt", "text/plain", "sub_1", svc)
         await svc.queue.store_result(result.job_id, JobResult(job_id=result.job_id, status="ok", status_code=200))
         poll = await poll_result(result.job_id, "sub_other", svc)
-        assert poll.status == "processing"
-        assert poll.status_code == 202
-        assert poll.body == {"job_id": result.job_id, "status": "processing"}
+        assert poll.status_code == 404
+        assert "artefacts" not in (poll.body or {})
 
     @pytest.mark.asyncio
     async def test_completed_job_returns_200(self):
