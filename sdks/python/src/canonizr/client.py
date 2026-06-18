@@ -27,18 +27,6 @@ from .models import AsyncCanonizeResult, CanonizeResult, JobStatus, SubmitResult
 DEFAULT_BASE_URL = "https://api.canonizr.com"
 
 
-def _require_https(base_url: str) -> None:
-    """Refuse to send the API key over plaintext HTTP.
-
-    Localhost is allowed for development against a local gateway.
-    """
-    if base_url.startswith("https://"):
-        return
-    if base_url.startswith(("http://localhost", "http://127.0.0.1")):
-        return
-    raise ValueError(f"base_url must use https:// (got {base_url!r}); the API key is sent in the Authorization header")
-
-
 def _guess_mime(filename: str) -> str:
     mime, _ = mimetypes.guess_type(filename)
     return mime or "application/octet-stream"
@@ -188,8 +176,6 @@ class Canonizr:
         cache: DiskCache | bool = True,
         transport: Transport | None = None,
     ):
-        if transport is None:
-            _require_https(base_url)
         self._transport = transport or HttpxTransport(base_url, api_key)
         self._timeout = timeout
         if cache is True:
@@ -301,8 +287,6 @@ class AsyncCanonizr:
         cache: DiskCache | bool = True,
         transport: AsyncTransport | None = None,
     ):
-        if transport is None:
-            _require_https(base_url)
         self._transport = transport or AsyncHttpxTransport(base_url, api_key)
         self._timeout = timeout
         if cache is True:
