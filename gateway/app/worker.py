@@ -13,7 +13,7 @@ from .azure_clients import get_blob_service, get_table_service
 from .blob_azure import AzureBlobStore
 from .context import Services
 from .jobs_table import TableJobStore
-from .process import ProcessResult, dispatch_job
+from .process import dispatch_job
 from .protocols import Job, JobStatus, UserContext
 from .queue import RedisQueue
 from .quota import QuotaService, current_period_start
@@ -34,11 +34,6 @@ logger = logging.getLogger(__name__)
 MAX_BACKOFF = 60
 MAX_CONSECUTIVE_FAILURES = 20
 MAX_CONCURRENT_JOBS = int(os.environ.get("WORKER_CONCURRENCY", "3"))
-
-
-def on_job_error(job: Job, proc: ProcessResult) -> None:
-    """Hook called when a job fails. Currently logs; future: email user."""
-    logger.info("on_job_error: job %s category=%s detail=%s", job.job_id, proc.error_category, proc.job_result.detail)
 
 
 async def _handle_job(job: Job, svc: Services, sem: asyncio.Semaphore) -> None:
@@ -90,7 +85,7 @@ async def _handle_job(job: Job, svc: Services, sem: asyncio.Semaphore) -> None:
                 ps = meta.period_start or current_period_start(user.billing_anchor_day)
                 await svc.quota.refund(job.sub_id, meta.input_bytes, ps, user.billing_anchor_day)
                 logger.info("Job %s failed — refunded %d bytes", job.job_id, meta.input_bytes)
-            on_job_error(job, proc)
+            logger.info("Job %s failed: category=%s detail=%s", job.job_id, proc.error_category, proc.job_result.detail)
 
         logger.info("Job %s completed with status %s (acked)", job.job_id, proc.job_result.status)
 

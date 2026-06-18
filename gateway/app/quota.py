@@ -16,6 +16,7 @@ from datetime import UTC, date, datetime
 
 from azure.data.tables import TableServiceClient
 
+from .keys import quota_limit, quota_rejected, quota_usage
 from .protocols import RedisQuotaCache
 
 logger = logging.getLogger(__name__)
@@ -89,8 +90,6 @@ class QuotaService:
 
         Returns None if allowed, or an error message string if blocked.
         """
-        from .keys import quota_limit, quota_rejected, quota_usage
-
         rejected_count = await self._r.get(quota_rejected(sub_id=sub_id))
         if rejected_count and int(rejected_count) >= self._max_rejected:
             return "Too many rejected requests — try again later"
@@ -134,8 +133,6 @@ class QuotaService:
 
     async def record(self, sub_id: str, input_bytes: int, period_start: str, anchor_day: int = 1) -> None:
         """Increment the usage counter for a billing period after accepting a job."""
-        from .keys import quota_usage
-
         key = quota_usage(sub_id=sub_id, period_start=period_start)
         await self._r.incrby(key, input_bytes)
         await self._r.expire(key, period_ttl(anchor_day))
@@ -146,8 +143,6 @@ class QuotaService:
         Must target the same period_start the charge landed in — recomputing
         it from the wall clock would refund the wrong period across a rollover.
         """
-        from .keys import quota_usage
-
         key = quota_usage(sub_id=sub_id, period_start=period_start)
         await self._r.decrby(key, input_bytes)
         await self._r.expire(key, period_ttl(anchor_day))

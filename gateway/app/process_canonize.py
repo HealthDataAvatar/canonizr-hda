@@ -84,35 +84,19 @@ async def process_canonize(job: Job, user: UserContext, svc: Services) -> Proces
         _emit_telemetry(svc, job, user, proc, steps, processing_start)
         return proc
 
-    except UnsupportedFormat as e:
-        _mark_error(svc, job.job_id, str(e), "permanent", trace)
-        proc = ProcessResult(
-            JobResult(job_id=job.job_id, status="error", detail=str(e), status_code=400),
-            file_size,
-            doc_hash_val,
-            error_category="permanent",
-        )
-        _emit_telemetry(svc, job, user, proc, [], processing_start)
-        return proc
-
-    except ServiceNotConfigured as e:
-        _mark_error(svc, job.job_id, str(e), "permanent", trace)
-        proc = ProcessResult(
-            JobResult(job_id=job.job_id, status="error", detail=str(e), status_code=422),
-            file_size,
-            doc_hash_val,
-            error_category="permanent",
-        )
-        _emit_telemetry(svc, job, user, proc, [], processing_start)
-        return proc
-
     except Exception as e:
-        category = _error_category(e)
-        logger.error("Job %s failed (%s): %s", job.job_id, category, e)
+        if isinstance(e, UnsupportedFormat):
+            status_code, category, steps = 400, "permanent", []
+        elif isinstance(e, ServiceNotConfigured):
+            status_code, category, steps = 422, "permanent", []
+        else:
+            status_code, category = 500, _error_category(e)
+            steps = trace.to_steps()
+            logger.error("Job %s failed (%s): %s", job.job_id, category, e)
+
         _mark_error(svc, job.job_id, str(e), category, trace)
-        steps = trace.to_steps()
         proc = ProcessResult(
-            JobResult(job_id=job.job_id, status="error", detail=str(e), status_code=500),
+            JobResult(job_id=job.job_id, status="error", detail=str(e), status_code=status_code),
             file_size,
             doc_hash_val,
             error_category=category,
@@ -168,10 +152,7 @@ def _emit_telemetry(
         processing_ms=round(processing_ms, 1),
         total_ms=round(total_ms, 1),
         services=services,
-        images_captioned=0,
-        images_errored=0,
-        prompt_tokens=0,
-        completion_tokens=0,
+        # images_captioned / prompt_tokens etc. default to 0 — not yet extracted from the span.
     )
     svc.telemetry.emit(event)
 
