@@ -54,11 +54,8 @@ class TableUserResolver:
             return ResolveMisconfigured("No encryption key")
 
         kname = await self._get_key_name(sub_id)
+        # price_per_unit defaults to DEFAULT_PRICE_PER_UNIT when unconfigured (never blocks).
         ppu = await self._get_price_per_unit(uid)
-        if ppu is None:
-            logger.error("User %s has no price_per_unit in UserConfig", uid)
-            return ResolveMisconfigured("No price_per_unit in UserConfig")
-
         anchor = await self._get_billing_anchor(uid)
 
         return UserContext(
@@ -68,6 +65,28 @@ class TableUserResolver:
             price_per_unit=ppu,
             billing_anchor_day=anchor,
         )
+
+    # --- cache-aside helpers -------------------------------------------------
+
+    async def _cached_str(self, ck: str, loader) -> str | None:
+        """Read a string field through the cache. Only caches a found value."""
+        cached = await self._r.get(ck)
+        if cached:
+            return cached
+        val = loader()
+        if val:
+            await self._r.set(ck, val, ex=CACHE_TTL)
+        return val
+
+    async def _cached_num(self, ck: str, loader, *, default, cast):
+        """Read a numeric field through the cache. Always caches (incl. the default)."""
+        cached = await self._r.get(ck)
+        if cached is not None:
+            return cast(cached)
+        raw = loader()
+        val = cast(raw) if raw is not None else default
+        await self._r.set(ck, str(val), ex=CACHE_TTL)
+        return val
 
     async def _is_blocked(self, user_id: str) -> bool:
         ck = user_blocked(user_id=user_id)
@@ -81,59 +100,41 @@ class TableUserResolver:
         return is_blocked
 
     async def _get_user_id(self, sub_id: str) -> str | None:
-        ck = user_id_cache(sub_id=sub_id)
-        cached = await self._r.get(ck)
-        if cached:
-            return cached
-
-        val = self._table_lookup(Table.GW_SUBSCRIPTIONS, "subscription", sub_id, "user_id")
-        if val:
-            await self._r.set(ck, val, ex=CACHE_TTL)
-        return val
+        return await self._cached_str(
+            user_id_cache(sub_id=sub_id),
+            lambda: self._table_lookup(Table.GW_SUBSCRIPTIONS, "subscription", sub_id, "user_id"),
+        )
 
     async def _get_user_key(self, user_id: str) -> str | None:
-        ck = encryption_key_cache(user_id=user_id)
-        cached = await self._r.get(ck)
-        if cached:
-            return cached
-
-        val = self._table_lookup(Table.GW_ENCRYPTION_KEYS, "key", user_id, "key_hex")
-        if val:
-            await self._r.set(ck, val, ex=CACHE_TTL)
-        return val
+        return await self._cached_str(
+            encryption_key_cache(user_id=user_id),
+            lambda: self._table_lookup(Table.GW_ENCRYPTION_KEYS, "key", user_id, "key_hex"),
+        )
 
     async def _get_key_name(self, sub_id: str) -> str:
-        ck = key_name_cache(sub_id=sub_id)
-        cached = await self._r.get(ck)
-        if cached:
-            return cached
-
-        val = self._table_lookup(Table.GW_SUBSCRIPTIONS, "subscription", sub_id, "key_name")
-        if val:
-            await self._r.set(ck, val, ex=CACHE_TTL)
-        return val or ""
+        return (
+            await self._cached_str(
+                key_name_cache(sub_id=sub_id),
+                lambda: self._table_lookup(Table.GW_SUBSCRIPTIONS, "subscription", sub_id, "key_name"),
+            )
+            or ""
+        )
 
     async def _get_price_per_unit(self, user_id: str) -> float:
-        ck = price_per_unit_cache(user_id=user_id)
-        cached = await self._r.get(ck)
-        if cached is not None:
-            return float(cached)
-
-        val = self._get_latest_config(user_id, "pricePerUnit")
-        ppu = float(val) if val is not None else 0.003
-        await self._r.set(ck, str(ppu), ex=CACHE_TTL)
-        return ppu
+        return await self._cached_num(
+            price_per_unit_cache(user_id=user_id),
+            lambda: self._get_latest_config(user_id, "pricePerUnit"),
+            default=0.003,
+            cast=float,
+        )
 
     async def _get_billing_anchor(self, user_id: str) -> int:
-        ck = billing_anchor_cache(user_id=user_id)
-        cached = await self._r.get(ck)
-        if cached is not None:
-            return int(cached)
-
-        val = self._table_lookup(Table.GW_BILLING, "billing", user_id, "billing_anchor_day")
-        anchor = int(val) if val is not None else 1
-        await self._r.set(ck, str(anchor), ex=CACHE_TTL)
-        return anchor
+        return await self._cached_num(
+            billing_anchor_cache(user_id=user_id),
+            lambda: self._table_lookup(Table.GW_BILLING, "billing", user_id, "billing_anchor_day"),
+            default=1,
+            cast=int,
+        )
 
     def _get_latest_config(self, user_id: str, field: str):
         """Read a field from the latest UserConfig row (append-only, newest first)."""
