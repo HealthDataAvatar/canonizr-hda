@@ -34,7 +34,6 @@ class BlobStore(Protocol):
 
 class JobType(StrEnum):
     CANONIZE = "canonize"
-    DESCRIBE = "describe"
 
 
 class JobStatus(StrEnum):
@@ -70,7 +69,7 @@ class JobMeta:
     retention_expires: str = ""
     steps: str = ""  # JSON span tree from Trace.to_dict()
     price_per_unit: float = 0.0
-    artefacts: str = ""  # JSON manifest from ArtefactWriter.manifest_json()
+    artefacts: str = ""  # JSON manifest from ArtefactStore.manifest_json()
 
 
 @dataclass

@@ -70,7 +70,3 @@ class ArtefactStore:
             [{k: v for k, v in asdict(a).items() if v is not None and v != ""} for a in self._manifest],
             separators=(",", ":"),
         )
-
-
-# Keep old name as alias during migration
-ArtefactWriter = ArtefactStore

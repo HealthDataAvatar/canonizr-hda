@@ -210,7 +210,7 @@ class PostHogEmitter:
 
 
 # ---------------------------------------------------------------------------
-# Context variables — set in process_job, read in retry.py
+# Context variables — set in process_canonize, read in retry.py
 # ---------------------------------------------------------------------------
 
 _current_emitter: contextvars.ContextVar[TelemetryEmitter | None] = contextvars.ContextVar(

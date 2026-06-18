@@ -6,7 +6,7 @@ import os
 import pytest
 
 from app.context import Services
-from app.handlers import AcceptResult, Rejected, accept_job, delete_result, poll_result
+from app.handlers import AcceptResult, Rejected, accept_canonize, delete_result, poll_result
 from app.keys import quota_limit, quota_usage
 from app.protocols import JobResult, JobStatus, UserContext
 from app.quota import QuotaService, current_period_start
@@ -60,7 +60,7 @@ class TestAcceptJob:
     @pytest.mark.asyncio
     async def test_accepts_and_returns_job_id(self):
         svc, _, _ = _make_svc()
-        result = await accept_job(b"hello", "test.txt", "text/plain", "sub_1", svc)
+        result = await accept_canonize(b"hello", "test.txt", "text/plain", "sub_1", svc)
         assert isinstance(result, AcceptResult)
         assert result.job_id
         assert result.estimated_seconds > 0
@@ -69,7 +69,7 @@ class TestAcceptJob:
     @pytest.mark.asyncio
     async def test_writes_blob_and_metadata(self):
         svc, user, _ = _make_svc()
-        result = await accept_job(b"hello", "test.txt", "text/plain", "sub_1", svc)
+        result = await accept_canonize(b"hello", "test.txt", "text/plain", "sub_1", svc)
         blob_key = f"{user.user_id}/{result.job_id}/input.bin"
         assert await svc.blobs.get(blob_key) is not None
         meta = svc.jobs.get(result.job_id)
@@ -80,7 +80,7 @@ class TestAcceptJob:
     @pytest.mark.asyncio
     async def test_enqueues_job(self):
         svc, _, _ = _make_svc()
-        await accept_job(b"hello", "test.txt", "text/plain", "sub_1", svc)
+        await accept_canonize(b"hello", "test.txt", "text/plain", "sub_1", svc)
         # Job should be dequeueable from the queue
         job = await svc.queue.dequeue(timeout=0)
         assert job is not None
@@ -89,21 +89,21 @@ class TestAcceptJob:
     async def test_same_file_gets_new_job(self):
         """No dedup — same file always creates a new job."""
         svc, _, _ = _make_svc()
-        r1 = await accept_job(b"hello", "test.txt", "text/plain", "sub_1", svc)
-        r2 = await accept_job(b"hello", "test.txt", "text/plain", "sub_1", svc)
+        r1 = await accept_canonize(b"hello", "test.txt", "text/plain", "sub_1", svc)
+        r2 = await accept_canonize(b"hello", "test.txt", "text/plain", "sub_1", svc)
         assert r1.job_id != r2.job_id
 
     @pytest.mark.asyncio
     async def test_unknown_subscription_rejected(self):
         svc, _, _ = _make_svc()
         with pytest.raises(Rejected, match="Unknown subscription"):
-            await accept_job(b"hello", "test.txt", "text/plain", "unknown_sub", svc)
+            await accept_canonize(b"hello", "test.txt", "text/plain", "unknown_sub", svc)
 
     @pytest.mark.asyncio
     async def test_unsupported_mime_rejected(self):
         svc, _, _ = _make_svc()
         with pytest.raises(Rejected, match="Unsupported"):
-            await accept_job(b"hello", "test.bin", "application/octet-stream", "sub_1", svc)
+            await accept_canonize(b"hello", "test.bin", "application/octet-stream", "sub_1", svc)
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
@@ -124,7 +124,7 @@ class TestAcceptJob:
     async def test_archive_rejected_with_clear_message(self, mime, ext):
         svc, _, _ = _make_svc()
         with pytest.raises(Rejected) as exc_info:
-            await accept_job(b"fake", ext, mime, "sub_1", svc)
+            await accept_canonize(b"fake", ext, mime, "sub_1", svc)
         assert exc_info.value.status_code == 400
         assert "Archive files" in exc_info.value.detail
         assert "submit each file individually" in exc_info.value.detail
@@ -136,7 +136,7 @@ class TestAcceptJob:
         quota_redis.seed(quota_limit(sub_id="sub_1"), "10")
         quota_redis.seed(quota_usage(sub_id="sub_1", period_start=ps), "10")
         with pytest.raises(Rejected) as exc_info:
-            await accept_job(b"hello", "test.txt", "text/plain", "sub_1", svc)
+            await accept_canonize(b"hello", "test.txt", "text/plain", "sub_1", svc)
         assert exc_info.value.status_code == 429
 
     @pytest.mark.asyncio
@@ -144,7 +144,7 @@ class TestAcceptJob:
         svc, _, quota_redis = _make_svc()
         ps = current_period_start(1)
         quota_redis.seed(quota_limit(sub_id="sub_1"), "100000")
-        await accept_job(b"hello world", "test.txt", "text/plain", "sub_1", svc)
+        await accept_canonize(b"hello world", "test.txt", "text/plain", "sub_1", svc)
         key = quota_usage(sub_id="sub_1", period_start=ps)
         usage = int(quota_redis._data.get(key, "0"))
         assert usage == 11
@@ -155,12 +155,12 @@ class TestAcceptJob:
         svc, _, quota_redis = _make_svc()
         quota_redis.seed(quota_limit(sub_id="sub_1"), "20")
         # First: 10 bytes, usage -> 10, under quota
-        await accept_job(b"0123456789", "a.txt", "text/plain", "sub_1", svc)
+        await accept_canonize(b"0123456789", "a.txt", "text/plain", "sub_1", svc)
         # Second: 10 bytes, usage -> 20, exactly fills quota
-        await accept_job(b"abcdefghij", "b.txt", "text/plain", "sub_1", svc)
+        await accept_canonize(b"abcdefghij", "b.txt", "text/plain", "sub_1", svc)
         # Third: even 1 byte should be rejected -- quota fully consumed
         with pytest.raises(Rejected) as exc_info:
-            await accept_job(b"x", "c.txt", "text/plain", "sub_1", svc)
+            await accept_canonize(b"x", "c.txt", "text/plain", "sub_1", svc)
         assert exc_info.value.status_code == 429
         assert "Quota exceeded" in exc_info.value.detail
 
@@ -172,7 +172,7 @@ class TestAcceptJob:
         quota_redis.seed(quota_limit(sub_id="sub_1"), "10")
         # 100 bytes > 10 byte quota, with 0 usage
         with pytest.raises(Rejected) as exc_info:
-            await accept_job(b"x" * 100, "big.txt", "text/plain", "sub_1", svc)
+            await accept_canonize(b"x" * 100, "big.txt", "text/plain", "sub_1", svc)
         assert exc_info.value.status_code == 429
         assert "File too large" in exc_info.value.detail
         # Usage should NOT have been recorded
@@ -183,7 +183,7 @@ class TestAcceptJob:
     @pytest.mark.asyncio
     async def test_sanitizes_filename(self):
         svc, user, _ = _make_svc()
-        result = await accept_job(b"data", "../../etc/passwd", "text/plain", "sub_1", svc)
+        result = await accept_canonize(b"data", "../../etc/passwd", "text/plain", "sub_1", svc)
         meta = svc.jobs.get(result.job_id)
         assert meta is not None
         assert meta.original_filename == "passwd"
@@ -193,7 +193,7 @@ class TestPollResult:
     @pytest.mark.asyncio
     async def test_processing_returns_202(self):
         svc, _, _ = _make_svc()
-        result = await accept_job(b"hello", "test.txt", "text/plain", "sub_1", svc)
+        result = await accept_canonize(b"hello", "test.txt", "text/plain", "sub_1", svc)
         poll = await poll_result(result.job_id, "sub_1", svc)
         assert poll.status == "processing"
         assert poll.status_code == 202
@@ -209,7 +209,7 @@ class TestPollResult:
         # A non-owner polling a real job_id gets the same "processing" as an
         # unknown id — no metadata leaks and existence is not confirmable.
         svc, user, _ = _make_svc()
-        result = await accept_job(b"hello", "test.txt", "text/plain", "sub_1", svc)
+        result = await accept_canonize(b"hello", "test.txt", "text/plain", "sub_1", svc)
         await svc.queue.store_result(result.job_id, JobResult(job_id=result.job_id, status="ok", status_code=200))
         poll = await poll_result(result.job_id, "sub_other", svc)
         assert poll.status == "processing"
@@ -219,7 +219,7 @@ class TestPollResult:
     @pytest.mark.asyncio
     async def test_completed_job_returns_200(self):
         svc, user, _ = _make_svc()
-        result = await accept_job(b"hello", "test.txt", "text/plain", "sub_1", svc)
+        result = await accept_canonize(b"hello", "test.txt", "text/plain", "sub_1", svc)
 
         # Simulate worker completing the job
         from datetime import UTC, datetime, timedelta
@@ -251,7 +251,7 @@ class TestPollResult:
     @pytest.mark.asyncio
     async def test_deleted_job_returns_410(self):
         svc, user, _ = _make_svc()
-        result = await accept_job(b"hello", "test.txt", "text/plain", "sub_1", svc)
+        result = await accept_canonize(b"hello", "test.txt", "text/plain", "sub_1", svc)
         meta = svc.jobs.get(result.job_id)
         assert meta is not None
         meta.status = JobStatus.DELETED
@@ -265,7 +265,7 @@ class TestPollResult:
     @pytest.mark.asyncio
     async def test_error_job_returns_500(self):
         svc, _, _ = _make_svc()
-        result = await accept_job(b"hello", "test.txt", "text/plain", "sub_1", svc)
+        result = await accept_canonize(b"hello", "test.txt", "text/plain", "sub_1", svc)
         await svc.queue.store_result(
             result.job_id, JobResult(job_id=result.job_id, status="error", detail="boom", status_code=500)
         )
@@ -280,7 +280,7 @@ class TestDeleteResult:
     @pytest.mark.asyncio
     async def test_deletes_blobs_and_marks_deleted(self):
         svc, user, _ = _make_svc()
-        result = await accept_job(b"hello", "test.txt", "text/plain", "sub_1", svc)
+        result = await accept_canonize(b"hello", "test.txt", "text/plain", "sub_1", svc)
         await svc.blobs.put(f"{user.user_id}/{result.job_id}/output.bin", b"output")
 
         found = await delete_result(result.job_id, "sub_1", svc)
@@ -308,7 +308,7 @@ class TestDeleteResult:
         assert isinstance(svc.users, FakeUserResolver)
         svc.users.add("sub_other", UserContext(user_id="user_other", encryption_key=other_key, price_per_unit=0.003))
 
-        result = await accept_job(b"hello", "test.txt", "text/plain", "sub_1", svc)
+        result = await accept_canonize(b"hello", "test.txt", "text/plain", "sub_1", svc)
 
         # Cross-user access is indistinguishable from a missing job (404, not 403).
         with pytest.raises(Rejected, match="not found") as exc_info:
@@ -318,6 +318,6 @@ class TestDeleteResult:
     @pytest.mark.asyncio
     async def test_unknown_subscription_rejected(self):
         svc, _, _ = _make_svc()
-        result = await accept_job(b"hello", "test.txt", "text/plain", "sub_1", svc)
+        result = await accept_canonize(b"hello", "test.txt", "text/plain", "sub_1", svc)
         with pytest.raises(Rejected, match="Unknown subscription"):
             await delete_result(result.job_id, "unknown_sub", svc)
