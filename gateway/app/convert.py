@@ -7,6 +7,7 @@ No AI interpretation — that belongs in the describe pipeline.
 
 from __future__ import annotations
 
+import json
 import logging
 
 from .artefacts import ArtefactStore
@@ -111,13 +112,13 @@ async def _extract_pdf(
 
     # Sequential: native C/Rust libraries (pypdfium2, pikepdf, liteparse) are
     # not guaranteed thread-safe when operating on the same PDF bytes concurrently.
-    text = await _text()
+    pdf_text = await _text()
     rendered = await _pages()
     images = await _images()
     tables = await _tables()
 
     # Inline tables into the markdown
-    text = _inline_tables(text, tables)
+    text = _inline_tables(pdf_text.markdown, tables)
 
     # Store artefacts
     if artefacts:
@@ -136,6 +137,8 @@ async def _extract_pdf(
             if rendered.page_labels:
                 labels_text = "\n".join(rendered.page_labels)
                 await artefacts.put("page-labels", labels_text.encode(), "text/plain")
+            page_boxes = json.dumps(pdf_text.pages)
+            await artefacts.put("text-layout", page_boxes.encode(), "application/json")
             art_span.set(
                 artefact_count=len(artefacts.manifest),
                 image_count=len(images),

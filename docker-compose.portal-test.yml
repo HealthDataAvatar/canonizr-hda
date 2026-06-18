@@ -2,8 +2,6 @@ services:
   azurite:
     image: mcr.microsoft.com/azure-storage/azurite:latest
     command: "azurite --blobHost 0.0.0.0 --tableHost 0.0.0.0 --loose --skipApiVersionCheck"
-    ports:
-      - "10002:10002"
     networks:
       - portal-test
     healthcheck:
@@ -14,8 +12,6 @@ services:
 
   redis:
     image: redis:7-alpine
-    ports:
-      - "6379:6379"
     networks:
       - portal-test
     healthcheck:
@@ -59,8 +55,6 @@ services:
       context: ./portal
       dockerfile: portal-tests.dockerfile
     command: ["node", "stubs/server.mjs"]
-    ports:
-      - "4300:4300"
     environment:
       AZURITE_TABLE_CONN: "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;TableEndpoint=http://azurite:10002/devstoreaccount1"
     networks:
@@ -80,8 +74,6 @@ services:
     build:
       context: ./gateway
       dockerfile: gateway.dockerfile
-    ports:
-      - "8000:8000"
     environment:
       REDIS_URL: redis://redis:6379
       BLOB_STORAGE_CONNECTION_STRING: "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite:10000/devstoreaccount1"
