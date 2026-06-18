@@ -96,6 +96,21 @@ class TestAppendOnly:
         assert fetched.status == JobStatus.OK
         assert fetched.completed_at == "2026-01-01T00:01:00Z"
 
+    def test_update_keeps_single_index_row(self, store: TableJobStore):
+        # The deterministic index RowKey means update() upserts in place — the user's
+        # listing must show exactly one row reflecting the latest status, not a duplicate.
+        uid = f"index-{time.time_ns()}"
+        meta = _make_meta(uid, "j-idx", "2026-01-01T00:00:00Z")
+        store.create(meta)
+
+        meta.status = JobStatus.OK
+        meta.completed_at = "2026-01-01T00:05:00Z"
+        store.update(meta)
+
+        page = store.list_for_user(uid)
+        assert len(page.jobs) == 1
+        assert page.jobs[0].status == JobStatus.OK
+
     def test_mark_deleted(self, store: TableJobStore):
         uid = f"delete-{time.time_ns()}"
         store.create(_make_meta(uid, "doomed", "2026-01-01T00:00:00Z"))

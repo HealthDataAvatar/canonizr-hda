@@ -36,8 +36,16 @@ def _event_rk(job_id: str) -> str:
     return f"{job_id}_{_inverted_ts()}_{secrets.token_urlsafe(3)}"
 
 
-def _index_rk(job_id: str) -> str:
-    return f"{_inverted_ts()}_{job_id}"
+def _index_rk(meta: JobMeta) -> str:
+    """Deterministic index RowKey from created_at — identical at create() and every
+    update(), so updates address the same row (no partition scan, no lost-update race).
+    Inverted timestamp keeps the partition newest-first by document creation time.
+    """
+    try:
+        epoch_ms = int(datetime.fromisoformat(meta.created_at).timestamp() * 1000)
+    except (ValueError, TypeError):
+        epoch_ms = int(time.time() * 1000)  # malformed/empty created_at — fall back to now
+    return f"{str(MAX_EPOCH_MS - epoch_ms).zfill(13)}_{meta.job_id}"
 
 
 class TableJobStore:
@@ -65,10 +73,14 @@ class TableJobStore:
         return None
 
     def update(self, meta: JobMeta) -> None:
-        """Append a new event to GwJobs and update the GwUserJobs index."""
+        """Append a new event to GwJobs and upsert the GwUserJobs index in place.
+
+        The index RowKey is deterministic from created_at (see `_index_rk`), so this
+        addresses the exact row created at create() time — no scan, no lost-update race.
+        If the index row is somehow missing, upsert recreates it (reconciliation).
+        """
         self._jobs.upsert_entity(_to_event(meta))
-        # Update index — need to find existing index row to get its RK
-        self._update_index(meta)
+        self._index.upsert_entity(_to_index(meta))
 
     def mark_deleted(self, job_id: str) -> bool:
         meta = self.get(job_id)
@@ -111,18 +123,6 @@ class TableJobStore:
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _update_index(self, meta: JobMeta) -> None:
-        """Find and update the existing index row for this job."""
-        entities = self._index.query_entities(f"PartitionKey eq '{meta.user_id}'")
-        for entity in entities:
-            rk = entity["RowKey"]
-            if rk.endswith(f"_{meta.job_id}"):
-                entity.update(_index_fields(meta))
-                self._index.upsert_entity(entity)
-                return
-        # No index row found — create one (reconciliation path)
-        self._index.upsert_entity(_to_index(meta))
-
     def _scan_all_shards(self, extra_filter: str) -> list[JobMeta]:
         """Scan GwJobs across all shards. Returns latest event per job."""
         # We need to deduplicate: multiple events per job, we want latest (first per prefix)
@@ -138,25 +138,6 @@ class TableJobStore:
 # ---------------------------------------------------------------------------
 # Entity mapping — GwJobs (append-only events)
 # ---------------------------------------------------------------------------
-
-_EVENT_FIELDS = [
-    "user_id",
-    "job_id",
-    "sub_id",
-    "key_id",
-    "original_filename",
-    "mime_type",
-    "input_bytes",
-    "input_hash",
-    "status",
-    "detail",
-    "created_at",
-    "completed_at",
-    "retention_expires",
-    "steps",
-    "price_per_unit",
-    "artefacts",
-]
 
 
 def _to_event(meta: JobMeta) -> dict:
@@ -238,7 +219,7 @@ def _index_fields(meta: JobMeta) -> dict:
 def _to_index(meta: JobMeta) -> dict:
     return {
         "PartitionKey": meta.user_id,
-        "RowKey": _index_rk(meta.job_id),
+        "RowKey": _index_rk(meta),
         **_index_fields(meta),
     }
 
