@@ -1,5 +1,6 @@
 """Azure Blob Storage implementation of BlobStore protocol."""
 
+from azure.core.exceptions import ResourceExistsError, ResourceNotFoundError
 from azure.storage.blob.aio import BlobServiceClient
 
 
@@ -16,8 +17,8 @@ class AzureBlobStore:
             return
         try:
             await self._client.create_container(self._container)
-        except Exception:
-            pass  # already exists
+        except ResourceExistsError:
+            pass  # already exists — any other error (auth/network) propagates
         self._container_ensured = True
 
     async def put(self, key: str, data: bytes) -> None:
@@ -30,18 +31,15 @@ class AzureBlobStore:
         try:
             stream = await blob.download_blob()
             return await stream.readall()
-        except Exception as e:
-            if "BlobNotFound" in str(e) or "404" in str(e):
-                return None
-            raise
+        except ResourceNotFoundError:
+            return None
 
     async def delete(self, key: str) -> None:
         blob = self._client.get_blob_client(self._container, key)
         try:
             await blob.delete_blob()
-        except Exception as e:
-            if "BlobNotFound" not in str(e) and "404" not in str(e):
-                raise
+        except ResourceNotFoundError:
+            pass  # already gone — idempotent delete
 
     async def delete_prefix(self, prefix: str) -> int:
         container = self._client.get_container_client(self._container)

@@ -177,16 +177,6 @@ class TelemetryEmitter(Protocol):
     def shutdown(self) -> None: ...
 
 
-class LoggingEmitter:
-    """Emits telemetry as structured JSON log lines."""
-
-    def emit(self, event: Any) -> None:
-        logger.info("%s %s", event.event_name, json.dumps(asdict(event)))
-
-    def shutdown(self) -> None:
-        pass
-
-
 class PostHogEmitter:
     """Emits telemetry to PostHog + structured log."""
 

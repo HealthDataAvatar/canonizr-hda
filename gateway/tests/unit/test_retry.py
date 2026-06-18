@@ -14,7 +14,7 @@ from app.services.retry import (
     backoff_delay,
     request_with_retry,
 )
-from app.telemetry import LoggingEmitter, get_telemetry_context, set_telemetry_context
+from app.telemetry import get_telemetry_context, set_telemetry_context
 from app.tracing import Span
 
 
@@ -430,14 +430,14 @@ def test_backoff_delay_exponential_fallback():
 
 
 def test_telemetry_context_includes_mime_type():
-    emitter = LoggingEmitter()
+    emitter = _CapturingEmitter()
     set_telemetry_context(emitter, "job-1", "user-1", mime_type="application/pdf")
     _, _, _, mime_type = get_telemetry_context()
     assert mime_type == "application/pdf"
 
 
 def test_telemetry_context_mime_type_defaults_empty():
-    emitter = LoggingEmitter()
+    emitter = _CapturingEmitter()
     set_telemetry_context(emitter, "job-1", "user-1")
     _, _, _, mime_type = get_telemetry_context()
     assert mime_type == ""

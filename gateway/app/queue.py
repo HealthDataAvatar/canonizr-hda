@@ -132,7 +132,10 @@ class RedisQueue:
                         justid=True,
                     )
                 except Exception:
-                    pass  # best-effort; next beat will retry
+                    # Best-effort: the next beat retries, and a genuinely dead worker's
+                    # jobs are reclaimed via XAUTOCLAIM + the poison cap (both emit
+                    # telemetry), so a single lost heartbeat needs no signal of its own.
+                    pass
 
         return asyncio.create_task(_beat())
 
