@@ -6,6 +6,13 @@ and Retry-After headers on /result polling.
 
 from .mimetypes import LIBREOFFICE_TYPES, MARKITDOWN_TYPES, PASSTHROUGH_TYPES
 
+UNIT_BYTES = 100_000  # 100KB billing unit
+
+
+def billable_units(n_bytes: int) -> int:
+    """Number of 100KB units for a file — rounded up, minimum 1. The single money formula."""
+    return max(1, -(-n_bytes // UNIT_BYTES))
+
 
 def estimate_seconds(mime_type: str, file_size_bytes: int) -> int:
     """Estimate processing time in seconds. Conservative (rounds up)."""

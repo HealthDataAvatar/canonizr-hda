@@ -15,6 +15,10 @@ from typing import Protocol
 
 from .tracing import Span
 
+# Job lifecycle defaults (one home, imported by handlers/worker/sweep).
+DEFAULT_RETENTION_SECONDS = 86_400  # 24 hours
+DEFAULT_JOB_DEADLINE_S = 300.0  # total processing budget per job
+
 # ---------------------------------------------------------------------------
 # Blob storage
 # ---------------------------------------------------------------------------
@@ -166,7 +170,7 @@ class Job:
     sub_id: str
     mime_type: str
     filename: str
-    deadline_seconds: float
+    deadline_seconds: float = DEFAULT_JOB_DEADLINE_S
     job_type: str = JobType.CANONIZE
     verbose: bool = False
     accept_header: str = "application/json"

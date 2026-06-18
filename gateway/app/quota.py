@@ -25,6 +25,12 @@ CACHE_TTL = 3600  # 1 hour
 SENTINEL_NONE = "none"  # cached "no quota set"
 
 
+def _anchor_date(year: int, month: int, anchor_day: int) -> date:
+    """The anchor day in a given month, clamped to the last day (e.g. 31 in Feb -> 28)."""
+    last = calendar.monthrange(year, month)[1]
+    return date(year, month, min(anchor_day, last))
+
+
 def current_period_start(anchor_day: int, now: date | None = None) -> str:
     """Compute the start date (YYYY-MM-DD) of the current billing period.
 
@@ -34,35 +40,27 @@ def current_period_start(anchor_day: int, now: date | None = None) -> str:
     """
     today = now or datetime.now(UTC).date()
 
-    def _clamp(year: int, month: int) -> date:
-        last = calendar.monthrange(year, month)[1]
-        return date(year, month, min(anchor_day, last))
-
-    period = _clamp(today.year, today.month)
+    period = _anchor_date(today.year, today.month, anchor_day)
     if today >= period:
         return period.isoformat()
 
     # Haven't reached anchor day yet — period started last month
     if today.month == 1:
-        return _clamp(today.year - 1, 12).isoformat()
-    return _clamp(today.year, today.month - 1).isoformat()
+        return _anchor_date(today.year - 1, 12, anchor_day).isoformat()
+    return _anchor_date(today.year, today.month - 1, anchor_day).isoformat()
 
 
 def period_ttl(anchor_day: int, now: date | None = None) -> int:
     """Seconds until the next billing period starts (for Redis TTL)."""
     today = now or datetime.now(UTC).date()
 
-    def _clamp(year: int, month: int) -> date:
-        last = calendar.monthrange(year, month)[1]
-        return date(year, month, min(anchor_day, last))
-
-    period = _clamp(today.year, today.month)
+    period = _anchor_date(today.year, today.month, anchor_day)
     if today >= period:
         # Next period is next month
         if today.month == 12:
-            next_period = _clamp(today.year + 1, 1)
+            next_period = _anchor_date(today.year + 1, 1, anchor_day)
         else:
-            next_period = _clamp(today.year, today.month + 1)
+            next_period = _anchor_date(today.year, today.month + 1, anchor_day)
     else:
         next_period = period
 

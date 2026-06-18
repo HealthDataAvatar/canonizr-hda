@@ -28,6 +28,7 @@ import stripe
 from azure.data.tables import TableServiceClient
 
 from .azure_clients import get_table_service
+from .estimates import billable_units
 from .tables import Table
 
 logger = logging.getLogger(__name__)
@@ -81,8 +82,7 @@ class UsageRecord:
 
     @property
     def billable_units(self) -> int:
-        """Number of 100KB units (rounded up)."""
-        return max(1, -(-self.input_size_bytes // 100_000))
+        return billable_units(self.input_size_bytes)
 
     @property
     def event_identifier(self) -> str:

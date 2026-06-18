@@ -13,17 +13,24 @@ from datetime import UTC, datetime
 
 from .context import Services
 from .crypto import decrypt, encrypt
-from .estimates import estimate_seconds
+from .estimates import billable_units, estimate_seconds
 from .hash import document_hash
 from .mimetypes import is_archive_type, is_known_mime_type
-from .protocols import Job, JobMeta, JobStatus, JobType, ResolveMisconfigured, ResolveRejected, UserContext
+from .protocols import (
+    DEFAULT_RETENTION_SECONDS,
+    Job,
+    JobMeta,
+    JobStatus,
+    JobType,
+    ResolveMisconfigured,
+    ResolveRejected,
+    UserContext,
+)
 from .quota import current_period_start
 from .sanitize import content_disposition, sanitize_filename
 from .telemetry import JobAccepted
 
 logger = logging.getLogger(__name__)
-
-DEFAULT_RETENTION_SECONDS = 86_400  # 24 hours
 
 
 # ---------------------------------------------------------------------------
@@ -40,8 +47,7 @@ class AcceptResult:
 
     @property
     def billable_units(self) -> int:
-        """Number of 100KB units (rounded up, minimum 1)."""
-        return max(1, -(-self.input_bytes // 100_000))
+        return billable_units(self.input_bytes)
 
 
 class Rejected(Exception):
@@ -113,7 +119,6 @@ async def accept_canonize(
         sub_id=sub_id,
         mime_type=mime_type,
         filename=filename,
-        deadline_seconds=300.0,
         job_type=JobType.CANONIZE,
     )
 

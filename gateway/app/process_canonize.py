@@ -15,15 +15,13 @@ from .convert import canonize
 from .crypto import decrypt
 from .errors import ServiceNotConfigured, UnsupportedFormat
 from .hash import document_hash
-from .protocols import Job, JobResult, JobStatus, UserContext
+from .protocols import DEFAULT_RETENTION_SECONDS, Job, JobResult, JobStatus, UserContext
 from .services.retry import PermanentUpstreamError, TransientUpstreamError
 from .telemetry import JobCompleted, ServiceStep, set_telemetry_context
 from .tracing import Step, Trace
 from .types import SubmittedFile
 
 logger = logging.getLogger(__name__)
-
-DEFAULT_RETENTION_SECONDS = 86_400  # 24 hours
 
 
 @dataclass

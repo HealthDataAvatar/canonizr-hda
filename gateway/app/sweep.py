@@ -63,7 +63,6 @@ async def _sweep_once(r, svc) -> int:
             sub_id=meta.sub_id,
             mime_type=meta.mime_type,
             filename=meta.original_filename,
-            deadline_seconds=300,
         )
         await svc.queue.enqueue(job)
         svc.telemetry.emit(
