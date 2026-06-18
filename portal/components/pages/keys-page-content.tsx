@@ -99,7 +99,7 @@ export function KeysPageContent({ dataSlot }: { dataSlot: ReactNode }) {
             {
               language: "bash",
               code: `# Submit a document
-POLL_URL=$(curl -s -X POST https://api.canonizr.com/v1/jobs \\
+POLL_URL=$(curl -s -X POST https://api.canonizr.com/v1/canonize \\
   -H "Authorization: Bearer YOUR_API_KEY" \\
   -F "file=@document.pdf" | jq -r .poll_url)
 
@@ -117,7 +117,7 @@ HEADERS = {"Authorization": f"Bearer {API_KEY}"}
 
 # Submit a document
 with open("document.pdf", "rb") as f:
-    job = requests.post(f"{BASE}/v1/jobs", headers=HEADERS, files={"file": f}).json()
+    job = requests.post(f"{BASE}/v1/canonize", headers=HEADERS, files={"file": f}).json()
 
 # Fetch the result
 resp = requests.get(f"{BASE}{job['poll_url']}", headers=HEADERS)
@@ -132,7 +132,7 @@ const BASE = "https://api.canonizr.com";
 const form = new FormData();
 form.append("file", fs.createReadStream("document.pdf"));
 
-const { poll_url } = await fetch(\`\${BASE}/v1/jobs\`, {
+const { poll_url } = await fetch(\`\${BASE}/v1/canonize\`, {
   method: "POST",
   headers: { "Authorization": \`Bearer \${API_KEY}\` },
   body: form,

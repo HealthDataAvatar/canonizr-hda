@@ -55,11 +55,11 @@ describe("gateway table contract", () => {
 });
 
 describe("gateway accepts portal-issued key", () => {
-  it("POST /v1/jobs returns 202 with correct fields", async () => {
+  it("POST /v1/canonize returns 202 with correct fields", async () => {
     const formData = new FormData();
     formData.append("file", new Blob(["Hello from e2e"], { type: "text/plain" }), "test.txt");
 
-    const res = await fetch(`${GATEWAY_URL}/v1/jobs`, {
+    const res = await fetch(`${GATEWAY_URL}/v1/canonize`, {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}` },
       body: formData,
@@ -88,7 +88,7 @@ describe("per-key quota enforcement", () => {
     // 2. Submit a file — should be rejected (429)
     const formData1 = new FormData();
     formData1.append("file", new Blob(["quota test"], { type: "text/plain" }), "quota.txt");
-    const blocked = await fetch(`${GATEWAY_URL}/v1/jobs`, {
+    const blocked = await fetch(`${GATEWAY_URL}/v1/canonize`, {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}` },
       body: formData1,
@@ -106,7 +106,7 @@ describe("per-key quota enforcement", () => {
     // 4. Submit again — should be accepted (202)
     const formData2 = new FormData();
     formData2.append("file", new Blob(["quota test ok"], { type: "text/plain" }), "quota-ok.txt");
-    const allowed = await fetch(`${GATEWAY_URL}/v1/jobs`, {
+    const allowed = await fetch(`${GATEWAY_URL}/v1/canonize`, {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}` },
       body: formData2,

@@ -107,7 +107,7 @@ export function UploadForm({ keySelectorSlot }: UploadFormProps) {
       form.append("file", file);
 
       setStatus("submitting");
-      const submitRes = await fetch(`${GATEWAY_URL}/v1/jobs`, {
+      const submitRes = await fetch(`${GATEWAY_URL}/v1/canonize`, {
         method: "POST",
         headers: { Authorization: `Bearer ${apiKey}` },
         body: form,

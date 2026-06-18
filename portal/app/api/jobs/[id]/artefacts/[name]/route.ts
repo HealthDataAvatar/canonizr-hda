@@ -15,7 +15,7 @@ export const GET = route(async (_request, { params }: { params: Promise<{ id: st
   }
 
   const apiKey = await getUserApiKey(userId);
-  const res = await fetch(`${GATEWAY_URL}/v1/jobs/${id}/artefacts/${name}`, {
+  const res = await fetch(`${GATEWAY_URL}/v1/canonize/${id}/artefacts/${name}`, {
     headers: { Authorization: `Bearer ${apiKey}` },
   });
 

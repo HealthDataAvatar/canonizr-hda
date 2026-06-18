@@ -214,7 +214,7 @@ export async function submitAndPoll(
   const formData = new FormData();
   formData.append("file", new Blob([file.content], { type: file.type }), file.name);
 
-  const submit = await fetch(`${GATEWAY_URL}/v1/jobs`, {
+  const submit = await fetch(`${GATEWAY_URL}/v1/canonize`, {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}` },
     body: formData,
