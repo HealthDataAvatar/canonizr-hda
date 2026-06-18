@@ -369,10 +369,6 @@ class TestAttempt:
         )
         assert att.succeeded is False
 
-    def test_should_retry_on_rate_limit(self):
-        assert _make_attempt(429).should_retry_on_rate_limit is True
-        assert _make_attempt(500).should_retry_on_rate_limit is False
-
 
 # ---------------------------------------------------------------------------
 # _should_keep_trying (pure function)

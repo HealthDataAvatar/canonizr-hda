@@ -56,10 +56,6 @@ class Attempt:
         return self.response is not None and self.status_code not in _RETRY_STATUSES
 
     @property
-    def should_retry_on_rate_limit(self) -> bool:
-        return self.status_code == 429
-
-    @property
     def retry_after(self) -> str | None:
         if self.response is None:
             return None
@@ -87,8 +83,8 @@ def _should_keep_trying(att: Attempt, max_retries: int, deadline: float) -> floa
     if att.succeeded:
         return None
 
-    # 5xx: respect max_retries
-    if not att.should_retry_on_rate_limit and att.attempt_number >= max_retries:
+    # 5xx respects max_retries; 429 keeps retrying until the deadline
+    if att.status_code != 429 and att.attempt_number >= max_retries:
         return None
 
     delay = backoff_delay(att.attempt_number, att.retry_after)
