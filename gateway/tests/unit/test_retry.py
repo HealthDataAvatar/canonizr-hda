@@ -463,7 +463,7 @@ def test_observe_includes_mime_type():
     emitter = _CapturingEmitter()
     set_telemetry_context(emitter, "j1", "u1", mime_type="image/png")
     att = _make_attempt(200)
-    _observe(att, "docling", "POST", span=Span("test"), retrying=False)
+    _observe(att, "docling", "POST", span=Span("test"))
     assert len(emitter.captured) == 1
     assert emitter.captured[0].mime_type == "image/png"
 
@@ -472,5 +472,22 @@ def test_observe_mime_type_empty_when_not_set():
     emitter = _CapturingEmitter()
     set_telemetry_context(emitter, "j1", "u1")
     att = _make_attempt(200)
-    _observe(att, "docling", "POST", span=Span("test"), retrying=False)
+    _observe(att, "docling", "POST", span=Span("test"))
     assert emitter.captured[0].mime_type == ""
+
+
+def test_observe_records_exact_delay_not_a_reroll():
+    # The recorded retry delay must equal the delay we actually sleep — never a
+    # recomputed backoff (which would re-roll the random jitter).
+    att = _make_attempt(503, attempt_number=0)
+    span = Span("test")
+    _observe(att, "docling", "POST", span=span, delay=3.14159)
+    assert len(span.retries) == 1
+    assert span.retries[0].delay_s == 3.14  # rounded to 2dp, exactly what we passed
+
+
+def test_observe_terminal_attempt_records_no_retry():
+    att = _make_attempt(200)
+    span = Span("test")
+    _observe(att, "docling", "POST", span=span)  # no delay -> not retrying
+    assert span.retries == []

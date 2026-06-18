@@ -98,8 +98,14 @@ def _should_keep_trying(att: Attempt, max_retries: int, deadline: float) -> floa
     return delay
 
 
-def _observe(att: Attempt, service_name: str, method: str, span: Span, retrying: bool) -> None:
-    """Emit telemetry and update span after an attempt."""
+def _observe(att: Attempt, service_name: str, method: str, span: Span, delay: float | None = None) -> None:
+    """Emit telemetry and update span after an attempt.
+
+    `delay` is the actual delay before the next attempt (the one we will sleep) when
+    retrying, or None on a terminal attempt. It is recorded verbatim — never recomputed,
+    which would re-roll the jitter and log a delay that doesn't match the real sleep.
+    """
+    retrying = delay is not None
     # Telemetry
     emitter, job_id, user_id, mime_type = get_telemetry_context()
     if emitter is not None:
@@ -126,13 +132,13 @@ def _observe(att: Attempt, service_name: str, method: str, span: Span, retrying:
     if att.error:
         span.set(error=att.error, retry_attempt=att.attempt_number)
 
-    # Span: record retry details
+    # Span: record retry details (delay_s is the real delay we will sleep, not a re-roll)
     if retrying:
         span.add_retry(
             RetryRecord(
                 attempt=att.attempt_number,
                 status_code=att.status_code,
-                delay_s=round(backoff_delay(att.attempt_number, att.retry_after), 2),
+                delay_s=round(delay, 2),
                 retry_after_header=att.retry_after,
             )
         )
@@ -201,7 +207,7 @@ async def request_with_retry(
 
         # Success or non-retryable status
         if att.succeeded:
-            _observe(att, service_name, method, span, retrying=False)
+            _observe(att, service_name, method, span)
             assert att.response is not None
             return att.response
 
@@ -210,14 +216,14 @@ async def request_with_retry(
         if delay is None:
             break
 
-        # Retrying — observe then wait
-        _observe(att, service_name, method, span, retrying=True)
+        # Retrying — observe (recording the exact delay) then wait
+        _observe(att, service_name, method, span, delay=delay)
         await asyncio.sleep(delay)
         attempt_number += 1
 
     # Exhausted — emit final telemetry and raise
     if last is not None:
-        _observe(last, service_name, method, span, retrying=False)
+        _observe(last, service_name, method, span)
         if last.status_code == 429:
             raise TransientUpstreamError(service_name, 429, "rate limit exceeded")
         detail = f"service error {last.status_code}"
