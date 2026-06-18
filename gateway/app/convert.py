@@ -78,13 +78,13 @@ def _inline_tables(text: Markdown, tables: ExtractedTables) -> Markdown:
 # ---------------------------------------------------------------------------
 
 
-async def _extract_pdf_parallel(
+async def _extract_pdf(
     pdf: PdfContent,
     span: Span,
     svc: Services,
     artefacts: ArtefactStore | None,
 ) -> Markdown:
-    """Run all four PDF extractions in parallel, store artefacts, return markdown."""
+    """Run the four PDF extractions, store artefacts, return markdown."""
 
     async def _text():
         with span.span(Service.LITEPARSE) as s:
@@ -197,10 +197,6 @@ async def canonize(
         pdf = PdfContent(data=file.data, source_mime=mime)
 
     if pdf:
-        return await _extract_pdf_parallel(pdf, parent, svc, artefacts)
+        return await _extract_pdf(pdf, parent, svc, artefacts)
 
     raise UnsupportedFormat(mime)
-
-
-# Keep old name as alias during migration
-convert = canonize

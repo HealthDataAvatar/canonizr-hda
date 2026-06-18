@@ -13,7 +13,6 @@ from app.quota import QuotaService, current_period_start
 from tests.fakes import (
     FakeBlobStore,
     FakeEmitter,
-    FakeImageCaptioner,
     FakeImageExtractor,
     FakeJobStore,
     FakeOleConverter,
@@ -43,7 +42,6 @@ def _make_svc(sub_id="sub_1", user_id="user_1"):
             queue=FakeQueue(),
             quota=QuotaService(quota_redis, max_rejected=3),
             telemetry=FakeEmitter(),
-            captioner=FakeImageCaptioner(),
             pdf_text_extractor=FakePdfTextExtractor(),
             pdf_image_extractor=FakeImageExtractor(),
             pdf_table_extractor=FakeTableExtractor(),

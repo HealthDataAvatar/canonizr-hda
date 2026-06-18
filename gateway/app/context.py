@@ -4,7 +4,6 @@ from dataclasses import dataclass
 
 from .protocols import (
     BlobStore,
-    ImageCaptioner,
     ImageExtractor,
     JobStore,
     OleConverter,
@@ -29,7 +28,6 @@ class Services:
     queue: Queue
     quota: QuotaService
     telemetry: TelemetryEmitter
-    captioner: ImageCaptioner
     pdf_text_extractor: PdfTextExtractor
     pdf_image_extractor: ImageExtractor
     pdf_table_extractor: TableExtractor

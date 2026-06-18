@@ -16,7 +16,6 @@ from app.services.retry import TransientUpstreamError
 from tests.fakes import (
     FakeBlobStore,
     FakeEmitter,
-    FakeImageCaptioner,
     FakeImageExtractor,
     FakeJobStore,
     FakeOleConverter,
@@ -30,7 +29,7 @@ from tests.fakes import (
 )
 
 
-def _make_svc(*, pdf_text_extractor=None, captioner=None, ole_converter=None):
+def _make_svc(*, pdf_text_extractor=None, ole_converter=None):
     key = os.urandom(32)
     user = UserContext(user_id="user_1", encryption_key=key, price_per_unit=0.003, key_id="test")
     emitter = FakeEmitter()
@@ -41,7 +40,6 @@ def _make_svc(*, pdf_text_extractor=None, captioner=None, ole_converter=None):
         queue=FakeQueue(),
         quota=QuotaService(FakeRedis()),
         telemetry=emitter,
-        captioner=captioner or FakeImageCaptioner(),
         pdf_text_extractor=pdf_text_extractor or FakePdfTextExtractor(),
         pdf_image_extractor=FakeImageExtractor(),
         pdf_table_extractor=FakeTableExtractor(),
@@ -104,7 +102,7 @@ class TestPdfTextExtractorErrors:
                 Markdown("# Hello world"),
             ]
         )
-        svc, user, _ = _make_svc(pdf_text_extractor=fake_pdf, captioner=FakeImageCaptioner(available=False))
+        svc, user, _ = _make_svc(pdf_text_extractor=fake_pdf)
         job = _make_job(mime_type="application/pdf", filename="test.pdf")
 
         proc = await _seed_and_run(svc, user, job)

@@ -13,7 +13,6 @@ from app.worker import MAX_DELIVERIES, _handle_job
 from tests.fakes import (
     FakeBlobStore,
     FakeEmitter,
-    FakeImageCaptioner,
     FakeImageExtractor,
     FakeJobStore,
     FakeOleConverter,
@@ -39,7 +38,6 @@ def _make_svc():
         queue=FakeQueue(),
         quota=QuotaService(quota_redis),
         telemetry=FakeEmitter(),
-        captioner=FakeImageCaptioner(),
         pdf_text_extractor=FakePdfTextExtractor(),
         pdf_image_extractor=FakeImageExtractor(),
         pdf_table_extractor=FakeTableExtractor(),

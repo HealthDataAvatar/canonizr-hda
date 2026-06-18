@@ -152,7 +152,6 @@ def _emit_telemetry(
         processing_ms=round(processing_ms, 1),
         total_ms=round(total_ms, 1),
         services=services,
-        # images_captioned / prompt_tokens etc. default to 0 — not yet extracted from the span.
     )
     svc.telemetry.emit(event)
 

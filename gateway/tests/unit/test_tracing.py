@@ -129,13 +129,13 @@ def test_to_steps_empty():
 
 def test_to_steps_service_attribute_overrides_name():
     trace = Trace("worker")
-    with trace.span("captioning", service="openai/gpt-4o", images=2):
+    with trace.span("markitdown", service="docling", images=2):
         pass
     trace.finish()
     steps = trace.to_steps()
 
     assert len(steps) == 1
-    assert steps[0].service == "openai/gpt-4o"
+    assert steps[0].service == "docling"
     assert steps[0].attributes["images"] == 2
 
 

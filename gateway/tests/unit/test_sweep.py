@@ -12,7 +12,6 @@ from app.sweep import _sweep_once
 from tests.fakes import (
     FakeBlobStore,
     FakeEmitter,
-    FakeImageCaptioner,
     FakeImageExtractor,
     FakeJobStore,
     FakeOleConverter,
@@ -40,7 +39,6 @@ def _make_svc():
             queue=queue,
             quota=QuotaService(redis, max_rejected=3),
             telemetry=emitter,
-            captioner=FakeImageCaptioner(),
             pdf_text_extractor=FakePdfTextExtractor(),
             pdf_image_extractor=FakeImageExtractor(),
             pdf_table_extractor=FakeTableExtractor(),

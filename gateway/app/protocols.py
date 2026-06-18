@@ -22,7 +22,6 @@ from .types import (
     OoxmlDocument,
     PageRenders,
     PdfContent,
-    VlmImagePNG,
 )
 
 # Job lifecycle defaults (one home, imported by handlers/worker/sweep).
@@ -293,13 +292,6 @@ class OoxmlExtractor(Protocol):
     """Modern office/HTML → markdown via MarkItDown."""
 
     async def extract(self, doc: OoxmlDocument) -> Markdown: ...
-
-
-class ImageCaptioner(Protocol):
-    """Describe a VLM-ready image as text. Token counts go in the span."""
-
-    def is_available(self) -> bool: ...
-    async def caption(self, image: VlmImagePNG, deadline: float, span: Span) -> Markdown: ...
 
 
 class PageRenderer(Protocol):

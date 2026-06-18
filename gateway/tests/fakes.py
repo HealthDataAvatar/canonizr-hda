@@ -18,7 +18,6 @@ from app.types import (
     OoxmlDocument,
     PageRenders,
     PdfContent,
-    VlmImagePNG,
 )
 
 
@@ -196,27 +195,6 @@ class FakeEmitter:
 
     def shutdown(self) -> None:
         pass
-
-
-class FakeImageCaptioner:
-    """Injectable ImageCaptioner. Responses are Markdown strings or Exceptions."""
-
-    def __init__(self, responses: list | None = None, available: bool = True):
-        self._responses = list(responses or [])
-        self._available = available
-        self.calls: list[VlmImagePNG] = []
-
-    def is_available(self) -> bool:
-        return self._available
-
-    async def caption(self, image: VlmImagePNG, deadline: float, span) -> Markdown:
-        self.calls.append(image)
-        if not self._responses:
-            return Markdown("(captioned)")
-        r = self._responses.pop(0)
-        if isinstance(r, Exception):
-            raise r
-        return r
 
 
 class FakePdfTextExtractor:

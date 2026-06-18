@@ -1,7 +1,4 @@
-"""Test image canonization paths.
-
-Images are normalised to PNG — no captioning in the canonize pipeline.
-Captioning moves to the /describe endpoint (future).
+"""Image canonization paths — images are normalised to PNG artefacts.
 
 These are smoke tests — marked to run separately.
 """

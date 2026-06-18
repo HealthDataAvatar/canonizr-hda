@@ -95,10 +95,6 @@ class JobCompleted:
     processing_ms: float = 0.0
     total_ms: float = 0.0
     services: list[ServiceStep] = field(default_factory=list)
-    images_captioned: int = 0
-    images_errored: int = 0
-    prompt_tokens: int = 0
-    completion_tokens: int = 0
 
 
 @dataclass

@@ -21,7 +21,7 @@ class ArtefactMeta:
     name: str  # e.g. "pdf", "page-1", "image-1"
     mime_type: str
     size_bytes: int
-    label: str = ""  # content description only (e.g. "Bar Chart" from captioner)
+    label: str = ""  # content description only (e.g. "Image from page 3")
     source_page: int | None = None  # 1-indexed page this was extracted from
 
 
