@@ -47,5 +47,8 @@ class TestEncryptDecrypt:
             decrypt(bytes(ciphertext), key)
 
     def test_key_wrong_length_raises(self):
-        with pytest.raises(Exception):
-            encrypt(b"data", b"short")
+        # 16/24-byte keys are the dangerous case: AESGCM accepts them (AES-128/192),
+        # so without our guard the cipher would silently downgrade from AES-256.
+        for bad in [b"short", os.urandom(16), os.urandom(24)]:
+            with pytest.raises(ValueError):
+                encrypt(b"data", bad)

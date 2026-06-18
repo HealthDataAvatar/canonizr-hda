@@ -154,11 +154,9 @@ class RedisKVCache(Protocol):
     async def set(self, key: str, value: str, ex: int | None = None, nx: bool = False) -> bool | None: ...
 
 
-class RedisQuotaCache(Protocol):
-    """Async Redis client — get/set plus counters and expiry."""
+class RedisQuotaCache(RedisKVCache, Protocol):
+    """RedisKVCache plus counters and expiry."""
 
-    async def get(self, key: str) -> str | None: ...
-    async def set(self, key: str, value: str, ex: int | None = None, nx: bool = False) -> bool | None: ...
     async def incr(self, key: str) -> int: ...
     async def incrby(self, key: str, amount: int) -> int: ...
     async def decrby(self, key: str, amount: int) -> int: ...
@@ -251,11 +249,6 @@ class Queue(Protocol):
 
     # Startup
     async def ensure_group(self) -> None: ...
-
-
-# ---------------------------------------------------------------------------
-# Upstream service results
-# ---------------------------------------------------------------------------
 
 
 # ---------------------------------------------------------------------------
