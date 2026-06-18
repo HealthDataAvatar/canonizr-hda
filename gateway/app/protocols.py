@@ -14,6 +14,16 @@ from enum import StrEnum
 from typing import Protocol
 
 from .tracing import Span
+from .types import (
+    EmbeddedImage,
+    ExtractedTables,
+    Markdown,
+    OleOfficeDocument,
+    OoxmlDocument,
+    PageRenders,
+    PdfContent,
+    VlmImagePNG,
+)
 
 # Job lifecycle defaults (one home, imported by handlers/worker/sweep).
 DEFAULT_RETENTION_SECONDS = 86_400  # 24 hours
@@ -175,6 +185,7 @@ class Job:
     verbose: bool = False
     accept_header: str = "application/json"
     reclaimed: bool = False  # True if recovered via XAUTOCLAIM
+    delivery_count: int = 1  # times this message has been delivered (XPENDING); >1 means redelivered
 
     @staticmethod
     def create(**kwargs) -> Job:
@@ -251,17 +262,6 @@ class Queue(Protocol):
 # ---------------------------------------------------------------------------
 # Upstream service protocols
 # ---------------------------------------------------------------------------
-
-from .types import (
-    EmbeddedImage,
-    ExtractedTables,
-    Markdown,
-    OleOfficeDocument,
-    OoxmlDocument,
-    PageRenders,
-    PdfContent,
-    VlmImagePNG,
-)
 
 
 class OleConverter(Protocol):

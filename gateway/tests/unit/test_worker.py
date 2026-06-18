@@ -7,9 +7,9 @@ import pytest
 
 from app.context import Services
 from app.keys import quota_usage
-from app.protocols import JobMeta, UserContext
+from app.protocols import JobMeta, JobStatus, UserContext
 from app.quota import QuotaService, current_period_start
-from app.worker import _handle_job
+from app.worker import MAX_DELIVERIES, _handle_job
 from tests.fakes import (
     FakeBlobStore,
     FakeEmitter,
@@ -85,3 +85,45 @@ async def test_no_refund_when_nothing_charged():
 
     # Key never created -> no negative counter.
     assert quota_usage(sub_id="sub_1", period_start=ps) not in quota_redis._data
+
+
+@pytest.mark.asyncio
+async def test_poison_job_is_dead_lettered():
+    """A reclaimed job redelivered past MAX_DELIVERIES is abandoned, not reprocessed."""
+    svc, user, _ = _make_svc()
+    job = _make_job()
+    job.reclaimed = True
+    job.delivery_count = MAX_DELIVERIES + 1
+    svc.jobs.create(JobMeta(user_id=user.user_id, job_id=job.job_id, sub_id="sub_1", status=JobStatus.PROCESSING))
+    # No input blob exists: had it been dispatched, the error detail would be
+    # "Decryption failed", not the poison "abandoned" message — so detail proves it was skipped.
+
+    sem = asyncio.Semaphore(1)
+    await sem.acquire()
+    await _handle_job(job, svc, sem)
+
+    result = await svc.queue.get_result(job.job_id)
+    assert result is not None and result.status == "error"
+    assert "abandoned" in result.detail
+    meta = svc.jobs.get(job.job_id)
+    assert meta is not None and meta.status == JobStatus.ERROR
+    assert "[poison]" in meta.detail
+
+
+@pytest.mark.asyncio
+async def test_reclaimed_job_under_cap_is_processed_normally():
+    """A reclaimed job within the delivery cap is NOT dead-lettered."""
+    svc, user, _ = _make_svc()
+    job = _make_job()
+    job.reclaimed = True
+    job.delivery_count = MAX_DELIVERIES  # at the cap, not over it
+    svc.jobs.create(JobMeta(user_id=user.user_id, job_id=job.job_id, sub_id="sub_1", status=JobStatus.PROCESSING))
+
+    sem = asyncio.Semaphore(1)
+    await sem.acquire()
+    await _handle_job(job, svc, sem)
+
+    # Dispatched (no input blob -> decrypt error), NOT the poison message.
+    result = await svc.queue.get_result(job.job_id)
+    assert result is not None and result.status == "error"
+    assert "abandoned" not in result.detail

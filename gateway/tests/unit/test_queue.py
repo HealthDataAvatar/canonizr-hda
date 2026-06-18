@@ -74,10 +74,26 @@ class TestDequeue:
             sub_id="sub_1", mime_type="text/plain", filename="test.txt", deadline_seconds=30.0
         ).to_fields()
         r.xautoclaim.return_value = ("0-0", [("1-1", fields)], [])
+        r.xpending_range.return_value = [{"message_id": "1-1", "times_delivered": 2}]
         result = await q.dequeue(timeout=5000)
         assert result is not None
         assert result.stream_id == "1-1"
+        assert result.reclaimed is True
+        assert result.delivery_count == 2
         r.xreadgroup.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_reclaim_delivery_count_defaults_to_one(self):
+        r = AsyncMock()
+        q = RedisQueue(r)
+        fields = Job.create(
+            sub_id="sub_1", mime_type="text/plain", filename="test.txt", deadline_seconds=30.0
+        ).to_fields()
+        r.xautoclaim.return_value = ("0-0", [("1-1", fields)], [])
+        r.xpending_range.return_value = []  # XPENDING raced/empty
+        result = await q.dequeue(timeout=5000)
+        assert result is not None
+        assert result.delivery_count == 1
 
     @pytest.mark.asyncio
     async def test_reads_new_when_no_stale(self):

@@ -31,6 +31,9 @@ async def get_redis() -> redis.Redis | redis.RedisCluster | None:
     if not REDIS_URL:
         return None
     if _pool is None:
+        # ponytail: no lock needed — there is no `await` between this check and the
+        # assignment below, so asyncio cannot interleave a second constructor here and
+        # double-build the pool. Keep it await-free; add a lock only if that changes.
         if _is_azure_redis(REDIS_URL):
             parsed = urlparse(REDIS_URL)
             _pool = redis.RedisCluster(

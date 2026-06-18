@@ -8,13 +8,14 @@ import asyncio
 import logging
 import os
 import traceback
+from datetime import UTC, datetime
 
 from .azure_clients import get_blob_service, get_table_service
 from .blob_azure import AzureBlobStore
 from .context import Services
 from .jobs_table import TableJobStore
 from .process import dispatch_job
-from .protocols import Job, JobStatus, UserContext
+from .protocols import Job, JobResult, JobStatus, UserContext
 from .queue import RedisQueue
 from .quota import QuotaService, current_period_start
 from .redis_client import get_redis
@@ -34,6 +35,25 @@ logger = logging.getLogger(__name__)
 MAX_BACKOFF = 60
 MAX_CONSECUTIVE_FAILURES = 20
 MAX_CONCURRENT_JOBS = int(os.environ.get("WORKER_CONCURRENCY", "3"))
+MAX_DELIVERIES = int(os.environ.get("QUEUE_MAX_DELIVERIES", "5"))
+
+
+async def _dead_letter(job: Job, svc: Services) -> None:
+    """Abandon a poison job: store an error result, ack it, and mark the meta failed
+    so the sweep won't re-enqueue it. Called when a job is redelivered too many times."""
+    logger.error("Job %s exceeded %d deliveries — abandoning (poison pill)", job.job_id, MAX_DELIVERIES)
+    detail = "Job failed repeatedly and was abandoned"
+    await svc.queue.store_result(
+        job.job_id, JobResult(job_id=job.job_id, status="error", detail=detail, status_code=500)
+    )
+    await svc.queue.acknowledge(job)
+    meta = svc.jobs.get(job.job_id)
+    if meta and meta.status not in (JobStatus.OK, JobStatus.DELETED):
+        meta.status = JobStatus.ERROR
+        meta.detail = f"[poison] {detail}"
+        meta.completed_at = datetime.now(UTC).isoformat()
+        svc.jobs.update(meta)
+    svc.telemetry.emit(WorkerError(error="poison job abandoned", error_type="poison", job_id=job.job_id))
 
 
 async def _handle_job(job: Job, svc: Services, sem: asyncio.Semaphore) -> None:
@@ -51,6 +71,12 @@ async def _handle_job(job: Job, svc: Services, sem: asyncio.Semaphore) -> None:
             logger.info("Job %s already %s — skipping", job.job_id, meta.status)
             svc.telemetry.emit(JobSkippedIdempotent(job_id=job.job_id, current_status=meta.status))
             await svc.queue.acknowledge(job)
+            return
+
+        # Poison-pill guard: a job redelivered too many times reliably crashes the
+        # worker mid-processing. Abandon it as a failure instead of looping forever.
+        if job.reclaimed and job.delivery_count > MAX_DELIVERIES:
+            await _dead_letter(job, svc)
             return
 
         resolved = await svc.users.resolve(job.sub_id)

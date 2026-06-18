@@ -86,6 +86,7 @@ class RedisQueue:
                 stream_id, fields = claimed
                 job = Job.from_fields(stream_id, fields)
                 job.reclaimed = True
+                job.delivery_count = await self._delivery_count(stream_id)
                 return job
 
             # 2. Non-blocking read for new messages
@@ -105,6 +106,11 @@ class RedisQueue:
                 return None
             await asyncio.sleep(poll_interval)
 
+    async def _delivery_count(self, stream_id: str) -> int:
+        """Times this pending message has been delivered (XAUTOCLAIM increments it)."""
+        pending = await self._r.xpending_range(STREAM_KEY, GROUP_NAME, stream_id, stream_id, 1)
+        return int(pending[0]["times_delivered"]) if pending else 1
+
     def heartbeat(self, job: Job) -> asyncio.Task:
         """Start a background heartbeat that re-claims the message to reset idle time.
 
@@ -115,12 +121,15 @@ class RedisQueue:
             while True:
                 await asyncio.sleep(HEARTBEAT_INTERVAL)
                 try:
+                    # justid=True resets idle time WITHOUT incrementing the delivery
+                    # counter, so heartbeats don't inflate the poison-pill count.
                     await self._r.xclaim(
                         STREAM_KEY,
                         GROUP_NAME,
                         CONSUMER_NAME,
                         min_idle_time=0,
                         message_ids=[job.stream_id],
+                        justid=True,
                     )
                 except Exception:
                     pass  # best-effort; next beat will retry
