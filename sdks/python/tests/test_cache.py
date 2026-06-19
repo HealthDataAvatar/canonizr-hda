@@ -5,8 +5,6 @@ from __future__ import annotations
 from canonizr.cache import DiskCache
 from canonizr.models import ArtefactMeta, JobStatus
 
-from .fakes import FakeClock
-
 
 def _sample_status() -> JobStatus:
     return JobStatus(
@@ -77,20 +75,13 @@ class TestDiskCache:
         assert cache.get_status(h) is None
         assert cache.get_artefact(h, "markdown") is None
 
-    def test_lru_eviction(self, tmp_path):
-        clock = FakeClock()
-        cache = DiskCache(cache_dir=tmp_path, max_entries=3, clock=clock)
-
-        for i in range(5):
-            clock.advance(1.0)
+    def test_no_eviction_keeps_all_entries(self, tmp_path):
+        # No automatic eviction: every put stays until explicitly evicted.
+        cache = DiskCache(cache_dir=tmp_path)
+        for i in range(20):
             cache.put_status(f"hash-{i}", _sample_status())
-
-        # Should have evicted hash-0 and hash-1
-        assert cache.get_status("hash-0") is None
-        assert cache.get_status("hash-1") is None
-        # hash-2, hash-3, hash-4 should remain
-        assert cache.get_status("hash-2") is not None
-        assert cache.get_status("hash-4") is not None
+        assert cache.get_status("hash-0") is not None
+        assert cache.get_status("hash-19") is not None
 
     def test_file_hash_matches_gateway(self, tmp_path):
         """Ensure we use the same hash algorithm as the gateway."""

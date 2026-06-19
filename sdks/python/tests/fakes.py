@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from canonizr._transport import Response
 
@@ -96,16 +96,3 @@ class FakeAsyncTransport:
 
     async def close(self) -> None:
         self.closed = True
-
-
-@dataclass
-class FakeClock:
-    """Controllable clock for cache tests."""
-
-    _time: float = 1000.0
-
-    def now(self) -> float:
-        return self._time
-
-    def advance(self, seconds: float) -> None:
-        self._time += seconds

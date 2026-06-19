@@ -1,31 +1,28 @@
 """Disk cache for canonize results.
 
 Keyed by xxhash of file content (same algorithm as the gateway).
-Stores manifest JSON + artefact files in per-hash directories.
-LRU eviction tracked via access timestamps in a manifest file.
+Stores manifest JSON + artefact files in per-hash directories. No eviction:
+the cache grows until the user clears it (delete the dir). Converted results
+are small and disposable; bounding them isn't worth the bookkeeping.
 
 Structure:
     ~/.cache/canonizr/
         {hash}/
             manifest.json     # JobStatus serialized
             {artefact_name}   # raw artefact bytes
-        _index.json           # hash -> last_access_epoch, for LRU eviction
 """
 
 from __future__ import annotations
 
 import json
 import re
-import time
 from pathlib import Path
-from typing import Protocol
 
 import xxhash
 
 from .models import ArtefactMeta, JobStatus
 
 DEFAULT_CACHE_DIR = Path.home() / ".cache" / "canonizr"
-DEFAULT_MAX_ENTRIES = 500
 
 # Whitelist for server-supplied path segments used as filenames/dirs.
 # Covers both gateway artefact names (^[a-z0-9-]+$) and url-safe job IDs
@@ -62,33 +59,16 @@ def _no_symlink(path: Path) -> Path:
     return path
 
 
-class Clock(Protocol):
-    """Abstraction over time for testing."""
-
-    def now(self) -> float: ...
-
-
-class _SystemClock:
-    def now(self) -> float:
-        return time.time()
-
-
 class DiskCache:
     """File-system cache for canonize results.
 
     Thread safety: not guaranteed — intended for single-process use
-    (CLI, MCP server). The worst case of a race is a redundant API call.
+    (CLI, MCP server). Writes are atomic per-file; concurrent writers
+    to the same hash just overwrite identical content.
     """
 
-    def __init__(
-        self,
-        cache_dir: Path = DEFAULT_CACHE_DIR,
-        max_entries: int = DEFAULT_MAX_ENTRIES,
-        clock: Clock | None = None,
-    ):
+    def __init__(self, cache_dir: Path = DEFAULT_CACHE_DIR):
         self._dir = cache_dir
-        self._max_entries = max_entries
-        self._clock = clock or _SystemClock()
 
     def file_hash(self, data: bytes) -> str:
         """Hash file content (same as gateway's document_hash)."""
@@ -101,7 +81,6 @@ class DiskCache:
             return None
         try:
             data = json.loads(manifest_path.read_text())
-            self._touch(file_hash)
             return _deserialize_status(data)
         except (json.JSONDecodeError, KeyError, TypeError):
             return None
@@ -111,22 +90,18 @@ class DiskCache:
         entry_dir = self._entry_dir(file_hash)
         manifest_path = _no_symlink(entry_dir / "manifest.json")
         manifest_path.write_text(json.dumps(_serialize_status(status), indent=2))
-        self._touch(file_hash)
-        self._evict_if_needed()
 
     def get_artefact(self, file_hash: str, name: str) -> bytes | None:
         """Look up a cached artefact. Returns None on miss."""
         path = self._dir / file_hash / _safe_segment(name)
         if not _is_regular_file(path):
             return None
-        self._touch(file_hash)
         return path.read_bytes()
 
     def put_artefact(self, file_hash: str, name: str, data: bytes) -> None:
         """Cache an artefact's content."""
         entry_dir = self._entry_dir(file_hash)
         _no_symlink(entry_dir / _safe_segment(name)).write_bytes(data)
-        self._touch(file_hash)
 
     def artefact_path(self, file_hash: str, name: str) -> Path | None:
         """Return the filesystem path to a cached artefact, or None if not cached."""
@@ -140,9 +115,6 @@ class DiskCache:
         entry_dir = self._dir / file_hash
         if entry_dir.exists():
             shutil.rmtree(entry_dir)
-        index = self._load_index()
-        index.pop(file_hash, None)
-        self._save_index(index)
 
     # -- internals --
 
@@ -153,37 +125,6 @@ class DiskCache:
         entry = self._dir / file_hash
         entry.mkdir(exist_ok=True, mode=0o700)
         return entry
-
-    def _index_path(self) -> Path:
-        return self._dir / "_index.json"
-
-    def _load_index(self) -> dict[str, float]:
-        path = self._index_path()
-        if not path.exists():
-            return {}
-        try:
-            return json.loads(path.read_text())
-        except (json.JSONDecodeError, TypeError):
-            return {}
-
-    def _save_index(self, index: dict[str, float]) -> None:
-        self._dir.mkdir(parents=True, exist_ok=True, mode=0o700)
-        _no_symlink(self._index_path()).write_text(json.dumps(index))
-
-    def _touch(self, file_hash: str) -> None:
-        index = self._load_index()
-        index[file_hash] = self._clock.now()
-        self._save_index(index)
-
-    def _evict_if_needed(self) -> None:
-        index = self._load_index()
-        if len(index) <= self._max_entries:
-            return
-        # Evict oldest entries
-        sorted_hashes = sorted(index, key=lambda h: index[h])
-        to_evict = sorted_hashes[: len(index) - self._max_entries]
-        for h in to_evict:
-            self.evict(h)
 
 
 def _serialize_status(status: JobStatus) -> dict:
