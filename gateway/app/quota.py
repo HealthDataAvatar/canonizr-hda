@@ -12,18 +12,28 @@ Redis keys:
 
 import calendar
 import logging
+from dataclasses import dataclass
 from datetime import UTC, date, datetime
 
 from azure.data.tables import TableServiceClient
 
-from .keys import quota_limit, quota_rejected, quota_usage
-from .protocols import RedisQuotaCache
+from .keys import account_usage, quota_limit, quota_rejected, quota_usage
+from .protocols import RedisQuotaCache, UserContext
 
 logger = logging.getLogger(__name__)
 
 
 CACHE_TTL = 3600  # 1 hour
 SENTINEL_NONE = "none"  # cached "no quota set"
+
+
+@dataclass
+class Rejection:
+    """A typed quota rejection. `code` is machine-readable; the SDK branches on it."""
+
+    status: int
+    code: str  # rate_limited | quota_exceeded | payment_required
+    detail: str
 
 
 def _anchor_date(year: int, month: int, anchor_day: int) -> date:
@@ -85,18 +95,42 @@ class QuotaService:
         self._max_rejected = max_rejected
         self._ts = table_service
 
-    async def check(self, sub_id: str, content_length: int, anchor_day: int = 1) -> str | None:
-        """Check if a subscription has remaining quota.
+    async def check(self, user: UserContext, sub_id: str, content_length: int) -> Rejection | None:
+        """Check whether a request is allowed. Returns None if allowed, else a Rejection.
 
-        Returns None if allowed, or an error message string if blocked.
+        Order: too-many-rejections (rate_limited) -> free line (payment_required)
+        -> account cap (quota_exceeded) -> per-key quota (quota_exceeded).
         """
+        anchor_day = user.billing_anchor_day
         rejected_count = await self._r.get(quota_rejected(sub_id=sub_id))
         if rejected_count and int(rejected_count) >= self._max_rejected:
-            return "Too many rejected requests — try again later"
+            return Rejection(429, "rate_limited", "Too many rejected requests — try again later")
 
+        ps = current_period_start(anchor_day)
+
+        # Account-level usage drives both the free-line gate and the hard cap.
+        acct_usage = await self._account_usage(user.user_id, ps, anchor_day)
+        projected = acct_usage + content_length
+
+        # Free line: block at the opt-in boundary until the user has enabled paid usage.
+        if not user.paid_enabled and user.free_bytes is not None and projected > user.free_bytes:
+            return Rejection(402, "payment_required", "Enable paid usage to continue past the free allowance")
+
+        # Hard account cap = min(user, admin), resolved in the resolver. Not transient.
+        if user.cap_bytes is not None and projected > user.cap_bytes:
+            await self._incr_rejected(quota_rejected(sub_id=sub_id))
+            return Rejection(429, "quota_exceeded", "Account quota for this period is spent")
+
+        # Per-key quota (unchanged): independent of the account cap.
+        key_rej = await self._check_key_quota(sub_id, content_length, anchor_day, ps)
+        if key_rej is not None:
+            return key_rej
+
+        return None
+
+    async def _check_key_quota(self, sub_id: str, content_length: int, anchor_day: int, ps: str) -> Rejection | None:
         quota_val = await self._r.get(quota_limit(sub_id=sub_id))
         if quota_val is None:
-            # Cache miss — fall back to Table Storage
             table_val = self._lookup_quota_from_table(sub_id)
             if table_val is not None:
                 quota_val = str(table_val)
@@ -109,43 +143,52 @@ class QuotaService:
             return None
 
         limit = int(quota_val)
-        ps = current_period_start(anchor_day)
-        raw = await self._r.get(quota_usage(sub_id=sub_id, period_start=ps))
-        if raw is not None:
-            usage = int(raw)
-        else:
-            # Cache miss — reconstruct from Table Storage and seed Redis
-            usage = self._reconstruct_usage_from_table(sub_id, ps)
-            if usage > 0:
-                key = quota_usage(sub_id=sub_id, period_start=ps)
-                await self._r.set(key, str(usage), ex=period_ttl(anchor_day))
-
-        if usage >= limit:
-            await self._incr_rejected(quota_rejected(sub_id=sub_id))
-            return f"Quota exceeded ({usage} / {limit} bytes used)"
+        usage = await self._key_usage(sub_id, ps, anchor_day)
 
         if usage + content_length > limit:
             await self._incr_rejected(quota_rejected(sub_id=sub_id))
-            remaining = limit - usage
-            return f"File too large for remaining quota ({content_length} bytes, {remaining} remaining)"
-
+            return Rejection(429, "quota_exceeded", "Per-key quota for this period is spent")
         return None
 
-    async def record(self, sub_id: str, input_bytes: int, period_start: str, anchor_day: int = 1) -> None:
-        """Increment the usage counter for a billing period after accepting a job."""
-        key = quota_usage(sub_id=sub_id, period_start=period_start)
-        await self._r.incrby(key, input_bytes)
-        await self._r.expire(key, period_ttl(anchor_day))
+    async def _key_usage(self, sub_id: str, ps: str, anchor_day: int) -> int:
+        raw = await self._r.get(quota_usage(sub_id=sub_id, period_start=ps))
+        if raw is not None:
+            return int(raw)
+        usage = self._reconstruct_usage_from_table(sub_id, ps)
+        if usage > 0:
+            await self._r.set(quota_usage(sub_id=sub_id, period_start=ps), str(usage), ex=period_ttl(anchor_day))
+        return usage
 
-    async def refund(self, sub_id: str, input_bytes: int, period_start: str, anchor_day: int = 1) -> None:
-        """Decrement the usage counter on job failure.
+    async def _account_usage(self, user_id: str, ps: str, anchor_day: int) -> int:
+        raw = await self._r.get(account_usage(user_id=user_id, period_start=ps))
+        if raw is not None:
+            return int(raw)
+        usage = self._reconstruct_account_usage_from_table(user_id, ps)
+        if usage > 0:
+            await self._r.set(account_usage(user_id=user_id, period_start=ps), str(usage), ex=period_ttl(anchor_day))
+        return usage
+
+    async def record(self, sub_id: str, user_id: str, input_bytes: int, period_start: str, anchor_day: int = 1) -> None:
+        """Increment per-key and per-account usage counters after accepting a job."""
+        for key in (
+            quota_usage(sub_id=sub_id, period_start=period_start),
+            account_usage(user_id=user_id, period_start=period_start),
+        ):
+            await self._r.incrby(key, input_bytes)
+            await self._r.expire(key, period_ttl(anchor_day))
+
+    async def refund(self, sub_id: str, user_id: str, input_bytes: int, period_start: str, anchor_day: int = 1) -> None:
+        """Decrement both counters on job failure.
 
         Must target the same period_start the charge landed in — recomputing
         it from the wall clock would refund the wrong period across a rollover.
         """
-        key = quota_usage(sub_id=sub_id, period_start=period_start)
-        await self._r.decrby(key, input_bytes)
-        await self._r.expire(key, period_ttl(anchor_day))
+        for key in (
+            quota_usage(sub_id=sub_id, period_start=period_start),
+            account_usage(user_id=user_id, period_start=period_start),
+        ):
+            await self._r.decrby(key, input_bytes)
+            await self._r.expire(key, period_ttl(anchor_day))
 
     async def _incr_rejected(self, key: str) -> None:
         """Increment a rejection counter with TTL. Two commands for cluster compat."""
@@ -153,7 +196,15 @@ class QuotaService:
         await self._r.expire(key, self._rejected_ttl)
 
     def _reconstruct_usage_from_table(self, sub_id: str, period_start: str) -> int:
-        """Sum input_bytes from GwJobs for this sub_id in the current period.
+        """Sum input_bytes from GwJobs for this sub_id in the current period."""
+        return self._reconstruct("sub_id", sub_id, period_start)
+
+    def _reconstruct_account_usage_from_table(self, user_id: str, period_start: str) -> int:
+        """Sum input_bytes from GwJobs across all of a user's keys in the current period."""
+        return self._reconstruct("user_id", user_id, period_start)
+
+    def _reconstruct(self, field: str, value: str, period_start: str) -> int:
+        """Sum input_bytes from GwJobs where `field` == value in the current period.
 
         Cross-partition scan filtered server-side. Only runs on Redis cache miss.
         """
@@ -163,7 +214,7 @@ class QuotaService:
             return 0
         try:
             table = self._ts.get_table_client(Table.GW_JOBS)
-            filter_expr = f"sub_id eq '{sub_id}' and status eq 'ok' and completed_at ge '{period_start}T00:00:00Z'"
+            filter_expr = f"{field} eq '{value}' and status eq 'ok' and completed_at ge '{period_start}T00:00:00Z'"
             total = 0
             seen: set[str] = set()
             for entity in table.query_entities(filter_expr):
@@ -174,7 +225,7 @@ class QuotaService:
                 total += int(entity.get("input_bytes", 0))
             return total
         except Exception as e:
-            logger.warning("Usage reconstruction failed for %s: %s", sub_id, e)
+            logger.warning("Usage reconstruction failed for %s=%s: %s", field, value, e)
             return 0
 
     def _lookup_quota_from_table(self, sub_id: str) -> int | None:

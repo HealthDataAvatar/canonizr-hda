@@ -107,7 +107,7 @@ async def _handle_job(job: Job, svc: Services, sem: asyncio.Semaphore) -> None:
             meta = svc.jobs.get(job.job_id)
             if meta and meta.input_bytes > 0:
                 ps = meta.period_start or current_period_start(user.billing_anchor_day)
-                await svc.quota.refund(job.sub_id, meta.input_bytes, ps, user.billing_anchor_day)
+                await svc.quota.refund(job.sub_id, meta.user_id, meta.input_bytes, ps, user.billing_anchor_day)
                 logger.info("Job %s failed — refunded %d bytes", job.job_id, meta.input_bytes)
             logger.info("Job %s failed: category=%s detail=%s", job.job_id, proc.error_category, proc.job_result.detail)
 

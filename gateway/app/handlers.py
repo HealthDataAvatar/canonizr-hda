@@ -51,11 +51,16 @@ class AcceptResult:
 
 
 class Rejected(Exception):
-    """Raised when a request is rejected (quota, auth, etc.)."""
+    """Raised when a request is rejected (quota, auth, etc.).
 
-    def __init__(self, status_code: int, detail: str):
+    `code` is a machine-readable enum the client branches on; None means a
+    generic rejection sanitised by status alone.
+    """
+
+    def __init__(self, status_code: int, detail: str, code: str | None = None):
         self.status_code = status_code
         self.detail = detail
+        self.code = code
         super().__init__(detail)
 
 
@@ -109,10 +114,10 @@ async def accept_canonize(
     # Quota check + immediate reservation (period-scoped to billing anchor).
     # Pin the period now so the worker's refund-on-failure targets the same one.
     period_start = current_period_start(user.billing_anchor_day)
-    rejection = await svc.quota.check(sub_id, len(file_bytes), user.billing_anchor_day)
+    rejection = await svc.quota.check(user, sub_id, len(file_bytes))
     if rejection:
-        raise Rejected(429, rejection)
-    await svc.quota.record(sub_id, len(file_bytes), period_start, user.billing_anchor_day)
+        raise Rejected(rejection.status, rejection.detail, rejection.code)
+    await svc.quota.record(sub_id, user.user_id, len(file_bytes), period_start, user.billing_anchor_day)
 
     doc_hash = document_hash(file_bytes)
     job = Job.create(

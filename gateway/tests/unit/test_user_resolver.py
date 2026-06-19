@@ -55,3 +55,59 @@ class TestCachedNum:
         res, r = _resolver()
         r.seed("ck", "0")
         assert await res._cached_num("ck", lambda: pytest.fail("loader should not run"), default=5, cast=int) == 0
+
+
+class TestQuotaConfig:
+    """_get_quota_config: units->bytes conversion and min(user, admin) cap."""
+
+    @pytest.mark.asyncio
+    async def test_converts_units_to_bytes_and_takes_min_cap(self, monkeypatch):
+        from app.estimates import UNIT_BYTES
+
+        res, r = _resolver()
+        monkeypatch.setattr(
+            res,
+            "_get_latest_config_row",
+            lambda uid: {"freeUnits": 10, "paidEnabled": True, "spendCapUnits": 50, "adminCapUnits": 30},
+        )
+        free, paid, cap = await res._get_quota_config("u1")
+        assert free == 10 * UNIT_BYTES
+        assert paid is True
+        assert cap == 30 * UNIT_BYTES  # min(50, 30)
+
+    @pytest.mark.asyncio
+    async def test_null_caps_mean_unlimited(self, monkeypatch):
+        res, r = _resolver()
+        monkeypatch.setattr(
+            res,
+            "_get_latest_config_row",
+            lambda uid: {"freeUnits": None, "paidEnabled": False, "spendCapUnits": None, "adminCapUnits": None},
+        )
+        free, paid, cap = await res._get_quota_config("u1")
+        assert free is None and cap is None and paid is False
+
+    @pytest.mark.asyncio
+    async def test_one_cap_set_wins(self, monkeypatch):
+        from app.estimates import UNIT_BYTES
+
+        res, r = _resolver()
+        monkeypatch.setattr(
+            res,
+            "_get_latest_config_row",
+            lambda uid: {"freeUnits": 5, "spendCapUnits": None, "adminCapUnits": 7},
+        )
+        _, _, cap = await res._get_quota_config("u1")
+        assert cap == 7 * UNIT_BYTES
+
+    @pytest.mark.asyncio
+    async def test_caches_blob(self, monkeypatch):
+        res, r = _resolver()
+        calls = []
+        monkeypatch.setattr(
+            res,
+            "_get_latest_config_row",
+            lambda uid: (calls.append(uid), {"freeUnits": 1, "spendCapUnits": None, "adminCapUnits": None})[1],
+        )
+        await res._get_quota_config("u1")
+        await res._get_quota_config("u1")
+        assert len(calls) == 1  # second call served from cache

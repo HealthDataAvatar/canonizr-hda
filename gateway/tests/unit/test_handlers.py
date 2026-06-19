@@ -158,7 +158,7 @@ class TestAcceptJob:
         with pytest.raises(Rejected) as exc_info:
             await accept_canonize(b"x", "c.txt", "text/plain", "sub_1", svc)
         assert exc_info.value.status_code == 429
-        assert "Quota exceeded" in exc_info.value.detail
+        assert exc_info.value.code == "quota_exceeded"
 
     @pytest.mark.asyncio
     async def test_file_larger_than_total_quota(self):
@@ -170,7 +170,7 @@ class TestAcceptJob:
         with pytest.raises(Rejected) as exc_info:
             await accept_canonize(b"x" * 100, "big.txt", "text/plain", "sub_1", svc)
         assert exc_info.value.status_code == 429
-        assert "File too large" in exc_info.value.detail
+        assert exc_info.value.code == "quota_exceeded"
         # Usage should NOT have been recorded
         key = quota_usage(sub_id="sub_1", period_start=ps)
         usage = int(quota_redis._data.get(key, "0"))

@@ -6,16 +6,19 @@ Lookup chain:
   user_id -> billing_anchor_day (Redis cache, then GwBilling table)
 """
 
+import json
 import logging
 
 from azure.data.tables import TableServiceClient
 
+from .estimates import UNIT_BYTES
 from .keys import (
     billing_anchor_cache,
     encryption_key_cache,
     key_name_cache,
     price_per_unit_cache,
     user_blocked,
+    user_config_cache,
     user_id_cache,
 )
 from .protocols import RedisKVCache, ResolveMisconfigured, ResolveRejected, ResolveResult, UserContext
@@ -57,6 +60,7 @@ class TableUserResolver:
         # price_per_unit defaults to DEFAULT_PRICE_PER_UNIT when unconfigured (never blocks).
         ppu = await self._get_price_per_unit(uid)
         anchor = await self._get_billing_anchor(uid)
+        free_bytes, paid_enabled, cap_bytes = await self._get_quota_config(uid)
 
         return UserContext(
             user_id=uid,
@@ -64,6 +68,9 @@ class TableUserResolver:
             key_id=kname,
             price_per_unit=ppu,
             billing_anchor_day=anchor,
+            free_bytes=free_bytes,
+            paid_enabled=paid_enabled,
+            cap_bytes=cap_bytes,
         )
 
     # --- cache-aside helpers -------------------------------------------------
@@ -128,6 +135,36 @@ class TableUserResolver:
             cast=float,
         )
 
+    async def _get_quota_config(self, user_id: str) -> tuple[int | None, bool, int | None]:
+        """Resolve (free_bytes, paid_enabled, cap_bytes) from UserConfig.
+
+        Caps are stored in 100KB units; converted to bytes here so the rest of
+        the gateway stays in bytes. cap_bytes = min(user, admin) caps (lower wins,
+        null = unlimited). Cached as a JSON blob — all three change together.
+        """
+        ck = user_config_cache(user_id=user_id)
+        cached = await self._r.get(ck)
+        if cached is not None:
+            d = json.loads(cached)
+            return d["free_bytes"], d["paid_enabled"], d["cap_bytes"]
+
+        row = self._get_latest_config_row(user_id)
+        free_units = row.get("freeUnits") if row else None
+        paid_enabled = bool(row.get("paidEnabled")) if row else False
+        user_cap = row.get("spendCapUnits") if row else None
+        admin_cap = row.get("adminCapUnits") if row else None
+
+        free_bytes = int(free_units) * UNIT_BYTES if free_units is not None else None
+        caps = [int(c) for c in (user_cap, admin_cap) if c is not None]
+        cap_bytes = min(caps) * UNIT_BYTES if caps else None
+
+        await self._r.set(
+            ck,
+            json.dumps({"free_bytes": free_bytes, "paid_enabled": paid_enabled, "cap_bytes": cap_bytes}),
+            ex=CACHE_TTL,
+        )
+        return free_bytes, paid_enabled, cap_bytes
+
     async def _get_billing_anchor(self, user_id: str) -> int:
         return await self._cached_num(
             billing_anchor_cache(user_id=user_id),
@@ -138,10 +175,15 @@ class TableUserResolver:
 
     def _get_latest_config(self, user_id: str, field: str):
         """Read a field from the latest UserConfig row (append-only, newest first)."""
+        row = self._get_latest_config_row(user_id)
+        return row.get(field) if row else None
+
+    def _get_latest_config_row(self, user_id: str) -> dict | None:
+        """Read the latest UserConfig row (append-only, newest first)."""
         try:
             table = self._ts.get_table_client(Table.USER_CONFIG)
             for entity in table.query_entities(f"PartitionKey eq '{user_id}'"):
-                return entity.get(field)
+                return dict(entity)
             return None
         except Exception as e:
             logger.warning("UserConfig lookup failed for %s: %s", user_id, e)

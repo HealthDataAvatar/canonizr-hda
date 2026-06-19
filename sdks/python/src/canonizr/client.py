@@ -51,12 +51,15 @@ def _raise_error(resp: Response) -> None:
     Tolerates non-JSON bodies (e.g. an HTML 502 from a proxy) and carries
     the parsed Retry-After through to RateLimitError.
     """
+    code = None
     try:
-        detail = resp.json().get("detail", resp.body.decode(errors="replace"))
+        body = resp.json()
+        detail = body.get("detail", resp.body.decode(errors="replace"))
+        code = body.get("code")
     except (ValueError, UnicodeDecodeError):
         detail = resp.body.decode(errors="replace") or f"HTTP {resp.status_code}"
     retry_after = parse_retry_after(resp.headers.get("retry-after"))
-    raise_for_status(resp.status_code, detail, retry_after)
+    raise_for_status(resp.status_code, detail, retry_after, code)
 
 
 def _check_submit(resp: Response) -> SubmitResult:

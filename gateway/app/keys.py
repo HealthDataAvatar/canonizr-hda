@@ -31,6 +31,11 @@ def quota_usage(*, sub_id: str, period_start: str) -> str:
     return f"sub:{sub_id}:bytes:{period_start}"
 
 
+def account_usage(*, user_id: str, period_start: str) -> str:
+    """Counter: total bytes used across all of a user's keys this billing period."""
+    return f"user:{user_id}:bytes:{period_start}"
+
+
 def quota_limit(*, sub_id: str) -> str:
     """Value: user-configured byte limit (absent = unlimited)."""
     return f"sub:{sub_id}:quota:bytes"
@@ -57,6 +62,11 @@ def price_per_unit_cache(*, user_id: str) -> str:
 def billing_anchor_cache(*, user_id: str) -> str:
     """Cache: user billing anchor day (immutable after signup)."""
     return f"user:{user_id}:billing_anchor_day"
+
+
+def user_config_cache(*, user_id: str) -> str:
+    """Cache: user quota config blob (free/cap units + paid opt-in) as JSON."""
+    return f"user:{user_id}:quota_config"
 
 
 # -- Job queue --

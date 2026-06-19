@@ -117,6 +117,9 @@ class UserContext:
     price_per_unit: float
     key_id: str = ""
     billing_anchor_day: int = 1  # day of month (1-31) for billing period start
+    free_bytes: int | None = None  # opt-in line; None = unlimited free (no gate)
+    paid_enabled: bool = False  # user opted in to paid usage past the free line
+    cap_bytes: int | None = None  # hard account cap = min(user, admin) caps; None = uncapped
 
 
 @dataclass

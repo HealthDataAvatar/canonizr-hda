@@ -55,7 +55,7 @@ async def test_refunds_charged_quota_on_early_failure():
     job = _make_job()
 
     # Gateway charged 1000 bytes at accept and recorded period_start on the job.
-    await svc.quota.record("sub_1", 1000, ps)
+    await svc.quota.record("sub_1", "user_1", 1000, ps)
     svc.jobs.create(JobMeta(user_id=user.user_id, job_id=job.job_id, sub_id="sub_1", input_bytes=1000, period_start=ps))
 
     # No input blob exists -> process_canonize returns error with file_size=0.

@@ -82,6 +82,15 @@ SANITISED_MESSAGES = {
     504: "Upstream service timeout",
 }
 
+# Curated safe message per machine-readable rejection code. The client branches
+# on `code`; the message is human-facing and leaks nothing.
+CODE_MESSAGES = {
+    "rate_limited": "Too many requests — retry after the indicated delay.",
+    "quota_exceeded": "Account quota for this period is spent.",
+    "payment_required": "Enable paid usage in the portal to continue past the free allowance.",
+}
+RATE_LIMIT_RETRY_AFTER = 60  # seconds; only attached to rate_limited responses
+
 if CORS_ORIGINS:
     app.add_middleware(CORSMiddleware, allow_origins=CORS_ORIGINS, allow_methods=["*"], allow_headers=["*"])
 
@@ -112,6 +121,25 @@ async def sanitise_errors(request: Request, exc: HTTPException):
     return JSONResponse(status_code=exc.status_code, content={"detail": safe_message})
 
 
+@app.exception_handler(Rejected)
+async def rejected_handler(request: Request, exc: Rejected):
+    """Typed rejection -> JSON body with machine-readable `code`.
+
+    Untyped rejections (code=None) fall back to status-keyed sanitisation.
+    """
+    if exc.code is None:
+        safe = exc.detail if DEBUG_MODE else SANITISED_MESSAGES.get(exc.status_code, exc.detail)
+        return JSONResponse(status_code=exc.status_code, content={"detail": safe})
+
+    detail = exc.detail if DEBUG_MODE else CODE_MESSAGES.get(exc.code, exc.detail)
+    body: dict = {"code": exc.code, "detail": detail}
+    headers = {}
+    if exc.code == "rate_limited":
+        body["retry_after"] = RATE_LIMIT_RETRY_AFTER
+        headers["Retry-After"] = str(RATE_LIMIT_RETRY_AFTER)
+    return JSONResponse(status_code=exc.status_code, content=body, headers=headers)
+
+
 async def _read_file(file: UploadFile) -> bytes:
     buf = bytearray()
     while chunk := await file.read(1024 * 1024):
@@ -132,10 +160,8 @@ async def create_canonize_job(request: Request, file: UploadFile = File(...)):
     # formats magic can't see inside (zip-container office docs, unidentifiable blobs).
     mime_type = reconcile_mime(magic.from_buffer(file_bytes, mime=True), file.content_type or "")
 
-    try:
-        result = await accept_canonize(file_bytes, file.filename or "document", mime_type, sub_id, _svc)
-    except Rejected as e:
-        raise HTTPException(status_code=e.status_code, detail=e.detail)
+    # Rejected propagates to rejected_handler (typed body with machine-readable code).
+    result = await accept_canonize(file_bytes, file.filename or "document", mime_type, sub_id, _svc)
 
     poll_url = f"/v1/canonize/{result.job_id}"
     return JSONResponse(
@@ -170,10 +196,7 @@ async def get_canonize_job(request: Request, job_id: str):
 async def delete_canonize_job(request: Request, job_id: str):
     assert _svc is not None
     sub_id = await _get_sub_id(request)
-    try:
-        found = await delete_result(job_id, sub_id, _svc)
-    except Rejected as e:
-        raise HTTPException(status_code=e.status_code, detail=e.detail)
+    found = await delete_result(job_id, sub_id, _svc)
     if not found:
         raise HTTPException(status_code=404, detail="Job not found")
     return Response(status_code=204)
@@ -183,10 +206,7 @@ async def delete_canonize_job(request: Request, job_id: str):
 async def get_canonize_artefact(request: Request, job_id: str, name: str):
     assert _svc is not None
     sub_id = await _get_sub_id(request)
-    try:
-        result = await download_artefact(job_id, sub_id, name, _svc)
-    except Rejected as e:
-        raise HTTPException(status_code=e.status_code, detail=e.detail)
+    result = await download_artefact(job_id, sub_id, name, _svc)
     return Response(
         content=result.data,
         media_type=result.content_type,

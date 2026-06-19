@@ -208,6 +208,36 @@ class TestSubmitErrors:
         with pytest.raises(RateLimitError):
             client.canonize(f)
 
+    def test_429_rate_limited_code_is_retryable_error(self, tmp_path):
+        from canonizr import RateLimitError as RLE
+
+        t = FakeTransport()
+        t.enqueue(json_response(429, {"code": "rate_limited", "detail": "slow down"}))
+        f = tmp_path / "doc.pdf"
+        f.write_bytes(b"content")
+        with pytest.raises(RLE):
+            _make_client(t).canonize(f)
+
+    def test_429_quota_exceeded_code_is_terminal(self, tmp_path):
+        from canonizr import QuotaExceededError
+
+        t = FakeTransport()
+        t.enqueue(json_response(429, {"code": "quota_exceeded", "detail": "spent"}))
+        f = tmp_path / "doc.pdf"
+        f.write_bytes(b"content")
+        with pytest.raises(QuotaExceededError):
+            _make_client(t).canonize(f)
+
+    def test_402_payment_required_code_is_terminal(self, tmp_path):
+        from canonizr import PaymentRequiredError
+
+        t = FakeTransport()
+        t.enqueue(json_response(402, {"code": "payment_required", "detail": "opt in"}))
+        f = tmp_path / "doc.pdf"
+        f.write_bytes(b"content")
+        with pytest.raises(PaymentRequiredError):
+            _make_client(t).canonize(f)
+
 
 class TestGetStatus:
     def test_returns_status(self):

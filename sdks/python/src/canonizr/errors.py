@@ -19,11 +19,31 @@ class AuthError(CanonizrError):
 
 
 class RateLimitError(CanonizrError):
-    """429 — rate limit or quota exceeded."""
+    """429 `rate_limited` — too many requests too quickly. Retryable after a delay."""
 
     def __init__(self, message: str, retry_after: float | None = None):
         self.retry_after = retry_after
         super().__init__(message, status_code=429)
+
+
+class QuotaExceededError(CanonizrError):
+    """429 `quota_exceeded` — account or per-key quota for this period is spent.
+
+    Terminal: retrying won't help until the billing period resets or the cap is raised.
+    """
+
+    def __init__(self, message: str = "Quota exceeded for this billing period"):
+        super().__init__(message, status_code=429)
+
+
+class PaymentRequiredError(CanonizrError):
+    """402 `payment_required` — free allowance reached and paid usage not enabled.
+
+    Terminal: enable paid usage in the portal to continue.
+    """
+
+    def __init__(self, message: str = "Enable paid usage to continue past the free allowance"):
+        super().__init__(message, status_code=402)
 
 
 class FileTooLargeError(CanonizrError):
@@ -71,8 +91,18 @@ _STATUS_ERRORS: dict[int, type[CanonizrError]] = {
 }
 
 
-def raise_for_status(status_code: int, detail: str, retry_after: float | None = None) -> None:
-    """Raise the appropriate CanonizrError for an HTTP status code."""
+def raise_for_status(
+    status_code: int, detail: str, retry_after: float | None = None, code: str | None = None
+) -> None:
+    """Raise the appropriate CanonizrError. The typed `code` wins over status alone.
+
+    A 429 can be transient (`rate_limited`) or terminal (`quota_exceeded`) — the
+    client must branch on `code`, not status, to know whether to back off.
+    """
+    if code == "payment_required":
+        raise PaymentRequiredError(detail)
+    if code == "quota_exceeded":
+        raise QuotaExceededError(detail)
     if status_code == 429:
         raise RateLimitError(detail, retry_after=retry_after)
     cls = _STATUS_ERRORS.get(status_code)
