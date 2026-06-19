@@ -1,1 +1,0 @@
-The playground output isn't always clean markdown. Best to just show the plain text version.

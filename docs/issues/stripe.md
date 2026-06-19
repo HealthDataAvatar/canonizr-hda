@@ -113,6 +113,21 @@ Hourly Container App Job that pushes meter events to Stripe.
 
 ## Remaining Work
 
+### P1: Per-customer billing tiers (business partner rates)
+
+**Current gap:** per-customer rates are cosmetic. Every subscription uses the one shared price `canonizr_per_100kb`; `usage_report.py` pushes quantity only. `pricePerUnit` **and** `freeUnits` in `UserConfig` feed only the portal *estimate* (`billing-calc.ts`) — neither reaches Stripe. A custom rate/allowance changes the displayed estimate, not the invoice.
+
+**Plan (decided: Option A — Stripe owns pricing; a few named tiers; changes take effect next period):**
+
+- **Tier registry** (one source of truth, portal e.g. `lib/billing/tiers.ts`): each tier = `{ ratePerUnit, freeUnits, lookupKey }`. Used to provision Stripe Prices, render the estimate, and populate the admin dropdown — so estimate and invoice can't drift.
+- **Stripe Prices:** one **graduated metered Price** per tier (tier 1 `0..freeUnits` at $0, tier 2 rest at rate), all on the existing meter. Free units then bill natively; `usage_report.py` unchanged. Prices are immutable — new economics = new `lookupKey` + reassign.
+- **Data model:** add `billingTier` to `UserConfig` (default `standard`); it becomes the single per-user control. `pricePerUnit`/`freeUnits` survive only as portal-derived mirrors (for the estimate + the gateway per-job historical snapshot). Admin UI: tier dropdown, not raw numbers.
+- **Flows:** `createCustomer` assigns the tier's Price; admin tier change swaps the subscription item's Price at the next period boundary via a **Subscription Schedule**; reporter + estimate both derive from the registry.
+- **Gateway:** ~no change — `_get_price_per_unit` already defaults to `0.003` when unconfigured (so it never blocks; the old `ResolveMisconfigured("No price_per_unit")` branch was dead and has been removed). Under tiers, point that default at the standard tier's rate. Quota cap (`quota.py`) is unrelated.
+- **Migration:** provision tier Prices → backfill `billingTier` from existing rates → reassign subscriptions (next period).
+- **Open:** assumed each tier bundles rate **and** free allowance; confirm whether free is independent of rate.
+- **Stale doc:** `docs/user-portal.md:138` claims usage reporting reads `price_per_unit` — it doesn't; fix when this ships.
+
 ### P2: Approaching-limit notifications
 
 Portal could show usage percentage on the billing page. Consider `X-Free-Remaining` API response header. Email notifications would need tracking to avoid spam.

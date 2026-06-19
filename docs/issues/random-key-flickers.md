@@ -1,1 +1,0 @@
-Page re-renders generate a new key name, meaning we get awkward flickers. That should be stable (client-side?)
