@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from canonizr import Canonizr, AsyncCanonizr, AuthError, UnsupportedFileError
+from canonizr import AsyncCanonizr, AuthError, Canonizr, UnsupportedFileError
 from canonizr.cache import DiskCache
 
 from .conftest import GATEWAY_URL, SeedCredentials

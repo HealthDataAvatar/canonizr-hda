@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-import pytest
-
 from canonizr._transport import Response
 from canonizr.cache import DiskCache
 from canonizr.client import AsyncCanonizr
 from canonizr.mcp_server import Deps, handle_convert_file, handle_get_artefact
 
-from .fakes import FakeAsyncTransport, json_response, json_response_with_headers
+from .fakes import FakeAsyncTransport, json_response
 
 SUBMIT_OK = json_response(202, {
     "job_id": "job-1",
@@ -90,18 +88,20 @@ class TestConvertFile:
         f = tmp_path / "doc.txt"
         f.write_bytes(b"hello world")
 
-        # First call — hits API
-        result1 = await handle_convert_file(str(f), deps)
-        request_count_after_first = len(t.requests)
+        # First call — hits API (POST + poll GET + artefact GET)
+        await handle_convert_file(str(f), deps)
+        requests_after_first = list(t.requests)
 
-        # Second call — cache hit, no new API calls
-        # Need to enqueue a markdown response for the cached fetch
+        # Second call — cache hit. Enqueue only the cached artefact fetch.
         t.enqueue(md_resp)
         result2 = await handle_convert_file(str(f), deps)
 
-        # Cache hit means no POST or poll GET — only maybe an artefact fetch
-        # if the artefact wasn't cached yet
         assert result2[0].text.startswith("Converted:")
+        # The cache hit must skip submit + poll: the only new request is the
+        # lazy artefact fetch (one GET), and definitely no POST.
+        new_requests = t.requests[len(requests_after_first):]
+        assert all(r.method == "GET" for r in new_requests)
+        assert not any(r.method == "POST" for r in new_requests)
 
     async def test_text_only_no_binary_section(self, tmp_path):
         t = FakeAsyncTransport()

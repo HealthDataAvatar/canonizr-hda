@@ -6,7 +6,7 @@ from canonizr import Canonizr
 from canonizr._transport import Response
 from canonizr.cache import DiskCache
 
-from .fakes import FakeTransport, json_response, json_response_with_headers
+from .fakes import FakeTransport, json_response
 
 SUBMIT_OK = json_response(202, {
     "job_id": "abc123",
@@ -82,7 +82,7 @@ class TestCacheHit:
         f.write_bytes(b"pdf content")
 
         # First canonize caches manifest but not artefacts
-        result1 = client.canonize(f)
+        client.canonize(f)
         assert len(t.requests) == 2
 
         # Second canonize — cache hit for manifest, miss for artefact
