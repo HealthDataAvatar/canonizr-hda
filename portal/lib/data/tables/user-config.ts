@@ -19,7 +19,9 @@ export function getDefaults(): Omit<UserConfigRecord, "changedBy" | "timestamp">
       freeUnits: requireEnvNumber("DEFAULT_FREE_UNITS"),
       maxKeys: 100,
       pricePerUnit: requireEnvNumber("DEFAULT_PRICE_PER_UNIT"),
-      spendCapKB: null,
+      spendCapUnits: null,
+      adminCapUnits: null,
+      paidEnabled: false,
     };
   }
   return _defaults;
@@ -37,7 +39,9 @@ export async function getCurrentConfig(userId: string): Promise<UserConfigRecord
     freeUnits: (row.freeUnits as number) ?? getDefaults().freeUnits,
     maxKeys: (row.maxKeys as number) ?? getDefaults().maxKeys,
     pricePerUnit: (row.pricePerUnit as number) ?? getDefaults().pricePerUnit,
-    spendCapKB: (row.spendCapKB as number) ?? null,
+    spendCapUnits: (row.spendCapUnits as number) ?? null,
+    adminCapUnits: (row.adminCapUnits as number) ?? null,
+    paidEnabled: (row.paidEnabled as boolean) ?? false,
     changedBy: (row.changedBy as string) ?? "system",
     timestamp: (row.timestamp as string) ?? "",
   };
@@ -55,7 +59,9 @@ export async function appendConfig(
     freeUnits: config.freeUnits,
     maxKeys: config.maxKeys,
     pricePerUnit: config.pricePerUnit,
-    spendCapKB: config.spendCapKB,
+    spendCapUnits: config.spendCapUnits,
+    adminCapUnits: config.adminCapUnits,
+    paidEnabled: config.paidEnabled,
     changedBy: config.changedBy,
   });
 }

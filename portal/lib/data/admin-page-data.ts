@@ -100,7 +100,9 @@ export interface AdminUserDetail {
   freeUnits: number | null;
   maxKeys: number;
   pricePerUnit: number;
-  spendCapKB: number | null;
+  spendCapUnits: number | null;
+  adminCapUnits: number | null;
+  paidEnabled: boolean;
   stripeCustomerId: string;
   keys: KeyRow[];
   usageKB30d: number;
@@ -157,7 +159,9 @@ export async function getUserDetail(userId: string): Promise<AdminUserDetail | n
     freeUnits: config.freeUnits,
     maxKeys: config.maxKeys,
     pricePerUnit: config.pricePerUnit,
-    spendCapKB: config.spendCapKB,
+    spendCapUnits: config.spendCapUnits,
+    adminCapUnits: config.adminCapUnits,
+    paidEnabled: config.paidEnabled,
     stripeCustomerId: perms.stripeCustomerId,
     keys: apiKeys.map((k) => ({
       id: k.id,

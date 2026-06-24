@@ -75,6 +75,8 @@ export interface BillingData {
   estimatedCost: number;
   freeUsagePercent: number;
   pricePerUnit: number;
+  paidEnabled: boolean;
+  spendCapUnits: number | null;
   invoices: Invoice[];
 }
 
@@ -183,6 +185,8 @@ export async function getBillingData(): Promise<BillingData> {
   return {
     ...calc,
     pricePerUnit: config.pricePerUnit,
+    paidEnabled: config.paidEnabled,
+    spendCapUnits: config.spendCapUnits,
     invoices,
   };
 }

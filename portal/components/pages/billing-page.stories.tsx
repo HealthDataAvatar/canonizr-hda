@@ -16,7 +16,7 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-const defaults = { freeUsagePercent: 0 };
+const defaults = { freeUsagePercent: 0, paidEnabled: false, spendCapUnits: null };
 
 export const AllStates: Story = {
   args: { ...defaults, processedKB: 0, freeRemainingKB: 50000, freeTotalKB: 50000, estimatedCost: 0, pricePerUnit: 0.003, invoices: [] },
@@ -38,6 +38,10 @@ export const AllStates: Story = {
         {
           label: "Unlimited (internal user)",
           children: <BillingPageContent {...defaults} processedKB={150000} freeRemainingKB={null} freeTotalKB={null} estimatedCost={0} pricePerUnit={0.003} invoices={[]} />,
+        },
+        {
+          label: "Paid usage enabled, spend cap set",
+          children: <BillingPageContent {...defaults} paidEnabled spendCapUnits={5000} freeUsagePercent={100} processedKB={220000} freeRemainingKB={0} freeTotalKB={50000} estimatedCost={5.10} pricePerUnit={0.003} invoices={invoices} />,
         },
       ]}
     />

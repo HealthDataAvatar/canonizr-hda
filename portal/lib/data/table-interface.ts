@@ -56,7 +56,12 @@ export interface UserConfigRecord {
   freeUnits: number | null;
   maxKeys: number;
   pricePerUnit: number;
-  spendCapKB: number | null;
+  // Caps in 100KB units. Effective hard cap = min(spendCapUnits, adminCapUnits).
+  // spendCapUnits is user-set (self-protection); adminCapUnits is admin-only (anti-abuse).
+  spendCapUnits: number | null;
+  adminCapUnits: number | null;
+  // User opt-in: process past the free allowance (incurs charges).
+  paidEnabled: boolean;
   changedBy: string;
   timestamp: string;
 }
