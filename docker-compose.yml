@@ -1,0 +1,98 @@
+services:
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite:latest
+    command: "azurite --blobHost 0.0.0.0 --tableHost 0.0.0.0 --loose --skipApiVersionCheck"
+    ports:                  # ponytail: host needs these for `npm run dev` (runs outside the docker network)
+      - "10000:10000"       # blob
+      - "10002:10002"       # table
+    networks:
+      - portal-test
+    healthcheck:
+      test: ["CMD", "nc", "-z", "127.0.0.1", "10002"]
+      interval: 2s
+      timeout: 2s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:                  # ponytail: host needs this for `npm run dev` (runs outside the docker network)
+      - "6379:6379"
+    networks:
+      - portal-test
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 2s
+      retries: 5
+
+  mail-stub:
+    build:
+      context: ./portal
+      dockerfile: portal-tests.dockerfile
+    command: ["node", "stubs/server.mjs"]
+    environment:
+      AZURITE_TABLE_CONN: "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;TableEndpoint=http://azurite:10002/devstoreaccount1"
+    networks:
+      - portal-test
+    depends_on:
+      azurite:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:4300/health').then(r=>{if(!r.ok)throw r.status})"]
+      interval: 2s
+      timeout: 2s
+      retries: 10
+
+  # --- Gateway stack (for e2e tests) ---
+
+  gateway:
+    build:
+      context: ./gateway
+      dockerfile: gateway.dockerfile
+    ports:
+      - 8000:8000
+    environment:
+      REDIS_URL: redis://redis:6379
+      BLOB_STORAGE_CONNECTION_STRING: "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite:10000/devstoreaccount1"
+      TABLE_STORAGE_CONNECTION_STRING: "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;TableEndpoint=http://azurite:10002/devstoreaccount1"
+      CAPTIONING_ENABLED: "false"
+      CORS_ORIGINS: "http://localhost:3000,http://portal:3000"
+      DEBUG: "true"
+      REQUEST_TIMEOUT: "120"
+    networks:
+      - portal-test
+    depends_on:
+      redis:
+        condition: service_healthy
+      azurite:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  worker:
+    build:
+      context: ./gateway
+      dockerfile: gateway.dockerfile
+    command: ["uv", "run", "--no-project", "python", "-m", "app.worker"]
+    environment:
+      REDIS_URL: redis://redis:6379
+      BLOB_STORAGE_CONNECTION_STRING: "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite:10000/devstoreaccount1"
+      TABLE_STORAGE_CONNECTION_STRING: "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;TableEndpoint=http://azurite:10002/devstoreaccount1"
+      CAPTIONING_ENABLED: "false"
+    networks:
+      - portal-test
+    depends_on:
+      redis:
+        condition: service_healthy
+      azurite:
+        condition: service_healthy
+      gateway:
+        condition: service_healthy
+
+networks:
+  portal-test:
+    driver: bridge
