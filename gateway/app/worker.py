@@ -116,6 +116,10 @@ async def _handle_job(job: Job, svc: Services, sem: asyncio.Semaphore) -> None:
     except Exception as exc:
         error_msg = traceback.format_exc()
         logger.error("Job %s crashed: %s", job.job_id, error_msg)
+        # Don't ack and don't change status: a crash here (resolve/heartbeat/dispatch/
+        # store) may be transient, so leave the job PROCESSING and unacked for
+        # redelivery. It only goes terminal (ERROR [poison]) once redeliveries are
+        # exhausted — until then PROCESSING is the honest state.
         svc.telemetry.emit(
             WorkerError(
                 error=error_msg[-1000:],

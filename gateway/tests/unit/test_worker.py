@@ -107,6 +107,31 @@ async def test_poison_job_is_dead_lettered():
 
 
 @pytest.mark.asyncio
+async def test_outer_crash_leaves_processing_and_does_not_ack():
+    """A crash outside dispatch_job (here: resolve raising) must NOT ack and must NOT
+    go terminal — the job stays PROCESSING for redelivery. Only the poison-pill path
+    (redeliveries exhausted) marks it ERROR."""
+    svc, user, _ = _make_svc()
+    job = _make_job()
+    svc.jobs.create(JobMeta(user_id=user.user_id, job_id=job.job_id, sub_id="sub_1", status=JobStatus.PROCESSING))
+
+    async def _boom(sub_id: str):
+        raise RuntimeError("resolver down")
+
+    svc.users.resolve = _boom  # type: ignore[method-assign]
+    acked: list[str] = []
+    svc.queue.acknowledge = lambda job: acked.append(job.job_id) or asyncio.sleep(0)  # type: ignore[method-assign]
+
+    sem = asyncio.Semaphore(1)
+    await sem.acquire()
+    await _handle_job(job, svc, sem)
+
+    meta = svc.jobs.get(job.job_id)
+    assert meta is not None and meta.status == JobStatus.PROCESSING  # honest: still queued for retry
+    assert acked == []  # not acked -> left for redelivery
+
+
+@pytest.mark.asyncio
 async def test_reclaimed_job_under_cap_is_processed_normally():
     """A reclaimed job within the delivery cap is NOT dead-lettered."""
     svc, user, _ = _make_svc()
