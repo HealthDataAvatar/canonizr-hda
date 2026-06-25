@@ -12,7 +12,7 @@ export function AdminUserForm({ user }: { user: AdminUserDetail }) {
   const [blocking, setBlocking] = useState(false);
   const [freeUnits, setFreeUnits] = useState(String(user.freeUnits ?? ""));
   const [maxKeys, setMaxKeys] = useState(String(user.maxKeys));
-  const [pricePerUnit, setPricePerUnit] = useState(String(user.pricePerUnit));
+  const [comp, setComp] = useState(user.comp);
 
   async function handleSave() {
     setSaving(true);
@@ -23,7 +23,7 @@ export function AdminUserForm({ user }: { user: AdminUserDetail }) {
         body: JSON.stringify({
           freeUnits: freeUnits === "" ? null : Number(freeUnits),
           maxKeys: Number(maxKeys),
-          pricePerUnit: Number(pricePerUnit),
+          comp,
         }),
       });
       router.refresh();
@@ -47,7 +47,7 @@ export function AdminUserForm({ user }: { user: AdminUserDetail }) {
     <section className="space-y-6">
       <h2>Plan</h2>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <label className="space-y-1">
           <span className="text-sm text-muted-foreground">
             Free units
@@ -72,20 +72,25 @@ export function AdminUserForm({ user }: { user: AdminUserDetail }) {
           />
         </label>
 
-        <label className="space-y-1">
-          <span className="text-sm text-muted-foreground">
-            Price per unit ($)
-          </span>
-          <Input
-            type="number"
-            step="0.001"
-            value={pricePerUnit}
-            onChange={(e) => setPricePerUnit(e.target.value)}
-            className="font-mono"
-          />
-        </label>
-
       </div>
+
+      <label className="flex items-start gap-3 rounded-md border border-amber-500/40 bg-amber-500/5 p-3">
+        <input
+          type="checkbox"
+          checked={comp}
+          onChange={(e) => setComp(e.target.checked)}
+          className="mt-1"
+        />
+        <span className="space-y-0.5">
+          <span className="block text-sm font-medium">
+            Comp account — never charged{comp ? " ✓" : ""}
+          </span>
+          <span className="block text-sm text-muted-foreground">
+            Truly unlimited usage, never metered to Stripe. Usage is still recorded.
+            Save to apply.
+          </span>
+        </span>
+      </label>
 
       <div className="flex gap-3">
         <Button onClick={handleSave} disabled={saving}>

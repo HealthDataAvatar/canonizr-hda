@@ -72,11 +72,6 @@ variable "openai_model_version" {
   default = "2026-03-17"
 }
 
-variable "default_price_per_unit" {
-  description = "Default price per 100KB unit (USD) for new users"
-  type        = number
-  default     = 0.015
-}
 
 variable "default_free_units" {
   description = "Default free 100KB units per month for new users"

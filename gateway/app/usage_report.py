@@ -194,14 +194,41 @@ def load_subscription_map(ts: TableServiceClient) -> dict[str, str]:
         logger.warning("Could not read GwBilling — no customer mappings loaded", exc_info=True)
         return {}
 
-    # Step 3: combine
+    comp_users = _load_comp_users(ts)
+
+    # Step 3: combine. Comp users are never metered — leave them unmapped so
+    # push_meter_events skips them (their usage still lives in GwJobs).
     mapping: dict[str, str] = {}
     for sub_id, user_id in sub_to_user.items():
+        if user_id in comp_users:
+            continue
         cust_id = user_to_customer.get(user_id)
         if cust_id:
             mapping[sub_id] = cust_id
 
     return mapping
+
+
+def _load_comp_users(ts: TableServiceClient) -> set[str]:
+    """User IDs flagged comp in UserConfig (latest append-only row, comp=true).
+
+    UserConfig is append-only with inverted-timestamp RowKeys, so the first row
+    per partition is the newest. We only need the latest per user.
+    """
+    comp: set[str] = set()
+    seen: set[str] = set()
+    try:
+        table = ts.get_table_client(Table.USER_CONFIG)
+        for entity in table.query_entities("", select=["PartitionKey", "comp"]):
+            user_id = entity["PartitionKey"]
+            if user_id in seen:
+                continue
+            seen.add(user_id)
+            if entity.get("comp") is True:
+                comp.add(user_id)
+    except Exception:
+        logger.warning("Could not read UserConfig comp flags — none loaded", exc_info=True)
+    return comp
 
 
 # ---------------------------------------------------------------------------

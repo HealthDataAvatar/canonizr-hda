@@ -101,6 +101,10 @@ class QuotaService:
         Order: too-many-rejections (rate_limited) -> free line (payment_required)
         -> account cap (quota_exceeded) -> per-key quota (quota_exceeded).
         """
+        # Comp accounts are truly unlimited — never gated, never metered.
+        if user.comp:
+            return None
+
         anchor_day = user.billing_anchor_day
         rejected_count = await self._r.get(quota_rejected(sub_id=sub_id))
         if rejected_count and int(rejected_count) >= self._max_rejected:
@@ -147,7 +151,12 @@ class QuotaService:
 
         if usage + content_length > limit:
             await self._incr_rejected(quota_rejected(sub_id=sub_id))
-            return Rejection(429, "quota_exceeded", "Per-key quota for this period is spent")
+            remaining = max(0, limit - usage)
+            return Rejection(
+                429,
+                "quota_exceeded",
+                f"File too large for remaining quota ({content_length} bytes, {remaining} remaining)",
+            )
         return None
 
     async def _key_usage(self, sub_id: str, ps: str, anchor_day: int) -> int:

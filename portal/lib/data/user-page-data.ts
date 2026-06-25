@@ -9,7 +9,7 @@ import { requireUser } from "@/lib/auth/session";
 import { getServices, type Invoice } from "@/lib/services";
 import { getCurrentConfig, getCurrentPermissions } from "@/lib/data/tables";
 import { getJobsForUser } from "./jobs";
-import { calculateBilling } from "@/lib/pure/billing-calc";
+import { calculateBilling, RATE_PER_UNIT } from "@/lib/pure/billing-calc";
 import { currentPeriodStart, quotaUsageKey } from "@/lib/pure/billing-period";
 import { getTableClient } from "@/lib/data/table-client";
 import { TableName } from "@/lib/data/table-interface";
@@ -179,12 +179,11 @@ export async function getBillingData(): Promise<BillingData> {
   const calc = calculateBilling({
     totalUnits,
     freeUnits: config.freeUnits,
-    pricePerUnit: config.pricePerUnit,
   });
 
   return {
     ...calc,
-    pricePerUnit: config.pricePerUnit,
+    pricePerUnit: RATE_PER_UNIT,
     paidEnabled: config.paidEnabled,
     spendCapUnits: config.spendCapUnits,
     invoices,

@@ -5,11 +5,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from app.tables import Table
 from app.usage_report import (
     ConfigError,
     ReporterConfig,
     UsageRecord,
     compute_window,
+    load_subscription_map,
     push_meter_events,
     run,
 )
@@ -17,6 +19,43 @@ from app.usage_report import (
 
 def make_record(sub_id="sub1", job_id="job1", size=100_000):
     return UsageRecord(sub_id, datetime(2025, 6, 1, 12, 0, 0, tzinfo=UTC), size, job_id)
+
+
+def _ts_with_tables(rows_by_table):
+    """Fake TableServiceClient: each table client returns its configured rows."""
+    ts = MagicMock()
+
+    def get_table_client(name):
+        client = MagicMock()
+        client.query_entities.return_value = rows_by_table.get(name, [])
+        return client
+
+    ts.get_table_client.side_effect = get_table_client
+    return ts
+
+
+class TestLoadSubscriptionMap:
+    def test_skips_comp_users(self):
+        ts = _ts_with_tables(
+            {
+                Table.GW_SUBSCRIPTIONS: [
+                    {"RowKey": "sub-paid", "user_id": "u-paid"},
+                    {"RowKey": "sub-comp", "user_id": "u-comp"},
+                ],
+                Table.GW_BILLING: [
+                    {"RowKey": "u-paid", "stripe_customer_id": "cus_paid"},
+                    {"RowKey": "u-comp", "stripe_customer_id": "cus_comp"},
+                ],
+                # Newest row first per partition (inverted-timestamp RowKeys).
+                Table.USER_CONFIG: [
+                    {"PartitionKey": "u-comp", "comp": True},
+                    {"PartitionKey": "u-comp", "comp": False},  # older row, ignored
+                    {"PartitionKey": "u-paid", "comp": False},
+                ],
+            }
+        )
+        mapping = load_subscription_map(ts)
+        assert mapping == {"sub-paid": "cus_paid"}  # comp user excluded
 
 
 def make_config(

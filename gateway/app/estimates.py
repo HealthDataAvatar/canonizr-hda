@@ -8,6 +8,13 @@ from .mimetypes import LIBREOFFICE_TYPES, MARKITDOWN_TYPES, PASSTHROUGH_TYPES
 
 UNIT_BYTES = 100_000  # 100KB billing unit
 
+# USD per 100KB unit, recorded as the per-job historical snapshot. This mirrors
+# the Stripe Price `canonizr_per_100kb`, which is what actually invoices — Stripe
+# owns billing. There is no per-user rate: that would need a distinct Stripe Price
+# per user (see docs/issues/stripe.md "tier registry"). Keep this in sync with the
+# portal's RATE_PER_UNIT (portal/lib/pure/billing-calc.ts).
+RATE_PER_UNIT = 0.003
+
 
 def billable_units(n_bytes: int) -> int:
     """Number of 100KB units for a file — rounded up, minimum 1. The single money formula."""

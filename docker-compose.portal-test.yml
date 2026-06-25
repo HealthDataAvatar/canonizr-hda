@@ -33,7 +33,6 @@ services:
       MAIL_STUB_ENDPOINT: "http://mail-stub:4300"
       REDIS_URL: redis://redis:6379
       DEFAULT_FREE_UNITS: "500"
-      DEFAULT_PRICE_PER_UNIT: "0.015"
     networks:
       - portal-test
     depends_on:
@@ -127,7 +126,6 @@ services:
       AZURITE_TABLE_CONN: "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;TableEndpoint=http://azurite:10002/devstoreaccount1"
       REDIS_URL: redis://redis:6379
       DEFAULT_FREE_UNITS: "500"
-      DEFAULT_PRICE_PER_UNIT: "0.015"
     networks:
       - portal-test
     depends_on:

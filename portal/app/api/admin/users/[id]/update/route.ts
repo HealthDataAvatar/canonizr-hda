@@ -9,7 +9,7 @@ export const POST = route(async (request, { params }: { params: Promise<{ id: st
   const body = await request.json();
 
   const current = await getCurrentConfig(id);
-  const allowed: (keyof UserConfigRecord)[] = ["freeUnits", "maxKeys", "pricePerUnit", "spendCapUnits", "adminCapUnits", "paidEnabled"];
+  const allowed: (keyof UserConfigRecord)[] = ["freeUnits", "maxKeys", "spendCapUnits", "adminCapUnits", "paidEnabled", "comp"];
   const updated = { ...current, changedBy: admin.userId };
   for (const key of allowed) {
     if (key in body) (updated as Record<string, unknown>)[key] = body[key];

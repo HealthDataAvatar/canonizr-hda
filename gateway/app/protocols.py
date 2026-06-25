@@ -120,6 +120,7 @@ class UserContext:
     free_bytes: int | None = None  # opt-in line; None = unlimited free (no gate)
     paid_enabled: bool = False  # user opted in to paid usage past the free line
     cap_bytes: int | None = None  # hard account cap = min(user, admin) caps; None = uncapped
+    comp: bool = False  # admin comp: truly unlimited, never metered (bypasses free line + caps)
 
 
 @dataclass

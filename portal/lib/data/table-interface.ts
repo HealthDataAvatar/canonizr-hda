@@ -55,13 +55,16 @@ export interface JobPage {
 export interface UserConfigRecord {
   freeUnits: number | null;
   maxKeys: number;
-  pricePerUnit: number;
   // Caps in 100KB units. Effective hard cap = min(spendCapUnits, adminCapUnits).
   // spendCapUnits is user-set (self-protection); adminCapUnits is admin-only (anti-abuse).
   spendCapUnits: number | null;
   adminCapUnits: number | null;
   // User opt-in: process past the free allowance (incurs charges).
   paidEnabled: boolean;
+  // Admin comp: truly unlimited usage, never metered to Stripe. Usage is still
+  // recorded in GwJobs. Bypasses free line + caps in the gateway; the usage
+  // reporter skips meter events for comp users.
+  comp: boolean;
   changedBy: string;
   timestamp: string;
 }

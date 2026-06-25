@@ -13,7 +13,7 @@ ANCHOR = 1
 PS = current_period_start(ANCHOR)
 
 
-def ctx(user_id="u1", *, free_bytes=None, paid_enabled=False, cap_bytes=None):
+def ctx(user_id="u1", *, free_bytes=None, paid_enabled=False, cap_bytes=None, comp=False):
     """Build a UserContext for quota checks. Defaults: no free gate, no cap."""
     return UserContext(
         user_id=user_id,
@@ -23,7 +23,16 @@ def ctx(user_id="u1", *, free_bytes=None, paid_enabled=False, cap_bytes=None):
         free_bytes=free_bytes,
         paid_enabled=paid_enabled,
         cap_bytes=cap_bytes,
+        comp=comp,
     )
+
+
+class TestCompBypass:
+    @pytest.mark.asyncio
+    async def test_comp_user_bypasses_free_line_and_cap(self, svc):
+        # Would be rejected for both free line and cap if not comp.
+        user = ctx(free_bytes=10, cap_bytes=10, comp=True)
+        assert await svc.check(user, "key-1", 1_000_000) is None
 
 
 @pytest.fixture

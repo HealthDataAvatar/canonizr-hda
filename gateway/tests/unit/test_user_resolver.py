@@ -70,10 +70,11 @@ class TestQuotaConfig:
             "_get_latest_config_row",
             lambda uid: {"freeUnits": 10, "paidEnabled": True, "spendCapUnits": 50, "adminCapUnits": 30},
         )
-        free, paid, cap = await res._get_quota_config("u1")
-        assert free == 10 * UNIT_BYTES
-        assert paid is True
-        assert cap == 30 * UNIT_BYTES  # min(50, 30)
+        cfg = await res._get_quota_config("u1")
+        assert cfg.free_bytes == 10 * UNIT_BYTES
+        assert cfg.paid_enabled is True
+        assert cfg.cap_bytes == 30 * UNIT_BYTES  # min(50, 30)
+        assert cfg.comp is False
 
     @pytest.mark.asyncio
     async def test_null_caps_mean_unlimited(self, monkeypatch):
@@ -83,8 +84,8 @@ class TestQuotaConfig:
             "_get_latest_config_row",
             lambda uid: {"freeUnits": None, "paidEnabled": False, "spendCapUnits": None, "adminCapUnits": None},
         )
-        free, paid, cap = await res._get_quota_config("u1")
-        assert free is None and cap is None and paid is False
+        cfg = await res._get_quota_config("u1")
+        assert cfg.free_bytes is None and cfg.cap_bytes is None and cfg.paid_enabled is False
 
     @pytest.mark.asyncio
     async def test_one_cap_set_wins(self, monkeypatch):
@@ -96,8 +97,8 @@ class TestQuotaConfig:
             "_get_latest_config_row",
             lambda uid: {"freeUnits": 5, "spendCapUnits": None, "adminCapUnits": 7},
         )
-        _, _, cap = await res._get_quota_config("u1")
-        assert cap == 7 * UNIT_BYTES
+        cfg = await res._get_quota_config("u1")
+        assert cfg.cap_bytes == 7 * UNIT_BYTES
 
     @pytest.mark.asyncio
     async def test_caches_blob(self, monkeypatch):

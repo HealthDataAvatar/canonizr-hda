@@ -14,10 +14,10 @@ const activeUser: AdminUserDetail = {
   isAdmin: false,
   freeUnits: 500,
   maxKeys: 5,
-  pricePerUnit: 0.003,
   spendCapUnits: null,
   adminCapUnits: null,
   paidEnabled: false,
+  comp: false,
   stripeCustomerId: "cus_abc123def456",
   keys: [
     { id: "key-aaa", displayName: TEST_KEY_NAMES.crane, value: "", usageKB: 3200, quotaKB: 10000 },
@@ -35,10 +35,10 @@ const newUser: AdminUserDetail = {
   isAdmin: false,
   freeUnits: 500,
   maxKeys: 3,
-  pricePerUnit: 0.003,
   spendCapUnits: null,
   adminCapUnits: null,
   paidEnabled: false,
+  comp: false,
   stripeCustomerId: "",
   keys: [{ id: "key-ccc", displayName: "my-first-key", value: "", usageKB: 0, quotaKB: null }],
   usageKB30d: 0,
@@ -52,6 +52,14 @@ const blockedUser: AdminUserDetail = {
   blocked: true,
   keys: [],
   usageKB30d: 100,
+  totalInvoiced: 0,
+};
+
+const compUser: AdminUserDetail = {
+  ...activeUser,
+  id: "u-004",
+  email: "comp@example.com",
+  comp: true,
   totalInvoiced: 0,
 };
 
@@ -71,6 +79,7 @@ export const AllStates: Story = {
         { label: "Active user with keys and jobs", children: <AdminUserDetailContent user={activeUser} /> },
         { label: "New user (no jobs)", children: <AdminUserDetailContent user={newUser} /> },
         { label: "Blocked user (long email, no keys)", children: <AdminUserDetailContent user={blockedUser} /> },
+        { label: "Comp user (never charged)", children: <AdminUserDetailContent user={compUser} /> },
       ]}
     />
   ),

@@ -48,7 +48,9 @@ export function AdminUserDetailContent({ user }: { user: AdminUserDetail }) {
           { label: "Stripe", value: <Mono>{user.stripeCustomerId || "—"}</Mono> },
           { label: "Status", value: user.blocked
             ? <span className="font-medium text-destructive">Blocked</span>
-            : <span>Active</span>
+            : user.comp
+              ? <span className="font-medium text-amber-600">Comp — never charged</span>
+              : <span>Active</span>
           },
         ]}
       />

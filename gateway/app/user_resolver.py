@@ -8,15 +8,15 @@ Lookup chain:
 
 import json
 import logging
+from dataclasses import asdict, dataclass
 
 from azure.data.tables import TableServiceClient
 
-from .estimates import UNIT_BYTES
+from .estimates import RATE_PER_UNIT, UNIT_BYTES
 from .keys import (
     billing_anchor_cache,
     encryption_key_cache,
     key_name_cache,
-    price_per_unit_cache,
     user_blocked,
     user_config_cache,
     user_id_cache,
@@ -28,6 +28,16 @@ logger = logging.getLogger(__name__)
 
 CACHE_TTL = 3600  # 1 hour
 BLOCKED_CACHE_TTL = 300  # 5 minutes — blocks take effect quickly
+
+
+@dataclass(frozen=True)
+class QuotaConfig:
+    """Per-user quota settings resolved from UserConfig (cached as JSON)."""
+
+    free_bytes: int | None  # opt-in line; None = unlimited free
+    paid_enabled: bool  # opted in to paid usage past the free line
+    cap_bytes: int | None  # hard account cap = min(user, admin); None = uncapped
+    comp: bool  # admin comp: truly unlimited, never metered
 
 
 class TableUserResolver:
@@ -57,20 +67,19 @@ class TableUserResolver:
             return ResolveMisconfigured("No encryption key")
 
         kname = await self._get_key_name(sub_id)
-        # price_per_unit defaults to DEFAULT_PRICE_PER_UNIT when unconfigured (never blocks).
-        ppu = await self._get_price_per_unit(uid)
         anchor = await self._get_billing_anchor(uid)
-        free_bytes, paid_enabled, cap_bytes = await self._get_quota_config(uid)
+        q = await self._get_quota_config(uid)
 
         return UserContext(
             user_id=uid,
             encryption_key=bytes.fromhex(key_hex),
             key_id=kname,
-            price_per_unit=ppu,
+            price_per_unit=RATE_PER_UNIT,  # snapshot the fixed Stripe rate onto the job
             billing_anchor_day=anchor,
-            free_bytes=free_bytes,
-            paid_enabled=paid_enabled,
-            cap_bytes=cap_bytes,
+            free_bytes=q.free_bytes,
+            paid_enabled=q.paid_enabled,
+            cap_bytes=q.cap_bytes,
+            comp=q.comp,
         )
 
     # --- cache-aside helpers -------------------------------------------------
@@ -127,43 +136,33 @@ class TableUserResolver:
             or ""
         )
 
-    async def _get_price_per_unit(self, user_id: str) -> float:
-        return await self._cached_num(
-            price_per_unit_cache(user_id=user_id),
-            lambda: self._get_latest_config(user_id, "pricePerUnit"),
-            default=0.003,
-            cast=float,
-        )
-
-    async def _get_quota_config(self, user_id: str) -> tuple[int | None, bool, int | None]:
-        """Resolve (free_bytes, paid_enabled, cap_bytes) from UserConfig.
+    async def _get_quota_config(self, user_id: str) -> QuotaConfig:
+        """Resolve the per-user quota config from UserConfig.
 
         Caps are stored in 100KB units; converted to bytes here so the rest of
         the gateway stays in bytes. cap_bytes = min(user, admin) caps (lower wins,
-        null = unlimited). Cached as a JSON blob — all three change together.
+        null = unlimited). comp = admin comp account (truly unlimited, never
+        metered). Cached as a JSON blob — all fields change together.
         """
         ck = user_config_cache(user_id=user_id)
         cached = await self._r.get(ck)
         if cached is not None:
-            d = json.loads(cached)
-            return d["free_bytes"], d["paid_enabled"], d["cap_bytes"]
+            return QuotaConfig(**json.loads(cached))
 
         row = self._get_latest_config_row(user_id)
         free_units = row.get("freeUnits") if row else None
-        paid_enabled = bool(row.get("paidEnabled")) if row else False
         user_cap = row.get("spendCapUnits") if row else None
         admin_cap = row.get("adminCapUnits") if row else None
 
-        free_bytes = int(free_units) * UNIT_BYTES if free_units is not None else None
         caps = [int(c) for c in (user_cap, admin_cap) if c is not None]
-        cap_bytes = min(caps) * UNIT_BYTES if caps else None
-
-        await self._r.set(
-            ck,
-            json.dumps({"free_bytes": free_bytes, "paid_enabled": paid_enabled, "cap_bytes": cap_bytes}),
-            ex=CACHE_TTL,
+        cfg = QuotaConfig(
+            free_bytes=int(free_units) * UNIT_BYTES if free_units is not None else None,
+            paid_enabled=bool(row.get("paidEnabled")) if row else False,
+            cap_bytes=min(caps) * UNIT_BYTES if caps else None,
+            comp=bool(row.get("comp")) if row else False,
         )
-        return free_bytes, paid_enabled, cap_bytes
+        await self._r.set(ck, json.dumps(asdict(cfg)), ex=CACHE_TTL)
+        return cfg
 
     async def _get_billing_anchor(self, user_id: str) -> int:
         return await self._cached_num(
@@ -172,11 +171,6 @@ class TableUserResolver:
             default=1,
             cast=int,
         )
-
-    def _get_latest_config(self, user_id: str, field: str):
-        """Read a field from the latest UserConfig row (append-only, newest first)."""
-        row = self._get_latest_config_row(user_id)
-        return row.get(field) if row else None
 
     def _get_latest_config_row(self, user_id: str) -> dict | None:
         """Read the latest UserConfig row (append-only, newest first)."""

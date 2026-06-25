@@ -1,5 +1,5 @@
 import { JobTraceViewer } from "@/components/job-trace-viewer";
-import { getDefaults } from "@/lib/data/tables/user-config";
+import { RATE_PER_UNIT } from "@/lib/pure/billing-calc";
 import { getJobTrace } from "@/lib/data/tables/job-trace";
 
 async function fetchTrace(jobId: string): Promise<string | null> {
@@ -12,7 +12,7 @@ export default function TracePage() {
     <div className="space-y-6">
       <h1>Job Trace</h1>
       <JobTraceViewer
-        pricePerUnit={getDefaults().pricePerUnit}
+        pricePerUnit={RATE_PER_UNIT}
         onFetchTrace={fetchTrace}
       />
     </div>
