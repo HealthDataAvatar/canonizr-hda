@@ -77,7 +77,12 @@ class TestQuotaConfig:
         assert cfg.comp is False
 
     @pytest.mark.asyncio
-    async def test_null_caps_mean_unlimited(self, monkeypatch):
+    async def test_unset_admin_cap_falls_back_to_default(self, monkeypatch):
+        # null adminCapUnits is "unset" -> blanket default applies (no per-user
+        # row needed). This is the anti-abuse backstop for ordinary accounts.
+        from app.estimates import UNIT_BYTES
+        from app.user_resolver import DEFAULT_ADMIN_CAP_UNITS
+
         res, r = _resolver()
         monkeypatch.setattr(
             res,
@@ -85,7 +90,37 @@ class TestQuotaConfig:
             lambda uid: {"freeUnits": None, "paidEnabled": False, "spendCapUnits": None, "adminCapUnits": None},
         )
         cfg = await res._get_quota_config("u1")
-        assert cfg.free_bytes is None and cfg.cap_bytes is None and cfg.paid_enabled is False
+        assert cfg.free_bytes is None and cfg.paid_enabled is False
+        assert cfg.cap_bytes == DEFAULT_ADMIN_CAP_UNITS * UNIT_BYTES
+
+    @pytest.mark.asyncio
+    async def test_explicit_admin_cap_overrides_default(self, monkeypatch):
+        # A per-user adminCapUnits (e.g. a big customer raised above the default,
+        # or a tight leash below it) wins over the blanket default.
+        from app.estimates import UNIT_BYTES
+        from app.user_resolver import DEFAULT_ADMIN_CAP_UNITS
+
+        res, r = _resolver()
+        raised = DEFAULT_ADMIN_CAP_UNITS * 5
+        monkeypatch.setattr(
+            res,
+            "_get_latest_config_row",
+            lambda uid: {"spendCapUnits": None, "adminCapUnits": raised},
+        )
+        cfg = await res._get_quota_config("u1")
+        assert cfg.cap_bytes == raised * UNIT_BYTES
+
+    @pytest.mark.asyncio
+    async def test_comp_account_stays_uncapped(self, monkeypatch):
+        # comp accounts are truly unlimited — the default must NOT cap them.
+        res, r = _resolver()
+        monkeypatch.setattr(
+            res,
+            "_get_latest_config_row",
+            lambda uid: {"spendCapUnits": None, "adminCapUnits": None, "comp": True},
+        )
+        cfg = await res._get_quota_config("u1")
+        assert cfg.cap_bytes is None and cfg.comp is True
 
     @pytest.mark.asyncio
     async def test_one_cap_set_wins(self, monkeypatch):

@@ -29,6 +29,11 @@ logger = logging.getLogger(__name__)
 CACHE_TTL = 3600  # 1 hour
 BLOCKED_CACHE_TTL = 300  # 5 minutes — blocks take effect quickly
 
+# Blanket anti-abuse ceiling applied when a user has no explicit adminCapUnits.
+# null in the row means "unset" -> this default, resolved live (no per-row
+# backfill needed). ~1GB input / period. Raise per-user via adminCapUnits.
+DEFAULT_ADMIN_CAP_UNITS = 10_000
+
 
 @dataclass(frozen=True)
 class QuotaConfig:
@@ -153,13 +158,19 @@ class TableUserResolver:
         free_units = row.get("freeUnits") if row else None
         user_cap = row.get("spendCapUnits") if row else None
         admin_cap = row.get("adminCapUnits") if row else None
+        comp = bool(row.get("comp")) if row else False
+
+        # Unset admin cap falls back to the blanket default (comp accounts stay
+        # uncapped — they short-circuit the cap check in quota.py anyway).
+        if admin_cap is None and not comp:
+            admin_cap = DEFAULT_ADMIN_CAP_UNITS
 
         caps = [int(c) for c in (user_cap, admin_cap) if c is not None]
         cfg = QuotaConfig(
             free_bytes=int(free_units) * UNIT_BYTES if free_units is not None else None,
             paid_enabled=bool(row.get("paidEnabled")) if row else False,
             cap_bytes=min(caps) * UNIT_BYTES if caps else None,
-            comp=bool(row.get("comp")) if row else False,
+            comp=comp,
         )
         await self._r.set(ck, json.dumps(asdict(cfg)), ex=CACHE_TTL)
         return cfg
