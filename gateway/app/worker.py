@@ -6,7 +6,6 @@ No business logic here.
 
 import asyncio
 import logging
-import os
 import traceback
 from datetime import UTC, datetime
 
@@ -32,8 +31,8 @@ logger = logging.getLogger(__name__)
 
 MAX_BACKOFF = 60
 MAX_CONSECUTIVE_FAILURES = 20
-MAX_CONCURRENT_JOBS = int(os.environ.get("WORKER_CONCURRENCY", "3"))
-MAX_DELIVERIES = int(os.environ.get("QUEUE_MAX_DELIVERIES", "5"))
+MAX_CONCURRENT_JOBS = 3
+MAX_DELIVERIES = 5
 
 
 async def _dead_letter(job: Job, svc: Services) -> None:

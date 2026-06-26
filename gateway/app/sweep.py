@@ -7,7 +7,6 @@ in PROCESSING beyond a threshold and re-enqueues them.
 
 import asyncio
 import logging
-import os
 from datetime import UTC, datetime, timedelta
 
 from .keys import sweep_lock
@@ -16,8 +15,8 @@ from .telemetry import JobRecovered
 
 logger = logging.getLogger(__name__)
 
-SWEEP_INTERVAL = int(os.environ.get("SWEEP_INTERVAL_SECONDS", "300"))
-SWEEP_STALE_THRESHOLD = int(os.environ.get("SWEEP_STALE_SECONDS", "600"))
+SWEEP_INTERVAL = 300
+SWEEP_STALE_THRESHOLD = 600
 SWEEP_LOCK_TTL = SWEEP_INTERVAL + 60  # lock expires after interval + margin
 
 

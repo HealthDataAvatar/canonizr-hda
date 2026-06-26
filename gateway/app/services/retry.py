@@ -6,7 +6,6 @@ Telemetry emitted after every attempt. Tracing via optional span.
 
 import asyncio
 import logging
-import os
 import random
 import time
 from dataclasses import dataclass
@@ -18,7 +17,7 @@ from ..tracing import RetryRecord, Span
 
 logger = logging.getLogger(__name__)
 
-MAX_RETRIES = int(os.environ.get("UPSTREAM_MAX_RETRIES", "2"))
+MAX_RETRIES = 2
 DEFAULT_DEADLINE_S = 300.0  # 5 minutes
 _BACKOFF_BASE = 1.0
 _BACKOFF_MAX = 60.0

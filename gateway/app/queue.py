@@ -36,8 +36,8 @@ def _unpack_stream(raw: object) -> _StreamEntry | None:
 STREAM_KEY = "stream:convert"
 GROUP_NAME = "workers"
 CONSUMER_NAME = os.environ.get("HOSTNAME", f"worker-{uuid.uuid4().hex[:8]}")
-CLAIM_MIN_IDLE_MS = int(os.environ.get("QUEUE_CLAIM_IDLE_MS", "90000"))
-HEARTBEAT_INTERVAL = int(os.environ.get("QUEUE_HEARTBEAT_SECONDS", "30"))
+CLAIM_MIN_IDLE_MS = 90_000
+HEARTBEAT_INTERVAL = 30
 RESULT_TTL = 86_400  # 24 hours
 
 
