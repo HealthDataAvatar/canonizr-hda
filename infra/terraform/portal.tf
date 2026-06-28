@@ -209,6 +209,11 @@ resource "azurerm_container_app" "portal" {
       }
 
       env {
+        name  = "POSTHOG_API_KEY"
+        value = var.posthog_api_key
+      }
+
+      env {
         name  = "TABLE_STORAGE_URL"
         value = azurerm_storage_account.portal.primary_table_endpoint
       }

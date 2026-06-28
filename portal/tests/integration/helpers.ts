@@ -73,6 +73,7 @@ export async function seedTestUser(user: TestUser, opts?: { isAdmin?: boolean })
   await appendPermissions(user.id, {
     isAdmin: opts?.isAdmin ?? false,
     blocked: false,
+    delinquent: false,
     stripeCustomerId: user.stripeCustomerId,
     changedBy: "system",
   });

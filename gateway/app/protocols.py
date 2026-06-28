@@ -129,6 +129,7 @@ class ResolveRejected:
 
     reason: str
     status: int  # HTTP status code (402 billing, 403 blocked)
+    code: str = "rejected"  # machine code so the client can branch (account_blocked vs payment_overdue)
 
 
 @dataclass

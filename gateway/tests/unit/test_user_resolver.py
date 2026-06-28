@@ -147,3 +147,61 @@ class TestQuotaConfig:
         await res._get_quota_config("u1")
         await res._get_quota_config("u1")
         assert len(calls) == 1  # second call served from cache
+
+
+class TestAccessBlock:
+    """_access_block: blocked (admin) and delinquent (payment) both 403, distinct codes."""
+
+    def _with_perms(self, monkeypatch, res, **fields):
+        monkeypatch.setattr(res, "_get_latest_permission_row", lambda uid: fields)
+
+    @pytest.mark.asyncio
+    async def test_clean_user_not_blocked(self, monkeypatch):
+        res, r = _resolver()
+        self._with_perms(monkeypatch, res, blocked=False, delinquent=False)
+        assert await res._access_block("u1") is None
+
+    @pytest.mark.asyncio
+    async def test_delinquent_returns_payment_code(self, monkeypatch):
+        res, r = _resolver()
+        self._with_perms(monkeypatch, res, blocked=False, delinquent=True)
+        block = await res._access_block("u1")
+        assert block is not None and block[1] == "payment_overdue"
+
+    @pytest.mark.asyncio
+    async def test_blocked_returns_account_code(self, monkeypatch):
+        res, r = _resolver()
+        self._with_perms(monkeypatch, res, blocked=True, delinquent=False)
+        block = await res._access_block("u1")
+        assert block is not None and block[1] == "account_blocked"
+
+    @pytest.mark.asyncio
+    async def test_blocked_wins_over_delinquent(self, monkeypatch):
+        # Both set -> admin block is the more serious / support-routed state.
+        res, r = _resolver()
+        self._with_perms(monkeypatch, res, blocked=True, delinquent=True)
+        block = await res._access_block("u1")
+        assert block is not None and block[1] == "account_blocked"
+
+    @pytest.mark.asyncio
+    async def test_string_true_from_table_is_truthy(self, monkeypatch):
+        # Table Storage may serialize the flag as the string "true".
+        res, r = _resolver()
+        self._with_perms(monkeypatch, res, blocked=False, delinquent="true")
+        block = await res._access_block("u1")
+        assert block is not None and block[1] == "payment_overdue"
+
+    @pytest.mark.asyncio
+    async def test_result_is_cached(self, monkeypatch):
+        res, r = _resolver()
+        calls = []
+        monkeypatch.setattr(
+            res,
+            "_get_latest_permission_row",
+            lambda uid: (calls.append(uid), {"blocked": False, "delinquent": True})[1],
+        )
+        first = await res._access_block("u1")
+        second = await res._access_block("u1")
+        assert first is not None and first[1] == "payment_overdue"
+        assert second is not None and second[1] == "payment_overdue"
+        assert len(calls) == 1  # second call served from cache

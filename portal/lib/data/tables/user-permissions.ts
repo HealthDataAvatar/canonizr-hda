@@ -7,6 +7,7 @@ import { invertedTimestampRK, getLatest } from "./append-only";
 const DEFAULTS: Omit<UserPermissionsRecord, "changedBy" | "timestamp"> = {
   isAdmin: false,
   blocked: false,
+  delinquent: false,
   stripeCustomerId: "",
 };
 
@@ -21,6 +22,7 @@ export async function getCurrentPermissions(userId: string): Promise<UserPermiss
   return {
     isAdmin: (row.isAdmin as boolean) ?? false,
     blocked: (row.blocked as boolean) ?? false,
+    delinquent: (row.delinquent as boolean) ?? false,
     stripeCustomerId: (row.stripeCustomerId as string) ?? "",
     changedBy: (row.changedBy as string) ?? "system",
     timestamp: (row.timestamp as string) ?? "",
@@ -38,6 +40,7 @@ export async function appendPermissions(
     timestamp: new Date().toISOString(),
     isAdmin: perms.isAdmin,
     blocked: perms.blocked,
+    delinquent: perms.delinquent,
     stripeCustomerId: perms.stripeCustomerId,
     changedBy: perms.changedBy,
   });
@@ -47,4 +50,10 @@ export async function appendPermissions(
 export async function setUserBlocked(userId: string, blocked: boolean, changedBy: string): Promise<void> {
   const current = await getCurrentPermissions(userId);
   await appendPermissions(userId, { ...current, blocked, changedBy });
+}
+
+/** Append a permission record toggling the user's delinquent (payment) flag. */
+export async function setUserDelinquent(userId: string, delinquent: boolean, changedBy: string): Promise<void> {
+  const current = await getCurrentPermissions(userId);
+  await appendPermissions(userId, { ...current, delinquent, changedBy });
 }

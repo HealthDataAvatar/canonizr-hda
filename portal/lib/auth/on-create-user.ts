@@ -36,6 +36,7 @@ export async function onCreateUser(
   await appendPermissions(user.id, {
     isAdmin: false,
     blocked: false,
+    delinquent: false,
     stripeCustomerId: customerId,
     changedBy: "system",
   });

@@ -71,7 +71,8 @@ export interface UserConfigRecord {
 
 export interface UserPermissionsRecord {
   isAdmin: boolean;
-  blocked: boolean;
+  blocked: boolean; // set by us (abuse/terms) — "contact support"
+  delinquent: boolean; // set by Stripe webhook (payment overdue) — "pay your invoice"
   stripeCustomerId: string;
   changedBy: string;
   timestamp: string;

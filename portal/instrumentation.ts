@@ -78,6 +78,7 @@ export async function register() {
     await appendPermissions(adminId, {
       isAdmin: true,
       blocked: false,
+      delinquent: false,
       stripeCustomerId: "",
       changedBy: "system",
     });

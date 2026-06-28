@@ -34,6 +34,18 @@ BLOCKED_CACHE_TTL = 300  # 5 minutes — blocks take effect quickly
 # backfill needed). ~1GB input / period. Raise per-user via adminCapUnits.
 DEFAULT_ADMIN_CAP_UNITS = 10_000
 
+# Hard-block codes -> (client-facing reason, machine code). "" = allowed.
+_BLOCK_REASONS: dict[str, tuple[str, str] | None] = {
+    "": None,
+    "account_blocked": ("Account is blocked", "account_blocked"),
+    "payment_overdue": ("Payment overdue — pay your invoice to restore access", "payment_overdue"),
+}
+
+
+def _truthy(v: object) -> bool:
+    """Table Storage may store a bool or the string 'true'."""
+    return v is True or v == "true"
+
 
 @dataclass(frozen=True)
 class QuotaConfig:
@@ -62,9 +74,11 @@ class TableUserResolver:
         if not uid:
             return None
 
-        if await self._is_blocked(uid):
-            logger.warning("Blocked user %s attempted request", uid)
-            return ResolveRejected("Account is blocked", 403)
+        block = await self._access_block(uid)
+        if block is not None:
+            reason, code = block
+            logger.warning("Rejected user %s (%s) attempted request", uid, code)
+            return ResolveRejected(reason, 403, code=code)
 
         key_hex = await self._get_user_key(uid)
         if not key_hex:
@@ -109,16 +123,27 @@ class TableUserResolver:
         await self._r.set(ck, str(val), ex=CACHE_TTL)
         return val
 
-    async def _is_blocked(self, user_id: str) -> bool:
+    async def _access_block(self, user_id: str) -> tuple[str, str] | None:
+        """Hard-block check. Returns (reason, code) if the user is cut off, else None.
+
+        `blocked` (admin/abuse) and `delinquent` (payment) both 403, but carry
+        distinct codes so the client shows the right message. blocked wins —
+        it's the more serious / support-routed state. Cached as the code string
+        ("" = allowed) so one key covers both flags.
+        """
         ck = user_blocked(user_id=user_id)
         cached = await self._r.get(ck)
         if cached is not None:
-            return cached == "1"
+            return _BLOCK_REASONS.get(cached)
 
-        blocked = self._get_latest_permission(user_id, "blocked")
-        is_blocked = blocked is True or blocked == "true"
-        await self._r.set(ck, "1" if is_blocked else "0", ex=BLOCKED_CACHE_TTL)
-        return is_blocked
+        row = self._get_latest_permission_row(user_id)
+        code = ""
+        if _truthy(row.get("blocked")):
+            code = "account_blocked"
+        elif _truthy(row.get("delinquent")):
+            code = "payment_overdue"
+        await self._r.set(ck, code, ex=BLOCKED_CACHE_TTL)
+        return _BLOCK_REASONS.get(code)
 
     async def _get_user_id(self, sub_id: str) -> str | None:
         return await self._cached_str(
@@ -194,16 +219,16 @@ class TableUserResolver:
             logger.warning("UserConfig lookup failed for %s: %s", user_id, e)
             return None
 
-    def _get_latest_permission(self, user_id: str, field: str):
-        """Read a field from the latest UserPermissions row (append-only, newest first)."""
+    def _get_latest_permission_row(self, user_id: str) -> dict:
+        """Read the latest UserPermissions row (append-only, newest first)."""
         try:
             table = self._ts.get_table_client(Table.USER_PERMISSIONS)
             for entity in table.query_entities(f"PartitionKey eq '{user_id}'"):
-                return entity.get(field)
-            return None
+                return dict(entity)
+            return {}
         except Exception as e:
             logger.warning("UserPermissions lookup failed for %s: %s", user_id, e)
-            return None
+            return {}
 
     def _table_lookup(self, table_name: str, partition: str, row: str, field: str) -> str | None:
         try:

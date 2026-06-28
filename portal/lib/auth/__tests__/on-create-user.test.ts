@@ -33,6 +33,7 @@ describe("onCreateUser", () => {
     expect(appendPermissions).toHaveBeenCalledWith("user-1", {
       isAdmin: false,
       blocked: false,
+      delinquent: false,
       stripeCustomerId: "cus_1",
       changedBy: "system",
     });

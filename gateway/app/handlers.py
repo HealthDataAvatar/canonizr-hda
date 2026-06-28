@@ -77,7 +77,7 @@ def _require_user(resolved) -> UserContext:
     if resolved is None:
         raise Rejected(403, "Unknown subscription — no user mapping found")
     if isinstance(resolved, ResolveRejected):
-        raise Rejected(resolved.status, resolved.reason)
+        raise Rejected(resolved.status, resolved.reason, resolved.code)
     if isinstance(resolved, ResolveMisconfigured):
         raise RuntimeError(f"Account misconfigured: {resolved.reason}")
     return resolved
