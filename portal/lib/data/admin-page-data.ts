@@ -96,6 +96,7 @@ export interface AdminUserDetail {
   email: string;
   joined: string;
   blocked: boolean;
+  delinquent: boolean;
   isAdmin: boolean;
   freeUnits: number | null;
   maxKeys: number;
@@ -155,6 +156,7 @@ export async function getUserDetail(userId: string): Promise<AdminUserDetail | n
     email: entity.email as string,
     joined: (entity.emailVerified as string) ?? "",
     blocked: perms.blocked,
+    delinquent: perms.delinquent,
     isAdmin: perms.isAdmin,
     freeUnits: config.freeUnits,
     maxKeys: config.maxKeys,

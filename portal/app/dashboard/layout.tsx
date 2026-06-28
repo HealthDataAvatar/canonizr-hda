@@ -7,6 +7,7 @@ import { SignOutButton } from "@/components/sign-out-button";
 import { SidebarNav } from "@/components/sidebar-nav";
 import { MobileNav } from "@/components/mobile-nav";
 import { ErrorBanner } from "@/components/error-banner";
+import { AccountStatusBanner } from "@/components/account-status-banner";
 
 export default async function DashboardLayout({
   children,
@@ -20,9 +21,13 @@ export default async function DashboardLayout({
   const email = session.user.email ?? "";
 
   let isAdmin = false;
+  let blocked = false;
+  let delinquent = false;
   try {
     const perms = await getCurrentPermissions(session.user.id!);
     isAdmin = perms.isAdmin;
+    blocked = perms.blocked;
+    delinquent = perms.delinquent;
   } catch {}
 
 
@@ -70,6 +75,7 @@ export default async function DashboardLayout({
         </header>
 
         <main id="main-content" className="mx-auto w-full max-w-7xl flex-1 px-6 py-8 space-y-8">
+          <AccountStatusBanner blocked={blocked} delinquent={delinquent} />
           {recentError && <ErrorBanner error={recentError} />}
           {children}
         </main>

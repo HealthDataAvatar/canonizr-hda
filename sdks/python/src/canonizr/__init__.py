@@ -2,11 +2,13 @@
 
 from .client import AsyncCanonizr, Canonizr
 from .errors import (
+    AccountBlockedError,
     AuthError,
     CanonizrError,
     FileTooLargeError,
     JobExpiredError,
     JobFailedError,
+    PaymentOverdueError,
     PaymentRequiredError,
     QuotaExceededError,
     RateLimitError,
@@ -16,6 +18,7 @@ from .errors import (
 from .models import ArtefactMeta, AsyncCanonizeResult, CanonizeResult, JobStatus, SubmitResult
 
 __all__ = [
+    "AccountBlockedError",
     "ArtefactMeta",
     "AsyncCanonizeResult",
     "AsyncCanonizr",
@@ -27,6 +30,7 @@ __all__ = [
     "JobExpiredError",
     "JobFailedError",
     "JobStatus",
+    "PaymentOverdueError",
     "PaymentRequiredError",
     "QuotaExceededError",
     "RateLimitError",

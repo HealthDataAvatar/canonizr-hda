@@ -46,6 +46,29 @@ class PaymentRequiredError(CanonizrError):
         super().__init__(message, status_code=402)
 
 
+class PaymentOverdueError(CanonizrError):
+    """403 `payment_overdue` — payment failed and Stripe dunning is exhausted.
+
+    Terminal: retrying won't help. Resolve the outstanding invoice in the billing
+    portal to restore access. Distinct from PaymentRequiredError (402, which is
+    the free-tier opt-in boundary, not a failed payment).
+    """
+
+    def __init__(self, message: str = "Payment overdue — pay your invoice to restore access"):
+        super().__init__(message, status_code=403)
+
+
+class AccountBlockedError(CanonizrError):
+    """403 `account_blocked` — account blocked by an administrator (abuse/terms).
+
+    Terminal: retrying won't help. Contact support to restore access. Distinct
+    from PaymentOverdueError — this is a manual block, not a billing state.
+    """
+
+    def __init__(self, message: str = "Account is blocked — contact support"):
+        super().__init__(message, status_code=403)
+
+
 class FileTooLargeError(CanonizrError):
     """413 — file exceeds size limit."""
 
@@ -101,6 +124,10 @@ def raise_for_status(
     """
     if code == "payment_required":
         raise PaymentRequiredError(detail)
+    if code == "payment_overdue":
+        raise PaymentOverdueError(detail)
+    if code == "account_blocked":
+        raise AccountBlockedError(detail)
     if code == "quota_exceeded":
         raise QuotaExceededError(detail)
     if status_code == 429:

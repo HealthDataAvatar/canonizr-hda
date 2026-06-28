@@ -11,6 +11,7 @@ const activeUser: AdminUserDetail = {
   email: TEST_EMAILS.short,
   joined: new Date(now - 60 * DAY).toISOString(),
   blocked: false,
+  delinquent: false,
   isAdmin: false,
   freeUnits: 500,
   maxKeys: 5,
@@ -32,6 +33,7 @@ const newUser: AdminUserDetail = {
   email: "new@gmail.com",
   joined: new Date(now - DAY).toISOString(),
   blocked: false,
+  delinquent: false,
   isAdmin: false,
   freeUnits: 500,
   maxKeys: 3,
@@ -63,6 +65,13 @@ const compUser: AdminUserDetail = {
   totalInvoiced: 0,
 };
 
+const delinquentUser: AdminUserDetail = {
+  ...activeUser,
+  id: "u-005",
+  email: "overdue@example.com",
+  delinquent: true,
+};
+
 const meta = {
   title: "Pages/AdminUserDetail",
   component: AdminUserDetailContent,
@@ -79,6 +88,7 @@ export const AllStates: Story = {
         { label: "Active user with keys and jobs", children: <AdminUserDetailContent user={activeUser} /> },
         { label: "New user (no jobs)", children: <AdminUserDetailContent user={newUser} /> },
         { label: "Blocked user (long email, no keys)", children: <AdminUserDetailContent user={blockedUser} /> },
+        { label: "Payment overdue user", children: <AdminUserDetailContent user={delinquentUser} /> },
         { label: "Comp user (never charged)", children: <AdminUserDetailContent user={compUser} /> },
       ]}
     />

@@ -238,6 +238,28 @@ class TestSubmitErrors:
         with pytest.raises(PaymentRequiredError):
             _make_client(t).canonize(f)
 
+    def test_403_payment_overdue_code_is_terminal(self, tmp_path):
+        from canonizr import PaymentOverdueError
+
+        t = FakeTransport()
+        t.enqueue(json_response(403, {"code": "payment_overdue", "detail": "pay your invoice"}))
+        f = tmp_path / "doc.pdf"
+        f.write_bytes(b"content")
+        with pytest.raises(PaymentOverdueError):
+            _make_client(t).canonize(f)
+
+    def test_403_account_blocked_code_is_distinct(self, tmp_path):
+        # Same 403 status as payment_overdue — only the code distinguishes them.
+        from canonizr import AccountBlockedError, PaymentOverdueError
+
+        t = FakeTransport()
+        t.enqueue(json_response(403, {"code": "account_blocked", "detail": "blocked"}))
+        f = tmp_path / "doc.pdf"
+        f.write_bytes(b"content")
+        with pytest.raises(AccountBlockedError) as exc:
+            _make_client(t).canonize(f)
+        assert not isinstance(exc.value, PaymentOverdueError)
+
 
 class TestGetStatus:
     def test_returns_status(self):
