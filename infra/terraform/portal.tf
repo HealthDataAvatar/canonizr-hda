@@ -65,7 +65,9 @@ resource "azurerm_key_vault_secret" "portal_auth_secret" {
   value        = "initial-rotate-me"
   key_vault_id = azurerm_key_vault.portal.id
   depends_on   = [azurerm_key_vault_access_policy.portal_terraform]
-  lifecycle { ignore_changes = [value] }
+  # Seeded once, rotated out-of-band (az/portal). Ignore value AND tags — a CLI
+  # rotation stamps file-encoding tags terraform would otherwise strip each plan.
+  lifecycle { ignore_changes = [value, tags] }
 }
 
 resource "azurerm_key_vault_secret" "portal_stripe_secret_key" {
@@ -73,7 +75,7 @@ resource "azurerm_key_vault_secret" "portal_stripe_secret_key" {
   value        = "initial-rotate-me"
   key_vault_id = azurerm_key_vault.portal.id
   depends_on   = [azurerm_key_vault_access_policy.portal_terraform]
-  lifecycle { ignore_changes = [value] }
+  lifecycle { ignore_changes = [value, tags] }
 }
 
 resource "azurerm_key_vault_secret" "portal_stripe_webhook_secret" {
@@ -81,7 +83,7 @@ resource "azurerm_key_vault_secret" "portal_stripe_webhook_secret" {
   value        = "whsec-initial-rotate-me"
   key_vault_id = azurerm_key_vault.portal.id
   depends_on   = [azurerm_key_vault_access_policy.portal_terraform]
-  lifecycle { ignore_changes = [value] }
+  lifecycle { ignore_changes = [value, tags] }
 }
 
 resource "azurerm_key_vault_secret" "portal_email_from" {
