@@ -282,7 +282,7 @@ class ImageExtractor(Protocol):
 class OoxmlExtractor(Protocol):
     """Modern office/HTML → markdown via MarkItDown."""
 
-    async def extract(self, doc: OoxmlDocument) -> Markdown: ...
+    async def extract(self, doc: OoxmlDocument, deadline: float) -> Markdown: ...
 
 
 class PageRenderer(Protocol):

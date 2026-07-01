@@ -42,10 +42,10 @@ async def to_pdf(doc: OleOfficeDocument, deadline: float, span: Span, converter:
         return await converter.convert(doc, deadline, lo_span)
 
 
-async def extract_ooxml(doc: OoxmlDocument, span: Span, extractor: OoxmlExtractor) -> Markdown:
-    """Modern office/HTML → markdown via MarkItDown."""
+async def extract_ooxml(doc: OoxmlDocument, deadline: float, span: Span, extractor: OoxmlExtractor) -> Markdown:
+    """Modern office/HTML → markdown via MarkItDown (sandboxed, deadline-bounded)."""
     with span.span(Service.MARKITDOWN) as md_span:
-        result = await extractor.extract(doc)
+        result = await extractor.extract(doc, deadline)
         md_span.set(md_length=len(result))
     return result
 
@@ -152,7 +152,7 @@ async def canonize(
     # Modern office formats (OOXML, HTML, epub, email)
     if mime in MARKITDOWN_TYPES:
         doc = OoxmlDocument(data=file.data, mime_type=mime, filename=file.filename)
-        return await extract_ooxml(doc, parent, svc.ooxml_extractor)
+        return await extract_ooxml(doc, deadline, parent, svc.ooxml_extractor)
 
     # Legacy office → PDF, or direct PDF
     pdf: PdfContent | None = None

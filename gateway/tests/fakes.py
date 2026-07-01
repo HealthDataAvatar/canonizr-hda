@@ -237,7 +237,7 @@ class FakeOoxmlExtractor:
         self._responses = list(responses or [])
         self.calls: list[str] = []
 
-    async def extract(self, doc: OoxmlDocument) -> Markdown:
+    async def extract(self, doc: OoxmlDocument, deadline: float = 0.0) -> Markdown:
         self.calls.append(doc.filename)
         if not self._responses:
             return Markdown(f"# Extracted from {doc.filename}")

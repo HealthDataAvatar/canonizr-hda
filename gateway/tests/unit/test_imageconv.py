@@ -2,8 +2,10 @@
 
 from io import BytesIO
 
+import pytest
 from PIL import Image
 
+from app.errors import MalformedInput
 from app.imageconv import to_vlm_pngs
 from app.types import ImageFile
 
@@ -38,6 +40,23 @@ class TestToVlmPngs:
     def test_large_image_downscaled(self):
         pages = to_vlm_pngs(_img("red", "PNG", "image/png", size=(8000, 6000)))
         assert max(Image.open(BytesIO(pages[0].data)).size) == 2048
+
+    def test_garbage_bytes_raise_malformed_input(self):
+        # Corrupt/undecodable bytes are the user's bad input → 400/permanent,
+        # not a 500. to_vlm_pngs must translate the Pillow error, not leak it.
+        bad = ImageFile(data=b"not an image at all", mime_type="image/png")
+        with pytest.raises(MalformedInput):
+            to_vlm_pngs(bad)
+
+    def test_decompression_bomb_raises_malformed_input(self, monkeypatch):
+        # An image exceeding the pixel cap must raise MalformedInput (bomb guard),
+        # not OOM the worker or surface as a 500. Lower the cap so we don't have to
+        # allocate a real 50M-px image in the test.
+        from app.imageconv import convert as convmod
+
+        monkeypatch.setattr(convmod.Image, "MAX_IMAGE_PIXELS", 100)  # 100x100 = 10k > 100
+        with pytest.raises(MalformedInput):
+            to_vlm_pngs(_img("red", "PNG", "image/png", size=(100, 100)))
 
     def test_small_image_not_upscaled(self):
         pages = to_vlm_pngs(_img("red", "PNG", "image/png", size=(800, 600)))

@@ -13,7 +13,7 @@ from .artefacts import ArtefactStore
 from .context import Services
 from .convert import canonize
 from .crypto import decrypt
-from .errors import ServiceNotConfigured, UnsupportedFormat
+from .errors import MalformedInput, ServiceNotConfigured, UnsupportedFormat
 from .hash import document_hash
 from .protocols import DEFAULT_RETENTION_SECONDS, Job, JobResult, JobStatus, UserContext
 from .services.retry import PermanentUpstreamError, TransientUpstreamError
@@ -85,7 +85,7 @@ async def process_canonize(job: Job, user: UserContext, svc: Services) -> Proces
         return proc
 
     except Exception as e:
-        if isinstance(e, UnsupportedFormat):
+        if isinstance(e, (UnsupportedFormat, MalformedInput)):
             status_code, category, steps = 400, "permanent", []
         elif isinstance(e, ServiceNotConfigured):
             status_code, category, steps = 422, "permanent", []
